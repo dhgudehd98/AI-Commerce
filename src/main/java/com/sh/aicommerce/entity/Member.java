@@ -1,7 +1,9 @@
 package com.sh.aicommerce.entity;
 
 
+import com.sh.aicommerce.auth.dto.request.AuthJoinRequestDto;
 import jakarta.persistence.*;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.util.ArrayList;
@@ -14,6 +16,7 @@ import java.util.List;
         }
 )
 @NoArgsConstructor
+@Getter
 public class Member {
 
     @Id
@@ -36,4 +39,13 @@ public class Member {
     private String zipCode;
     private String address;
     private String addressDetail;
+
+    public Member(AuthJoinRequestDto authJoinRequestDto) {
+        this.email = authJoinRequestDto.getEmail();
+        this.passwd = authJoinRequestDto.getPasswd();
+        this.nickName = authJoinRequestDto.getNickName();
+        this.zipCode = authJoinRequestDto.getZipCode();
+        this.address = authJoinRequestDto.getAddress();
+        this.addressDetail = authJoinRequestDto.getAddressDetail();
+    }
 }
