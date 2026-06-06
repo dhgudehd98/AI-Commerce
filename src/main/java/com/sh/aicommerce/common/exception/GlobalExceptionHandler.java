@@ -1,21 +1,25 @@
 package com.sh.aicommerce.common.exception;
 
 
+import com.sh.aicommerce.common.exception.auth.AuthException;
 import com.sh.aicommerce.common.exception.member.MemberException;
-import jakarta.security.auth.message.AuthException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-
-import javax.security.auth.login.AccountException;
 import java.util.HashMap;
 import java.util.Map;
 
 @RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(com.sh.aicommerce.common.exception.auth.AuthException.class)
+    public ResponseEntity<?> handleAuthException(AuthException e) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(Map.of("result", "N", "message", e.getMessage()));
+    }
 
     @ExceptionHandler(MemberException.class)
     public ResponseEntity<Map<String, String>> handleMember(MemberException e) {

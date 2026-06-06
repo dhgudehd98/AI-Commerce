@@ -2,6 +2,7 @@ package com.sh.aicommerce.auth.jwt;
 
 
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
@@ -56,15 +57,12 @@ public class JwtUtil {
         }
     }
 
-    public boolean validateTokenRefreshToken(String token) {
-        try {
-            Claims claims = getClaims(token);
-            String type = claims.get("type", String.class);
-            return "refresh".equals(type);
-        } catch (Exception e) {
-            log.error("[ValidateTokenRefreshToken Error Message] : " + e.getMessage());
-            return false;
-        }
+    public Claims getRefreshTokenClaims(String refreshToken) {
+        Claims claims = getClaims(refreshToken);
+
+        if(!"refresh".equals(claims.get("type", String.class))) throw new JwtException("RefreshToken에 대한 값이 아닙니다.");
+
+        return claims;
     }
 
     // 토큰 해석 -> 데이터 추출

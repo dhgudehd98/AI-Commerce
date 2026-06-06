@@ -3,21 +3,17 @@ package com.sh.aicommerce.auth.dto.response;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import lombok.Setter;
 
 @Getter
-@Setter
 @AllArgsConstructor
 @NoArgsConstructor
-public class LoginResponseDto {
+public class RefreshResponseDto {
     private String result;
-    private String msg;
-    private String nickName;
+    private String nickname;
     private String accessToken;
 
-    public LoginResponseDto(String result, String nickName, String accessToken) {
-        this.result = result;
-        this.nickName = nickName;
+    public RefreshResponseDto(String accessToken, String nickname) {
         this.accessToken = accessToken;
+        this.nickname = nickname;
     }
 }

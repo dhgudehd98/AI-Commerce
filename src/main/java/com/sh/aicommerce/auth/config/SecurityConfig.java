@@ -36,11 +36,12 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/",
                                 "/api/auth/login",
-                                "/api/auth/join"
+                                "/api/auth/join",
+                                "/api/auth/refresh"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )
-                .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);;
+                .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
 
         return http.build();

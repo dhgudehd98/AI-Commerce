@@ -1,5 +1,7 @@
 package com.sh.aicommerce.auth.service;
 
+import com.sh.aicommerce.common.exception.auth.AuthException;
+import com.sh.aicommerce.auth.dto.response.RefreshResponseDto;
 import com.sh.aicommerce.auth.jwt.JwtUtil;
 import com.sh.aicommerce.auth.dto.request.AuthJoinRequestDto;
 import com.sh.aicommerce.auth.dto.request.AuthLoginRequestDto;
@@ -8,7 +10,11 @@ import com.sh.aicommerce.auth.repository.AuthRepository;
 import com.sh.aicommerce.common.exception.member.MemberException;
 import com.sh.aicommerce.entity.Member;
 import com.sh.aicommerce.redis.member.RedisLoginToken;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.JwtException;
 import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -78,5 +84,49 @@ public class AuthService {
             log.error("[Auth Join Error] : " + e.getMessage());
             return Map.of("result", "N", "msg", "회원가입에 실패했습니다.");
         }
+    }
+
+    public ResponseEntity<?> refresh(HttpServletRequest request, HttpServletResponse response) throws AuthException {
+        String refreshToken = getCookieValue(request, "refreshToken");
+        return ResponseEntity.ok(refreshAccessToken(refreshToken));
+    }
+
+    private RefreshResponseDto refreshAccessToken(String refreshToken) throws AuthException{
+        Claims claims;
+
+        try {
+            claims = jwtUtil.getRefreshTokenClaims(refreshToken);
+        } catch (ExpiredJwtException e) {
+            throw new AuthException("세션이 만료되었습니다. 다시 로그인해주세요.");
+        }catch(JwtException | IllegalArgumentException e){
+            log.error("[Refresh AccessToken] : " + e.getMessage());
+            throw new AuthException("유효하지 않은 토큰입니다.");
+        }
+
+        // memberId에 대한 값 추출
+        Long memberId = Long.parseLong(claims.getSubject());
+        String savedRefreshToken = redisLoginToken.getRefreshToken(memberId).orElseThrow(() -> new AuthException("저장된 Refresh Token이 존재하지 않습니다."));
+
+        // 쿠키에 저장되어 있는 refreshToken에 대한 값과 Redis에 저장되어 있는 refreshToken에 대한 값 비교
+        if(!refreshToken.equals(savedRefreshToken)) throw new AuthException("토근에 대한 정보가 일치하지 않습니다.");
+
+        String accessToken = jwtUtil.generateAccessToken(memberId);
+        String nickName = authRepository.findById(memberId).get().getNickName();
+
+        return new RefreshResponseDto("Y",nickName, accessToken);
+    }
+
+    private String getCookieValue(HttpServletRequest request, String cookieName) throws AuthException {
+        Cookie[] cookies = request.getCookies();
+
+        if (cookies == null) {
+            throw new AuthException("쿠키가 존재하지 않습니다.");
+        }
+
+        for (Cookie cookie : cookies) {
+            if(cookieName.equals(cookie.getName())) return cookie.getValue();
+        }
+
+        throw new AuthException("쿠키를 찾을 수 없습니다.");
     }
 }

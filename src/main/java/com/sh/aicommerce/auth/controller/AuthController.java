@@ -3,6 +3,8 @@ package com.sh.aicommerce.auth.controller;
 import com.sh.aicommerce.auth.dto.request.AuthJoinRequestDto;
 import com.sh.aicommerce.auth.dto.request.AuthLoginRequestDto;
 import com.sh.aicommerce.auth.service.AuthService;
+import com.sh.aicommerce.common.exception.auth.AuthException;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -41,5 +43,10 @@ public class AuthController {
     @PostMapping("/join")
     public Map<String,String> join(@RequestBody AuthJoinRequestDto authJoinRequestDto) {
         return authService.join(authJoinRequestDto);
+    }
+
+    @PostMapping("/refresh")
+    public ResponseEntity<?> refresh(HttpServletRequest request, HttpServletResponse response) throws AuthException {
+        return authService.refresh(request, response);
     }
 }
