@@ -22,7 +22,7 @@ public class GlobalExceptionHandler {
         Map<String, String> res = new HashMap<>();
         res.put("result", "N");
         res.put("message", e.getMessage());
-        return ResponseEntity.badRequest().body(res);
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(res);
     }
 
     @ExceptionHandler(Exception.class)
