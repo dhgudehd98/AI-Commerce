@@ -2,6 +2,8 @@ package com.sh.aicommerce.entity;
 
 
 import com.sh.aicommerce.enums.product.ProductCategory;
+import com.sh.aicommerce.enums.product.ProductStatus;
+import com.sh.aicommerce.product.dto.ProductCreateRequestDto;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -27,6 +29,10 @@ public class Product {
     @Column(nullable = false)
     private ProductCategory productCategory;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private ProductStatus productStatus;
+
     @Column(nullable = false)
     private Integer price;
 
@@ -41,4 +47,17 @@ public class Product {
 
     @OneToMany(mappedBy = "product")
     private List<ProductOption> productOptions = new ArrayList<>();
+
+    public static Product create(ProductCreateRequestDto dto, Brand brand) {
+        Product product = new Product();
+        product.brand = brand;
+        product.productCategory = ProductCategory.valueOf(dto.getProductCategory());
+        product.productName = dto.getProductName();
+        product.productStatus = ProductStatus.PREPARING;
+        product.productDescription = dto.getProductDescription();
+        product.price = dto.getProductPrice();
+        product.productCategory = ProductCategory.valueOf(dto.getProductCategory());
+
+        return product;
+    }
 }
