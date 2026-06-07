@@ -2,7 +2,6 @@
 
 # 1. 프로젝트 개요 및 목적
 
-해당 프로젝트는 DDD(Domain Driven Design) 기반 Spring Boot 프로젝트로,
 
 AI 기반 상품 검색, 추천, 상품 등록 자동화, RAG 챗봇, WMS(창고 관리 시스템), 재고 예측 기능을 제공하는 AI Commerce Platform 입니다.
 
