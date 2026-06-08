@@ -8,4 +8,6 @@ import org.springframework.stereotype.Repository;
 public interface ProductOptionRepository extends JpaRepository<ProductOption, Long> {
 
     boolean existsBySku(String sku);
+
+    int countBySku(String duplicatedSku);
 }
