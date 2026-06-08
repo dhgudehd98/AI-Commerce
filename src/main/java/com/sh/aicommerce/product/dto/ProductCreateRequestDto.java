@@ -1,6 +1,11 @@
 package com.sh.aicommerce.product.dto;
 
+import com.sh.aicommerce.enums.product.ProductCategory;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -12,32 +17,23 @@ import java.util.List;
 @AllArgsConstructor
 @NoArgsConstructor
 public class ProductCreateRequestDto {
+
     @NotNull
     private Long brandId;
 
-    @NotNull
+    @NotBlank
     private String productName;
 
-    @NotNull
-    private String productCategory;
+    @NotBlank
+    private ProductCategory productCategory;
 
     @NotNull
+    @Positive
     private Integer productPrice;
 
-    @NotNull
+    @NotBlank
     private String productDescription;
 
-    private List<ProductOptionCreateRequestDto> productOptions;
-
-    @Override
-    public String toString() {
-        return "ProductCreateRequestDto{" +
-                "brandId=" + brandId +
-                ", productName='" + productName + '\'' +
-                ", productCategory='" + productCategory + '\'' +
-                ", productPrice=" + productPrice +
-                ", productDescription='" + productDescription + '\'' +
-                ", productOptions=" + productOptions +
-                '}';
-    }
+    @NotEmpty
+    private List<@Valid ProductOptionCreateRequestDto> productOptions;
 }

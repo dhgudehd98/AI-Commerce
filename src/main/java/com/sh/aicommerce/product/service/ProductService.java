@@ -13,6 +13,7 @@ import com.sh.aicommerce.product.repository.ProductRepository;
 import com.sh.aicommerce.productOption.repository.ProductOptionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -47,7 +48,12 @@ public class ProductService {
                         .map(optionDto -> ProductOption.createOption(optionDto, product))
                         .collect(Collectors.toList());
 
-        productOptionRepository.saveAll(options);
+        try {
+            productOptionRepository.saveAll(options);
+        } catch (DataIntegrityViolationException e) {
+            throw new ProductException("이미 등록되어 있는 SKU 입니다.");
+        }
+
         log.info("[상품 옵션 저장 완료] 상품 옵션 개수 : {}", options.size());
 
         return new ProductCreateResponseDto("Y", "상품이 성공적으로 저장되었습니다.");

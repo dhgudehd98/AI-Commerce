@@ -51,12 +51,11 @@ public class Product {
     public static Product create(ProductCreateRequestDto dto, Brand brand) {
         Product product = new Product();
         product.brand = brand;
-        product.productCategory = ProductCategory.valueOf(dto.getProductCategory());
         product.productName = dto.getProductName();
         product.productStatus = ProductStatus.PREPARING;
         product.productDescription = dto.getProductDescription();
         product.price = dto.getProductPrice();
-        product.productCategory = ProductCategory.valueOf(dto.getProductCategory());
+        product.productCategory = dto.getProductCategory();
 
         return product;
     }

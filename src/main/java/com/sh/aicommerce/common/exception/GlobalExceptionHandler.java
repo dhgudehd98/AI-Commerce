@@ -43,8 +43,8 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, String>> handleException(Exception e) {
-        e.printStackTrace();
-        log.error("Error Message : {}", e.getMessage());
+
+        log.error("[Exception Error Message] : " + e.getMessage());
         Map<String, String> response = new HashMap<>();
         response.put("result", "N");
         response.put("message", "시스템 오류가 발생했습니다. 관리자에게 문의해주세요.");

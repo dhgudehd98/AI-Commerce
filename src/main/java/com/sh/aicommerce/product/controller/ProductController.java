@@ -2,6 +2,7 @@ package com.sh.aicommerce.product.controller;
 
 import com.sh.aicommerce.product.dto.ProductCreateRequestDto;
 import com.sh.aicommerce.product.service.ProductService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
@@ -18,7 +19,7 @@ public class ProductController {
     private final ProductService productService;
     @PostMapping("product")
     public ResponseEntity<?> createProduct(
-            @RequestBody ProductCreateRequestDto productCreateRequestDto) {
+            @Valid @RequestBody ProductCreateRequestDto productCreateRequestDto) {
         return ResponseEntity.ok(productService.createProduct(productCreateRequestDto));
     }
 
