@@ -9,10 +9,12 @@ import com.sh.aicommerce.entity.ProductOption;
 import com.sh.aicommerce.product.dto.ProductCreateRequestDto;
 import com.sh.aicommerce.product.dto.ProductOptionCreateRequestDto;
 import com.sh.aicommerce.product.dto.response.ProductCreateResponseDto;
+import com.sh.aicommerce.product.redis.ProductIndexEventRecord;
 import com.sh.aicommerce.product.repository.ProductRepository;
 import com.sh.aicommerce.productOption.repository.ProductOptionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
@@ -31,9 +33,7 @@ public class ProductService {
     private final ProductRepository productRepository;
     private final ProductOptionRepository productOptionRepository;
     private final BrandRepository brandRepository;
-
-    //ES
-    private final RedisTemplate<String, String> redisTemplate;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public ProductCreateResponseDto createProduct(ProductCreateRequestDto createRequestDto) {
@@ -61,12 +61,10 @@ public class ProductService {
 
         log.info("[상품 옵션 저장 완료] 상품 옵션 개수 : {}", options.size());
 
-        // 상품 등록시 ES 색인 과정 진행
-        redisTemplate.opsForStream()
-                .add("product:index:stream",
-                        Map.of("productId", String.valueOf(product.getId()),
-                                "action","CREATE")
-                );
+        // 상품 등록시 , 상품 색인 과정을 진행하기 위해 이벤트 처리 -> 이벤트 처리는 항상 트랜잭션 커밋 후
+        eventPublisher.publishEvent(
+                new ProductIndexEventRecord(product.getId(), "CREATE")
+        );
 
         return new ProductCreateResponseDto("Y", "상품이 성공적으로 저장되었습니다.");
     }
