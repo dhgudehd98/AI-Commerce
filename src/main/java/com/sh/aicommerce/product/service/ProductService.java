@@ -14,11 +14,13 @@ import com.sh.aicommerce.productOption.repository.ProductOptionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -29,6 +31,9 @@ public class ProductService {
     private final ProductRepository productRepository;
     private final ProductOptionRepository productOptionRepository;
     private final BrandRepository brandRepository;
+
+    //ES
+    private final RedisTemplate<String, String> redisTemplate;
 
     @Transactional
     public ProductCreateResponseDto createProduct(ProductCreateRequestDto createRequestDto) {
@@ -55,6 +60,13 @@ public class ProductService {
         }
 
         log.info("[상품 옵션 저장 완료] 상품 옵션 개수 : {}", options.size());
+
+        // 상품 등록시 ES 색인 과정 진행
+        redisTemplate.opsForStream()
+                .add("product:index:stream",
+                        Map.of("productId", String.valueOf(product.getId()),
+                                "action","CREATE")
+                );
 
         return new ProductCreateResponseDto("Y", "상품이 성공적으로 저장되었습니다.");
     }
