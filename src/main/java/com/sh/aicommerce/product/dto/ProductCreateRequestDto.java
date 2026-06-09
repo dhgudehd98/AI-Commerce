@@ -24,7 +24,7 @@ public class ProductCreateRequestDto {
     @NotBlank
     private String productName;
 
-    @NotBlank
+    @NotNull(message = "상품 카테고리는 필수입니다.")
     private ProductCategory productCategory;
 
     @NotNull
