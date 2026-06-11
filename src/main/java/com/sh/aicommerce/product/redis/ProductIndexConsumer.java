@@ -44,50 +44,11 @@ public class ProductIndexConsumer implements ApplicationRunner {
     @Override
     public void run(ApplicationArguments args) throws Exception {
         initStream(); // Stream / Consumer / Consumer-group 생성
-        processPendingProduct();
-
         container.receive(
                 Consumer.from(GROUP_NAME, CONSUMER_NAME),
                 StreamOffset.create(STREAM_NAME, ReadOffset.lastConsumed()),
                 this::handleProduct
         );
-    }
-
-    //Pending List 안에 있는 Product 처리
-    private void processPendingProduct() {
-        /**
-         * PendingMessages : Pending 되어 있는 데이터의 메타정보만 가져옴
-         * - 메타정보 : messageId , consumer-name, pending 시간 , 재시도 횟수
-         */
-        PendingMessages pendingMessages = redisTemplate.opsForStream()
-                .pending(STREAM_NAME, Consumer.from(GROUP_NAME, CONSUMER_NAME), Range.unbounded(), 100L);
-
-        if(pendingMessages == null || pendingMessages.isEmpty()) return; // Pending 되어 있는 상품이 없으면 종료
-
-        for (PendingMessage message : pendingMessages) {
-            List<MapRecord<String, String, String>> range = (List<MapRecord<String, String, String>>) (List<?>) redisTemplate.opsForStream()
-                    .range(STREAM_NAME, Range.closed(
-                            message.getId().getValue(),
-                            message.getId().getValue()
-                    ));
-
-            if(range == null || range.isEmpty()) continue;
-
-            // Pending Product 재시도 횟수가 3회 넘으면 강제로 ack 날리고 -> DB ProductIndexFailLog에 해당 상품 수동처리 하거나 / 재등록 설정
-            if (message.getTotalDeliveryCount() > 3) {
-                log.error("[ES 색인 과정 재시도 횟수 초과] 해당 productId : {} 재시도 횟수 : {} ", message.getId(), message.getTotalDeliveryCount());
-
-                Long productId = Long.parseLong(range.get(0).getValue().get("productId"));
-                String originMessageId = message.getId().getValue(); // Redis에 저장되어 있는 messageId에 대한 값
-                String action = range.get(0).getValue().get("action"); // 상품 등록 / 수정 / 삭제 식별
-
-//                productIndexFailLogRepository.save(new ProductIndexFailLog(productId, originMessageId, action, "재시도 횟수 초과"));
-                redisTemplate.opsForStream().acknowledge(STREAM_NAME, GROUP_NAME, message.getId());
-                continue;
-            }
-
-            handleProduct(range.get(0));
-        }
     }
 
     // Stream 초기화 -> Stream 생성 및 Consumer / Consumer-Group 생성
@@ -128,10 +89,10 @@ public class ProductIndexConsumer implements ApplicationRunner {
             ProductDocument document = productDocumentService.upSertDocument(productId);
             productDocumentRepository.save(document);
 
-            redisTemplate.opsForStream()
-                    .acknowledge(STREAM_NAME, GROUP_NAME, messageId);
+//            redisTemplate.opsForStream()
+//                    .acknowledge(STREAM_NAME, GROUP_NAME, messageId);
 
-            log.info("[ES 상품 생성 완료] productId : {}", productId);
+//            log.info("[ES 상품 생성 완료] productId : {}", productId);
         } catch (Exception e) {
             log.error("[ES 상품 생성 실패] : {}", e.getMessage());
         }
