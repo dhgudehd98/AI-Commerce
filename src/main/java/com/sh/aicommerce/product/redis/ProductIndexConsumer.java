@@ -35,7 +35,7 @@ public class ProductIndexConsumer implements ApplicationRunner {
     private static final String GROUP_NAME = "product-group";
 
     @Value("${redis.stream.consumer.group}")
-    private static String CONSUMER_NAME;
+    private String CONSUMER_NAME;
 
     //DB 관련
     private final ProductRepository productRepository;

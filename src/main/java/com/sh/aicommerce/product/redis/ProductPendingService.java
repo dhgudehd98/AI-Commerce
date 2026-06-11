@@ -30,7 +30,7 @@ public class ProductPendingService {
     private static final String STREAM_NAME = "product:index:stream";
     private static final String GROUP_NAME = "product-group";
     @Value("${redis.stream.consumer.group}")
-    private static String CONSUMER_NAME;
+    private String CONSUMER_NAME;
 
     private static final int MAX_DELIVERY_COUNT = 3;
     private static final Duration MIN_IDLE_TIME = Duration.ofSeconds(30);
