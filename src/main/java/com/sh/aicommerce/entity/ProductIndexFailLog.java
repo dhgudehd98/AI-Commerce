@@ -7,6 +7,15 @@ import lombok.NoArgsConstructor;
 @Entity
 @AllArgsConstructor
 @NoArgsConstructor
+@Table(
+        name = "product_index_fail_log",
+        uniqueConstraints = {
+                @UniqueConstraint(
+                        name = "uk_product_index_fail_log_message_id",
+                        columnNames = "message_id"
+                )
+        }
+)
 public class ProductIndexFailLog {
 
     @Id

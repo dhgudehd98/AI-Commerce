@@ -88,7 +88,11 @@ public class ProductPendingService {
 
         log.info("[ES 상품 색인 과정 실패] : PendingMessageId : {} , 상품 ID : {}, Action : {}, 실패사유 : {}", messageId, productId, action, "재시도 횟수 초과");
 
-        productIndexFailLogRepository.save(new ProductIndexFailLog(productId, messageId, "재시도 횟수 초과 ", action));
+        // messageId 값이 중복되지 않도록 설정
+        if (!productIndexFailLogRepository.existsByMessageId(messageId)) {
+            productIndexFailLogRepository.save(
+                    new ProductIndexFailLog(productId, messageId, "재시도 횟수 초과 ", action));
+        }
 
         redisTemplate.opsForStream()
                 .acknowledge(STREAM_NAME, GROUP_NAME, messageId);
