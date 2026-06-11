@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.hibernate.sql.results.graph.embeddable.EmbeddableInitializer;
 import org.springframework.ai.embedding.EmbeddingModel;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.data.domain.Range;
@@ -32,7 +33,9 @@ public class ProductIndexConsumer implements ApplicationRunner {
     private final StringRedisTemplate redisTemplate;
     private static final String STREAM_NAME = "product:index:stream";
     private static final String GROUP_NAME = "product-group";
-    private static final String CONSUMER_NAME = "product-index-consumer-1";
+
+    @Value("${redis.stream.consumer.group}")
+    private static String CONSUMER_NAME;
 
     //DB 관련
     private final ProductRepository productRepository;
@@ -89,10 +92,10 @@ public class ProductIndexConsumer implements ApplicationRunner {
             ProductDocument document = productDocumentService.upSertDocument(productId);
             productDocumentRepository.save(document);
 
-//            redisTemplate.opsForStream()
-//                    .acknowledge(STREAM_NAME, GROUP_NAME, messageId);
+            redisTemplate.opsForStream()
+                    .acknowledge(STREAM_NAME, GROUP_NAME, messageId);
 
-//            log.info("[ES 상품 생성 완료] productId : {}", productId);
+            log.info("[ES 상품 생성 완료] productId : {}", productId);
         } catch (Exception e) {
             log.error("[ES 상품 생성 실패] : {}", e.getMessage());
         }

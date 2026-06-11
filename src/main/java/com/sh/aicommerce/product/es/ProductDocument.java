@@ -14,7 +14,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @Document(indexName = "product")
-@Setting(settingPath = "classpath:elastic/products_setting.json")
+@Setting(settingPath = "classpath:elasticSearch/products_setting.json")
 @AllArgsConstructor
 @NoArgsConstructor
 @Getter

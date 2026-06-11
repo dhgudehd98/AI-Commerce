@@ -4,6 +4,7 @@ import com.sh.aicommerce.entity.ProductIndexFailLog;
 import com.sh.aicommerce.product.repository.ProductIndexFailLogRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Range;
 import org.springframework.data.redis.connection.stream.MapRecord;
 import org.springframework.data.redis.connection.stream.PendingMessage;
@@ -28,7 +29,8 @@ public class ProductPendingService {
     private final StringRedisTemplate redisTemplate;
     private static final String STREAM_NAME = "product:index:stream";
     private static final String GROUP_NAME = "product-group";
-    private static final String CONSUMER_NAME = "product-index-consumer-1";
+    @Value("${redis.stream.consumer.group}")
+    private static String CONSUMER_NAME;
 
     private static final int MAX_DELIVERY_COUNT = 3;
     private static final Duration MIN_IDLE_TIME = Duration.ofSeconds(30);
