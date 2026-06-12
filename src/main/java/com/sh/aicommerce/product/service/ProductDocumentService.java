@@ -1,4 +1,4 @@
-package com.sh.aicommerce.product.redis;
+package com.sh.aicommerce.product.service;
 
 
 import com.sh.aicommerce.common.exception.product.ProductException;
@@ -27,12 +27,4 @@ public class ProductDocumentService {
         return new ProductDocument(product);
     }
 
-
-    @Transactional(readOnly = true)
-    public ProductDocument deleteDocument(Long productId) {
-        Product product = productRepository.findWithBrandByproductId(productId).orElseThrow(() -> new ProductException("해당 상품이 존재하지 않습니다."));
-
-
-        return new ProductDocument(product);
-    }
 }

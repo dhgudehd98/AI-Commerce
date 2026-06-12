@@ -1,5 +1,6 @@
-package com.sh.aicommerce.product.redis;
+package com.sh.aicommerce.product.service;
 
+import com.sh.aicommerce.product.redis.ProductIndexEventRecord;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -12,7 +13,7 @@ import java.util.Map;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-public class ProductIndexEventListener {
+public class ProductIndexEventService {
 
     //ES
     private final RedisTemplate<String, String> redisTemplate;
