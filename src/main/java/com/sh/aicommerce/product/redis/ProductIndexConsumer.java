@@ -1,26 +1,19 @@
 package com.sh.aicommerce.product.redis;
 
-import com.sh.aicommerce.entity.Product;
 import com.sh.aicommerce.product.es.ProductDocument;
 import com.sh.aicommerce.product.repository.ProductDocumentRepository;
 import com.sh.aicommerce.product.repository.ProductRepository;
+import com.sh.aicommerce.product.service.ProductDocumentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.hibernate.sql.results.graph.embeddable.EmbeddableInitializer;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
-import org.springframework.data.domain.Range;
 import org.springframework.data.redis.connection.stream.*;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.stream.StreamMessageListenerContainer;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
-
-import static org.springframework.core.io.support.SpringFactoriesLoader.FailureHandler.handleMessage;
 
 @Component
 @Slf4j
@@ -61,7 +54,14 @@ public class ProductIndexConsumer implements ApplicationRunner {
             redisTemplate.opsForStream()
                     .createGroup(STREAM_NAME, ReadOffset.from("0"), GROUP_NAME);
         } catch (Exception e) {
-            log.info("[Consumer Group 이미 존재]");
+            if (e.getMessage() != null &&
+                    e.getMessage().contains("BUSYGROUP")) {
+                log.info("[Consumer Group 이미 존재]");
+                return;
+            }
+
+            log.error("[Consumer Group 생성 실패]", e);
+            throw e;
         }
     }
 
@@ -71,7 +71,6 @@ public class ProductIndexConsumer implements ApplicationRunner {
      * -
      * @param message
      */
-    @Transactional(readOnly = true)
     public void handleProduct(MapRecord<String, String, String> message) {
         String action = message.getValue().get("action");
         Long productId = Long.parseLong(message.getValue().get("productId"));
@@ -123,14 +122,17 @@ public class ProductIndexConsumer implements ApplicationRunner {
         log.info("[ES 색인 상품 삭제 시작] : ProductId : {}", productId);
 
         try {
-            ProductDocument document = productDocumentService.deleteDocument(productId);
-            productDocumentRepository.delete(document);
+
+            // 색인 데이터 삭제 -> 색인 삭제에 대한 부분은 DB에서는 이미 삭제가 되어 있기 때문에 DB 조회하지 않고 그냥
+            productDocumentRepository.deleteById(productId);
+
+            log.info("[ES 상품 삭제 완료] 상품번호 : {}", productId);
 
             redisTemplate.opsForStream()
                     .acknowledge(STREAM_NAME, GROUP_NAME, messageId);
 
         } catch (Exception e) {
-            log.info("[ES 상품 삭제 완료] productId : {}", productId);
+            log.info("[ES 상품 삭제 실패] productId : {}", productId);
         }
     }
 }

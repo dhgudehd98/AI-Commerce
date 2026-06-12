@@ -17,6 +17,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -88,5 +89,25 @@ public class ProductService {
             // DB에 동일한 sku가 존재하는지 확인
             if(productOptionRepository.existsBySku(sku)) throw new ProductException("이미 등록되어 있는 SKU 입니다. SKU : " + sku);
         }
+    }
+
+    @Transactional
+    public ProductCreateResponseDto deleteProduct(Long id) {
+
+        try {
+            // 상품이랑 , 상품 옵션에 대한 정보가 존재하는지 확인
+            if (productRepository.existsById(id) && productOptionRepository.existsByProductId(id)) {
+                productOptionRepository.deleteByProductId(id);
+                productRepository.deleteById(id);
+            }
+
+            eventPublisher.publishEvent(
+                    new ProductIndexEventRecord(id, "DELETE")
+            );
+        } catch (Exception e) {
+            log.error("[상품 삭제 에러 발생] 상품 번호 : {} , 에러메세지 : {}", id, e.getMessage());
+        }
+
+        return new ProductCreateResponseDto("Y", "상품이 성공적으로 삭제되었습니다.");
     }
 }
