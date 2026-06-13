@@ -2,6 +2,7 @@ package com.sh.aicommerce.entity;
 
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Entity
@@ -16,14 +17,25 @@ import lombok.NoArgsConstructor;
                 )
         }
 )
+@Getter
 public class ProductIndexFailLog {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "index_fail_log_id")
     private Long id;
+
     private Long productId;
+
+    @Column(nullable = false)
     private String messageId;
+
+    public ProductIndexFailLog(String messageId, String failReason) {
+        this.messageId = messageId;
+        this.failReason = failReason;
+    }
+
+    @Column(nullable = false)
     private String failReason;
     private String action;
 

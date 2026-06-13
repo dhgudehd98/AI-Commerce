@@ -5,6 +5,7 @@ import com.sh.aicommerce.product.repository.ProductIndexFailLogRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Range;
 import org.springframework.data.redis.connection.stream.MapRecord;
 import org.springframework.data.redis.connection.stream.PendingMessage;
@@ -71,13 +72,20 @@ public class ProductPendingService {
     private void moveToDeadLetterStream(PendingMessage pendingMessage) {
         String messageId = pendingMessage.getId().getValue();
 
+        // 원본 메세지 조회
         List<MapRecord<String,String, String>> records = (List<MapRecord<String,String, String>>) (List<?>)redisTemplate.opsForStream().range(
                 STREAM_NAME,
                 Range.closed(pendingMessage.getIdAsString(),pendingMessage.getIdAsString())
         );
 
+        //PendignList에는 해당 데이터값이 존재하지만 원본 데이터가 존재하지 않는 경우 , 무한으로 PendingList 조회
         if (records == null || records.isEmpty()) {
             log.error("[Pending 원본 메시지 조회 실패] messageId :{}", messageId);
+
+            // 색인 실패 로그 저장
+            boolean isAck = saveProductIndexFailLog(new ProductIndexFailLog(messageId, "Pending 메세지 원본 데이터 조회 실패"));
+            // 해당 문제를 방지하기 위해서 ACK 설정
+            if(isAck) ackPendingMessage(messageId);
             return;
         }
 
@@ -89,12 +97,32 @@ public class ProductPendingService {
         log.info("[ES 상품 색인 과정 실패] : PendingMessageId : {} , 상품 ID : {}, Action : {}, 실패사유 : {}", messageId, productId, action, "재시도 횟수 초과");
 
         // messageId 값이 중복되지 않도록 설정
-        if (!productIndexFailLogRepository.existsByMessageId(messageId)) {
-            productIndexFailLogRepository.save(
-                    new ProductIndexFailLog(productId, messageId, "재시도 횟수 초과 ", action));
-        }
+        boolean isAck = saveProductIndexFailLog(new ProductIndexFailLog(productId, messageId, "재시도 횟수 초과 ", action));
 
-        redisTemplate.opsForStream()
-                .acknowledge(STREAM_NAME, GROUP_NAME, messageId);
+        // 색인 실패 로그가 성공적으로 저장되면 ACK 하기
+        if (isAck) ackPendingMessage(messageId);
+    }
+
+    // 색인 실패 로그 저장
+    private boolean saveProductIndexFailLog(ProductIndexFailLog productIndexFailLog) {
+        try {
+            productIndexFailLogRepository.save(productIndexFailLog);
+            return true;
+        } catch (DataIntegrityViolationException dataException) {
+            log.error("[동일한 색인 아이디 존재] messageId :{}", productIndexFailLog.getMessageId());
+            return true;
+        } catch (Exception e) {
+            log.error("[색인 실패 로그 저장 에러] messageId : {} , message : {}", productIndexFailLog.getMessageId(), e.getMessage());
+            return false;
+        }
+    }
+
+    private void ackPendingMessage(String messageId) {
+        try {
+            redisTemplate.opsForStream()
+                    .acknowledge(STREAM_NAME, GROUP_NAME, messageId);
+        } catch (Exception e) {
+            log.error("[Pending 메시지 ACK 실패] messageId : {}", messageId);
+        }
     }
 }
