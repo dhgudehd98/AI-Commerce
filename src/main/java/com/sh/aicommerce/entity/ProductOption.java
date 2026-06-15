@@ -1,6 +1,7 @@
 package com.sh.aicommerce.entity;
 
 import com.sh.aicommerce.enums.product.ProductOptionStatus;
+import com.sh.aicommerce.product.dto.ProductOptionCreateRequestDto;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -41,4 +42,16 @@ public class ProductOption {
 
     @OneToMany(mappedBy = "productOption")
     private List<ProductInventory> inventories = new ArrayList<>();
+
+    public static ProductOption createOption(ProductOptionCreateRequestDto dto, Product product) {
+        ProductOption option = new ProductOption();
+        option.product = product;
+        option.sku = dto.getSku();
+        option.color = dto.getColor();
+        option.size = dto.getSize();
+        option.additionalPrice = dto.getAdditionalPrice();
+        option.status = ProductOptionStatus.PREPARING;
+
+        return option;
+    }
 }

@@ -1,0 +1,120 @@
+{
+  "settings": {
+    "analysis": {
+      "tokenizer": {
+        "products_nori_tokenizer": {
+          "type": "nori_tokenizer",
+          "decompound_mode": "discard",
+          "user_dictionary_rules": [
+            "아이앱",
+            "스투시",
+            "팔라스"
+          ]
+        }
+      },
+      "filter": {
+        "products_search_synonym_filter": {
+          "type": "synonym_graph",
+          "synonyms": [
+            "iab, 아이앱",
+            "studio, 스튜디오, 스투디오",
+            "stussy, 스투시, 스튜시",
+            "nike, 나이키",
+            "palace, 팔라스",
+            "supreme, 슈프림",
+            "블랙, 검정, 검정색, black",
+            "화이트, 흰색, 하얀색, white",
+            "후드, 후드티, 후디, hoodie",
+            "스니커즈, 운동화, 스니커"
+          ]
+        }
+      },
+      "analyzer": {
+        "products_index_analyzer": {
+          "type": "custom",
+          "tokenizer": "products_nori_tokenizer",
+          "filter": [
+            "lowercase",
+            "nori_readingform"
+          ]
+        },
+        "products_search_analyzer": {
+          "type": "custom",
+          "tokenizer": "products_nori_tokenizer",
+          "filter": [
+            "lowercase",
+            "nori_readingform",
+            "products_search_synonym_filter"
+          ]
+        }
+      }
+    }
+  },
+  "mappings": {
+    "dynamic": "strict",
+    "properties": {
+      "productId": {
+        "type": "long"
+      },
+      "productName": {
+        "type": "text",
+        "analyzer": "products_index_analyzer",
+        "search_analyzer": "products_search_analyzer",
+        "fields": {
+          "keyword": {
+            "type": "keyword"
+          }
+        }
+      },
+      "productDescription": {
+        "type": "text",
+        "analyzer": "products_index_analyzer",
+        "search_analyzer": "products_search_analyzer"
+      },
+      "brandId": {
+        "type": "long"
+      },
+      "brandName": {
+        "type": "text",
+        "analyzer": "products_index_analyzer",
+        "search_analyzer": "products_search_analyzer",
+        "fields": {
+          "keyword": {
+            "type": "keyword"
+          }
+        }
+      },
+      "category": {
+        "type": "keyword"
+      },
+      "productStatus": {
+        "type": "keyword"
+      },
+      "price": {
+        "type": "integer"
+      },
+      "colors": {
+        "type": "keyword"
+      },
+      "sizes": {
+        "type": "keyword"
+      },
+      "skus": {
+        "type": "keyword"
+      },
+      "tags": {
+        "type": "keyword"
+      },
+      "imageUrls": {
+        "type": "keyword",
+        "index": false
+      },
+      "availableStock": {
+        "type": "integer"
+      },
+      "inStock": {
+        "type": "boolean"
+      }
+    }
+  }
+}

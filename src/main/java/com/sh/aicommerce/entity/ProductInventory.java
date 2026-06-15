@@ -1,12 +1,13 @@
 package com.sh.aicommerce.entity;
-
+import com.sh.aicommerce.entity.ProductOption;
+import com.sh.aicommerce.entity.StockMovement;
+import com.sh.aicommerce.entity.Warehouse;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.util.ArrayList;
 import java.util.List;
-
 
 @Entity
 @NoArgsConstructor
@@ -20,8 +21,7 @@ import java.util.List;
                 )
         }
 )
-public class ProductInventory { // 옵션별 창고별 수량
-
+public class ProductInventory {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -37,13 +37,21 @@ public class ProductInventory { // 옵션별 창고별 수량
     private Warehouse warehouse;
 
     @Column(nullable = false)
-    private Integer quantity;
+    private Integer onHandQuantity;
 
-    // 최소 안전 재고
+    @Column(nullable = false)
+    private Integer reservedQuantity;
+
     @Column(nullable = false)
     private Integer safetyQuantity;
 
-    @OneToMany(mappedBy = "productInventory")
-    List<StockMovement> stockMovements = new ArrayList<>();
+    @Version
+    private Long version;
 
+    @OneToMany(mappedBy = "productInventory")
+    private List<StockMovement> stockMovements = new ArrayList<>();
+
+    public int getAvailableQuantity() {
+        return onHandQuantity - reservedQuantity;
+    }
 }
