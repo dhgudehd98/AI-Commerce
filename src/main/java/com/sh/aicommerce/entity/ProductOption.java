@@ -54,4 +54,8 @@ public class ProductOption {
 
         return option;
     }
+
+    public void onSale() {
+        this.status = ProductOptionStatus.AVAILABLE;
+    }
 }

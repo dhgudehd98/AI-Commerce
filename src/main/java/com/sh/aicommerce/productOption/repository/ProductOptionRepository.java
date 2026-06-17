@@ -2,6 +2,8 @@ package com.sh.aicommerce.productOption.repository;
 
 import com.sh.aicommerce.entity.ProductOption;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
@@ -18,4 +20,7 @@ public interface ProductOptionRepository extends JpaRepository<ProductOption, Lo
     void deleteByProductId(Long productId);
 
     boolean existsByProductId(Long productId);
+
+    @Query("select o from ProductOption o where o.id = :optionId and o.status <> 'HIDDEN'")
+    Optional<ProductOption> findNoHiddenProductOption(@Param("optionId") Long productOptionId);
 }
