@@ -20,6 +20,6 @@ public class InBoundController {
     // 상품 입고
     @PostMapping("")
     public ResponseEntity<?> inBoundProduct(@RequestBody @Valid InboundRequestDto inboundRequestDto) {
-        return inboundService.inBoundProduct(inboundRequestDto);
+        return ResponseEntity.ok(inboundService.inBoundProduct(inboundRequestDto));
     }
 }

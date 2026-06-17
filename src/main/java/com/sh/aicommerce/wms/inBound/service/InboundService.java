@@ -8,16 +8,15 @@ import com.sh.aicommerce.entity.Warehouse;
 import com.sh.aicommerce.product.repository.ProductRepository;
 import com.sh.aicommerce.productOption.repository.ProductOptionRepository;
 import com.sh.aicommerce.wms.inBound.dto.InboundRequestDto;
+import com.sh.aicommerce.wms.inBound.dto.ProductInboundResponseRecord;
 import com.sh.aicommerce.wms.inBound.dto.ProductOptionInboundReqDto;
 import com.sh.aicommerce.wms.inventory.service.ProductInventoryService;
 import com.sh.aicommerce.wms.warehouse.WarehouseRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -30,7 +29,7 @@ public class InboundService {
     private final WarehouseRepository warehouseRepository;
 
     @Transactional
-    public ResponseEntity<?> inBoundProduct(InboundRequestDto inboundRequestDto) {
+    public ProductInboundResponseRecord inBoundProduct(InboundRequestDto inboundRequestDto) {
         /**
          * 상품 입/출고시
          * - StockMovement 에 입/출고 내역 저장
@@ -49,6 +48,11 @@ public class InboundService {
             ProductOption productOption = productOptionRepository.findByProductIdAndNoHiddenProductOption(product.getId(), dto.getProductOptionId()).orElseThrow(() -> new ProductException("해당 옵션에 대한 정보가 없습니다."));
             productInventoryService.inBoundProduct(product, productOption, warehouse, dto.getInboundCount(),dto.getSafetyQuantity());
         }
-        return ResponseEntity.ok(Map.of("result" , "Y", "msg", "현재 상품 입고가 완료되었습니다."));
+        return new ProductInboundResponseRecord(
+                product.getId(),
+                warehouse.getId(),
+                "Y",
+                "상품이 성공적으로 입고 완료되었습니다."
+        );
     }
 }
