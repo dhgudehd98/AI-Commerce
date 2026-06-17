@@ -22,10 +22,6 @@ public class StockMovement {
     @JoinColumn(name = "product_inventory_id", nullable = false)
     private ProductInventory productInventory;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "order_item_id")
-    private OrderItem orderItem;
-
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private StockMovementStatus stockMovementStatus;
@@ -34,7 +30,7 @@ public class StockMovement {
     @Column(nullable = false)
     private StockMovementReferenceType referenceType;
 
-    private Long referenceId;
+    private Long referenceId; // 주문이면 주문 ID, 입고면 입고 ID
 
     @Column(nullable = false)
     private Integer quantity;
@@ -52,4 +48,14 @@ public class StockMovement {
     @Column(nullable = false)
     private LocalDateTime createdAt;
 
+    public StockMovement(ProductInventory productInventory, StockMovementStatus stockMovementStatus, StockMovementReferenceType referenceType, Long referenceId, Integer quantity, Integer beforeQuantity, Integer afterQuantity, LocalDateTime createdAt) {
+        this.productInventory = productInventory;
+        this.stockMovementStatus = stockMovementStatus;
+        this.referenceType = referenceType;
+        this.referenceId = referenceId;
+        this.quantity = quantity;
+        this.beforeQuantity = beforeQuantity;
+        this.afterQuantity = afterQuantity;
+        this.createdAt = createdAt;
+    }
 }
