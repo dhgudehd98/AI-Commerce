@@ -1,6 +1,7 @@
 package com.sh.aicommerce.entity;
 
 
+import com.sh.aicommerce.common.exception.product.ProductException;
 import com.sh.aicommerce.enums.product.ProductCategory;
 import com.sh.aicommerce.enums.product.ProductStatus;
 import com.sh.aicommerce.product.dto.ProductCreateRequestDto;
@@ -58,5 +59,10 @@ public class Product {
         product.productCategory = dto.getProductCategory();
 
         return product;
+    }
+
+    //
+    public void onSale() {
+        this.productStatus = ProductStatus.ON_SALE;
     }
 }

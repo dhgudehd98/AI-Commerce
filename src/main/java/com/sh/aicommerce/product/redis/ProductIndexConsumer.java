@@ -54,8 +54,7 @@ public class ProductIndexConsumer implements ApplicationRunner {
             redisTemplate.opsForStream()
                     .createGroup(STREAM_NAME, ReadOffset.from("0"), GROUP_NAME);
         } catch (Exception e) {
-            if (e.getMessage() != null &&
-                    e.getMessage().contains("BUSYGROUP")) {
+            if (isBusyGroupException(e)) {
                 log.info("[Consumer Group 이미 존재]");
                 return;
             }
@@ -63,6 +62,22 @@ public class ProductIndexConsumer implements ApplicationRunner {
             log.error("[Consumer Group 생성 실패]", e);
             throw e;
         }
+    }
+
+    private boolean isBusyGroupException(Throwable exception) {
+        Throwable current = exception;
+
+        while (current != null) {
+            String message = current.getMessage();
+
+            if (message != null && message.contains("BUSYGROUP")) {
+                return true;
+            }
+
+            current = current.getCause();
+        }
+
+        return false;
     }
 
     /**

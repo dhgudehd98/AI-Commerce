@@ -5,6 +5,8 @@ import com.sh.aicommerce.common.exception.auth.AuthException;
 import com.sh.aicommerce.common.exception.brand.BrandException;
 import com.sh.aicommerce.common.exception.member.MemberException;
 import com.sh.aicommerce.common.exception.product.ProductException;
+import com.sh.aicommerce.common.exception.wms.InventoryException;
+import com.sh.aicommerce.common.exception.wms.WarehouseException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -17,6 +19,16 @@ import java.util.Map;
 @Slf4j
 public class GlobalExceptionHandler {
 
+    @ExceptionHandler(InventoryException.class)
+    public ResponseEntity<?> handleInventoryException(InventoryException e) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("result", "N", "message", e.getMessage()));
+    }
+    @ExceptionHandler(WarehouseException.class)
+    public ResponseEntity<?> handleWarehouseException(WarehouseException e) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("result", "N", "message", e.getMessage()));
+    }
     @ExceptionHandler(ProductException.class)
     public ResponseEntity<?> handleProductException(ProductException e) {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
