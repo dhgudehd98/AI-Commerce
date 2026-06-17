@@ -66,14 +66,15 @@ public class ProductInventory {
     public static ProductInventory create(
             ProductOption productOption,
             Warehouse warehouse,
-            Integer onHandQuantity,
+            Integer quantity,
             Integer safetyQuantity
     ) {
-        if(safetyQuantity <= 0) throw new InventoryException("안전 재고는 음수가 될 수 없습니다.");
+        if(safetyQuantity <= 0 || quantity <= 0) throw new InventoryException("안전 재고나 입고수량에 대한 값은 음수가 될 수 없습니다.");
+
         ProductInventory inventory = new ProductInventory();
         inventory.productOption = productOption;
         inventory.warehouse = warehouse;
-        inventory.onHandQuantity = onHandQuantity;
+        inventory.onHandQuantity = quantity;
         inventory.reservedQuantity = 0; // 초기 입고 했을 때는 reservedQuantity에 대한 값은 0으로 설정하고 사용자가 주문을 했을 때 추가하는 형식으로 설정
         inventory.safetyQuantity = safetyQuantity;
 
@@ -91,17 +92,4 @@ public class ProductInventory {
         if(quantity <= 0) throw new InventoryException("출고 수량은 1개 이상이여야합니다.");
     }
 
-    @Override
-    public String toString() {
-        return "ProductInventory{" +
-                "id=" + id +
-                ", productOption=" + productOption +
-                ", warehouse=" + warehouse +
-                ", onHandQuantity=" + onHandQuantity +
-                ", reservedQuantity=" + reservedQuantity +
-                ", safetyQuantity=" + safetyQuantity +
-                ", version=" + version +
-                ", stockMovements=" + stockMovements +
-                '}';
-    }
 }

@@ -53,6 +53,7 @@ public class ProductInventoryService {
 
         } catch (Exception e) {
             log.error("[입고 과정중 오류 발생] 에러 메세지 : {}", e.getMessage());
+            throw e;
 
         }
     }

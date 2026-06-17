@@ -21,6 +21,6 @@ public interface ProductOptionRepository extends JpaRepository<ProductOption, Lo
 
     boolean existsByProductId(Long productId);
 
-    @Query("select o from ProductOption o where o.id = :optionId and o.status <> 'HIDDEN'")
-    Optional<ProductOption> findNoHiddenProductOption(@Param("optionId") Long productOptionId);
+    @Query("select o from ProductOption o where o.product.id = :productId and o.id = :optionId and o.status <> 'HIDDEN'")
+    Optional<ProductOption> findByProductIdAndNoHiddenProductOption(@Param("productId") Long productId, @Param("optionId") Long productOptionId);
 }
