@@ -46,9 +46,6 @@ public class ProductInventory {
     @Column(nullable = false)
     private Integer safetyQuantity; // 최소 유지 수량
 
-    @Version
-    private Long version;
-
     @OneToMany(mappedBy = "productInventory")
     private List<StockMovement> stockMovements = new ArrayList<>();
 

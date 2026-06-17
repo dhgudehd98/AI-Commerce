@@ -40,13 +40,12 @@ public class InboundService {
         Warehouse warehouse = warehouseRepository.findById(inboundRequestDto.getWarehouseId()).orElseThrow(() -> new WarehouseException("해당 창고가 존재하지 않습니다."));
 
         for (ProductOptionInboundReqDto dto : inboundRequestDto.getItems()) {
-
             // 실제 상품에 대한 재고 수량 증가
             log.info("[상품 입고] 상품정보 - 상품 아이디 : {}, 상품 옵션 아이디 : {}, 상품 수량 : {}", inboundRequestDto.getProductId(), dto.getProductOptionId(), dto.getInboundCount());
 
             // ProductOption에 대한 값도 status에 대한 값이 'HIDDEN'에 대한 값이 아닌걸로만 설정
             ProductOption productOption = productOptionRepository.findByProductIdAndNoHiddenProductOption(product.getId(), dto.getProductOptionId()).orElseThrow(() -> new ProductException("해당 옵션에 대한 정보가 없습니다."));
-            productInventoryService.inBoundProduct(product, productOption, warehouse, dto.getInboundCount(),dto.getSafetyQuantity());
+            productInventoryService.inBoundProduct(inboundRequestDto.getInboundType(), product, productOption, warehouse, dto.getInboundCount(),dto.getSafetyQuantity());
         }
         return new ProductInboundResponseRecord(
                 product.getId(),

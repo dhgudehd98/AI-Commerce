@@ -22,6 +22,9 @@ public class InboundRequestDto {
     @NotNull
     private Long warehouseId;
 
+    @NotNull
+    private InboundType inboundType;
+
     @NotEmpty
     List<@Valid ProductOptionInboundReqDto> items;
 

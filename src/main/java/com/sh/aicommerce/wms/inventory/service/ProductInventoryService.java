@@ -1,10 +1,12 @@
 package com.sh.aicommerce.wms.inventory.service;
 
+import com.sh.aicommerce.common.exception.product.ProductException;
 import com.sh.aicommerce.common.exception.wms.InventoryException;
 import com.sh.aicommerce.entity.Product;
 import com.sh.aicommerce.entity.ProductInventory;
 import com.sh.aicommerce.entity.ProductOption;
 import com.sh.aicommerce.entity.Warehouse;
+import com.sh.aicommerce.wms.inBound.dto.InboundType;
 import com.sh.aicommerce.wms.inBound.dto.ProductOptionInboundReqDto;
 import com.sh.aicommerce.wms.inventory.repository.ProductInventoryRepository;
 import com.sh.aicommerce.wms.stockMovement.repository.StockMovementRepository;
@@ -23,38 +25,45 @@ public class ProductInventoryService {
     private final StockMovementRepository stockMovementRepository;
 
     @Transactional
-    public void inBoundProduct(Product product, ProductOption option, Warehouse warehouse, int quantity, Integer safetyQuantity) {
+    public void inBoundProduct(InboundType inboundType, Product product, ProductOption option, Warehouse warehouse, int quantity, Integer safetyQuantity) {
 
+        // 최초 입고 / 재고추가 분기 처리
         try {
-            ProductInventory inventory =
-                    inventoryRepository.findByProductOptionIdAndWarehouseId(option.getId(), warehouse.getId())
-                            .map(existingInventory -> {
-                                // 기존에 있던 상품 수량 증가
-                                log.info("[기존 상품 재고 추가] 상품 ID : {}, 상품 옵션 ID :{}", option.getProduct().getId(), option.getId());
-                                existingInventory.increaseOnHandQuantity(quantity);
-                                return existingInventory;
-                            })
-                            .orElseGet(() -> {
-                                // 최초 상품 입고
-                                log.info("[최초 입고] 상품 ID : {} , 상품 옵션 ID : {}", option.getProduct().getId(), option.getId());
-                                if(safetyQuantity == null || safetyQuantity <= 0) throw new InventoryException("최초 입고 시 안전 재고 수량은 필수입니다.");
-                                ProductInventory newInventory = ProductInventory.create(option, warehouse, quantity, safetyQuantity);
-
-                                // 최초 상품에 대한 부분은 둘다 상품에 대한 부분이 PREPARING으로 되어 있기 때문에 재고 등록시 ONSALE로 변경
-                                product.onSale();
-                                option.onSale();
-                                return newInventory;
-                            });
-
-            inventoryRepository.save(inventory);
-            log.info("[상품 입고 또는 재고 추가 완료] 상품 옵션 ID : {}, 창고 ID : {}, 입고 수량 : {}", option.getId(), warehouse.getId(), quantity);
-            // 상품 입/출고에 대한 내역 저장
-            // stockMovementRepository.save(stockMovement); // 여기에 대한 부분은 나중에 기능 구현
-
+            switch (inboundType) {
+                case INITIAL -> initialInbound(product, option, warehouse, quantity, safetyQuantity);
+                case ADDITIONAL -> additionalInbound(option.getId(), option.getProduct().getId(), warehouse.getId(), quantity);
+            }
         } catch (Exception e) {
             log.error("[입고 과정중 오류 발생] 에러 메세지 : {}", e.getMessage());
             throw e;
-
         }
+    }
+
+    // 재고 추가 입고
+    private void additionalInbound(Long optionId, Long productId, Long warehouseId, int quantity) {
+
+        // 상품 재고에 대한 정합성이 중요하기 때문에 비관적 락 설정
+        ProductInventory inventory = inventoryRepository.findByProductOptionIdAndWarehouseIdForUpdate(optionId, warehouseId).orElseThrow(() -> new ProductException("현재 등록되어 있는 재고가 존재하지 않습니다."));
+        inventory.increaseOnHandQuantity(quantity); // 재고 증가
+        log.info("[기존 상품 재고 추가] 상품 ID : {}, 상품 옵션 ID :{}", productId, optionId);
+    }
+
+    // 재고 최초 입고
+    private void initialInbound(Product product, ProductOption option, Warehouse warehouse, int quantity, Integer safetyQuantity) {
+        boolean exist = inventoryRepository.existsByProductOptionIdAndWarehouseId(option.getId(), warehouse.getId());
+
+        // 최초 입고 상품인지 확인
+        if(exist) throw new InventoryException("현재 입고가 되어 있는 상품입니다. 재고를 추가하시려면 재고추가를 이용해주세요.");
+
+        // 최초 입고 등록
+        ProductInventory inventory = ProductInventory.create(
+                option, warehouse, quantity, safetyQuantity
+        );
+
+        option.onSale();
+        product.onSale();
+
+        inventoryRepository.save(inventory);
+        log.info("[최초 상품 입고 완료] 상품 옵션 ID : {}, 창고 ID : {}, 입고 수량 : {}", option.getId(), warehouse.getId(), quantity);
     }
 }
