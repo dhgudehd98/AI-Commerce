@@ -38,6 +38,8 @@ public class SecurityConfig {
                                 "/api/auth/login",
                                 "/api/auth/join",
                                 "/api/auth/refresh",
+                                "/api/search/autoCompletion",
+                                // 나중에 관리자만 접근 할 수 있도록 수정
                                 "/api/admin/product",
                                 "/api/admin/inBound"// 나중에 관리자만 접근할 수 있도록 수정
                         ).permitAll()

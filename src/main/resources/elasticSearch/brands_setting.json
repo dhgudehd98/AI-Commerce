@@ -1,0 +1,50 @@
+{
+  "settings": {
+    "analysis": {
+      "tokenizer": {
+        "nori_user_dict": {
+          "type": "nori_tokenizer",
+          "decompound_mode": "discard",
+          "user_dictionary_rules": ["아이앱", "스투시"]
+        }
+      },
+      "filter": {
+        "brands_synonym_filter": {
+          "type": "synonym_graph",
+          "synonyms": [
+            "iab, 아이앱",
+            "studio, 스튜디오, 스투디오",
+            "stussy, 스투시, 스튜시"
+          ]
+        }
+      },
+      "analyzer": {
+        "brands_name_analyzer": {
+          "type": "custom",
+          "tokenizer": "nori_user_dict",
+          "filter": [
+            "lowercase",
+            "nori_readingform",
+            "brands_synonym_filter"
+          ]
+        }
+      }
+    }
+  },
+  "mappings": {
+    "properties": {
+      "brandId": { "type": "keyword" },
+      "brandName": {
+        "type": "text",
+        "analyzer": "brands_name_analyzer"
+      },
+      "suggest": {
+        "type": "completion",
+        "analyzer": "standard"
+      },
+      "imgUrl" : {
+        "type" : "keyword"
+      }
+    }
+  }
+}
