@@ -1,4 +1,4 @@
-package com.sh.aicommerce.product.dto;
+package com.sh.aicommerce.product.dto.request;
 
 
 import jakarta.validation.constraints.NotBlank;
@@ -16,10 +16,6 @@ public class ProductOptionCreateRequestDto {
     @NotBlank
     @NotNull
     private String sku;
-
-    @NotBlank
-    @NotNull
-    private String color;
 
     @NotBlank
     @NotNull
