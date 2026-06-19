@@ -1,10 +1,9 @@
 package com.sh.aicommerce.entity;
 
 
-import com.sh.aicommerce.common.exception.product.ProductException;
 import com.sh.aicommerce.enums.product.ProductCategory;
 import com.sh.aicommerce.enums.product.ProductStatus;
-import com.sh.aicommerce.product.dto.ProductCreateRequestDto;
+import com.sh.aicommerce.product.dto.request.ProductCreateRequestDto;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -15,6 +14,12 @@ import java.util.List;
 @Entity
 @Getter
 @NoArgsConstructor
+@Table(
+        name="product",
+        uniqueConstraints = {
+                @UniqueConstraint(name = "uk_product_code", columnNames = "product_code")
+        }
+)
 public class Product {
 
     @Id
@@ -34,28 +39,21 @@ public class Product {
     @Column(nullable = false)
     private ProductStatus productStatus;
 
-    @Column(nullable = false)
-    private Integer price;
-
-    @Column(nullable = false)
-    private String productName;
+    @Column(name = "base_product_name", nullable = false)
+    private String baseProductName;
 
     @Column(length = 2000)
     private String productDescription;
 
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<ProductImage> productImages = new ArrayList<>();
-
-    @OneToMany(mappedBy = "product")
-    private List<ProductOption> productOptions = new ArrayList<>();
+    private List<ProductVariant> variants = new ArrayList<>();
 
     public static Product create(ProductCreateRequestDto dto, Brand brand) {
         Product product = new Product();
         product.brand = brand;
-        product.productName = dto.getProductName();
+        product.baseProductName = dto.getBaseProductName();
         product.productStatus = ProductStatus.PREPARING;
         product.productDescription = dto.getProductDescription();
-        product.price = dto.getProductPrice();
         product.productCategory = dto.getProductCategory();
 
         return product;
