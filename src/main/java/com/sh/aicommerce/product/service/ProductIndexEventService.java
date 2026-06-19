@@ -20,13 +20,17 @@ public class ProductIndexEventService {
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void publicProductIndexEvent(ProductIndexEventRecord record) {
-        // 상품 등록시 ES 색인 과정 진행
-        redisTemplate.opsForStream()
-                .add("product:index:stream",
-                        Map.of("productId", String.valueOf(record.productId()),
-                                "action",record.action())
-                );
 
-        log.info("[상품 색인 이벤트 발행] 상품 ID : {}, action : {}", record.productId(), record.action());
+        try {
+            // 상품 등록시 ES 색인 과정 진행
+            redisTemplate.opsForStream()
+                    .add("product:index:stream",
+                            Map.of("productId", String.valueOf(record.productId()),
+                                    "action",record.action())
+                    );
+            log.info("[상품 색인 이벤트 발행] 상품 ID : {}, action : {}", record.productId(), record.action());
+        } catch (Exception e) {
+            log.error("[상품 색인 이벤트 발행 실패] 상품 ID : {}, action : {}", record.productId(), record.action());
+        }
     }
 }

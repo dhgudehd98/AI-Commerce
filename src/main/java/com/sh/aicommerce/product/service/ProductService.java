@@ -179,6 +179,10 @@ public class ProductService {
             log.error("[상품 삭제 에러 발생] 상품 번호 : {} , 에러메세지 : {}", id, e.getMessage());
         }
 
+        eventPublisher.publishEvent(
+                new ProductIndexEventRecord(id, "DELETE")
+        );
+
         return new ProductCreateResponseDto("Y", "상품이 성공적으로 삭제되었습니다.");
     }
 }

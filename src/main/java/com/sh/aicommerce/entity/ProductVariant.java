@@ -5,6 +5,7 @@ import com.sh.aicommerce.product.dto.request.ProductVariantRequestDto;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.BatchSize;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -37,9 +38,11 @@ public class ProductVariant {
     private Product product;
 
     @OneToMany(mappedBy = "productVariant", cascade = CascadeType.ALL, orphanRemoval = true)
+    @BatchSize(size = 100)
     private List<ProductImage> images = new ArrayList<>();
 
     @OneToMany(mappedBy = "productVariant", cascade = CascadeType.ALL, orphanRemoval = true)
+    @BatchSize(size = 100)
     private List<ProductOption> options = new ArrayList<>();
 
     @Column(name = "variant_name", nullable = false)

@@ -1,9 +1,9 @@
 package com.sh.aicommerce.product.redis;
 
-import com.sh.aicommerce.product.es.ProductDocument;
-import com.sh.aicommerce.product.repository.ProductDocumentRepository;
+import com.sh.aicommerce.product.es.document.ProductDocument;
+import com.sh.aicommerce.product.es.repository.ProductDocumentRepository;
+import com.sh.aicommerce.product.es.service.ProductDocumentService;
 import com.sh.aicommerce.product.repository.ProductRepository;
-import com.sh.aicommerce.product.service.ProductDocumentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.embedding.EmbeddingModel;
@@ -14,6 +14,8 @@ import org.springframework.data.redis.connection.stream.*;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.stream.StreamMessageListenerContainer;
 import org.springframework.stereotype.Component;
+
+import java.util.List;
 
 @Component
 @Slf4j
@@ -103,8 +105,8 @@ public class ProductIndexConsumer implements ApplicationRunner {
     private void createProductIndex(Long productId, String messageId) {
         log.info("[ES 색인 상품 생성 시작] : ProductId : {}", productId);
         try {
-            ProductDocument document = productDocumentService.upSertDocument(productId);
-            productDocumentRepository.save(document);
+            List<ProductDocument> documents = productDocumentService.upSertDocument(productId);
+            productDocumentRepository.saveAll(documents);
 
             redisTemplate.opsForStream()
                     .acknowledge(STREAM_NAME, GROUP_NAME, messageId);
@@ -120,8 +122,9 @@ public class ProductIndexConsumer implements ApplicationRunner {
         log.info("[ES 색인 상품 수정 시작] : ProductId : {}", productId);
 
         try {
-            ProductDocument document = productDocumentService.upSertDocument(productId);
-            productDocumentRepository.save(document); // ES에서 save 자체는 upsert로 이루어지기 때문에 save로 사용
+            List<ProductDocument> documents= productDocumentService.upSertDocument(productId);
+
+            productDocumentRepository.saveAll(documents); // ES에서 save, saveAll() 자체는 upSert로 이루어져 있음.
 
             redisTemplate.opsForStream()
                     .acknowledge(STREAM_NAME, GROUP_NAME, messageId);
@@ -139,8 +142,8 @@ public class ProductIndexConsumer implements ApplicationRunner {
         try {
 
             // 색인 데이터 삭제 -> 색인 삭제에 대한 부분은 DB에서는 이미 삭제가 되어 있기 때문에 DB 조회하지 않고 그냥
-            productDocumentRepository.deleteById(productId);
-
+            productDocumentService.deleteProductDocument(productId);
+            
             log.info("[ES 상품 삭제 완료] 상품번호 : {}", productId);
 
             redisTemplate.opsForStream()
