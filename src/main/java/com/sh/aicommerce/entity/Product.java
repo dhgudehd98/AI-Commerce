@@ -35,10 +35,6 @@ public class Product {
     @Column(nullable = false)
     private ProductCategory productCategory;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private ProductStatus productStatus;
-
     @Column(name = "base_product_name", nullable = false)
     private String baseProductName;
 
@@ -52,15 +48,9 @@ public class Product {
         Product product = new Product();
         product.brand = brand;
         product.baseProductName = dto.getBaseProductName();
-        product.productStatus = ProductStatus.PREPARING;
         product.productDescription = dto.getProductDescription();
         product.productCategory = dto.getProductCategory();
 
         return product;
-    }
-
-    //
-    public void onSale() {
-        this.productStatus = ProductStatus.ON_SALE;
     }
 }

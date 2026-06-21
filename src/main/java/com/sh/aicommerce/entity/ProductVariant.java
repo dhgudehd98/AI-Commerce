@@ -1,6 +1,8 @@
 package com.sh.aicommerce.entity;
 
 
+import com.sh.aicommerce.enums.product.ProductStatus;
+import com.sh.aicommerce.enums.product.ProductVariantStatus;
 import com.sh.aicommerce.product.dto.request.ProductVariantRequestDto;
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -37,6 +39,10 @@ public class ProductVariant {
     @JoinColumn(name = "product_id", nullable = false)
     private Product product;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private ProductVariantStatus productVariantStatus;
+
     @OneToMany(mappedBy = "productVariant", cascade = CascadeType.ALL, orphanRemoval = true)
     @BatchSize(size = 100)
     private List<ProductImage> images = new ArrayList<>();
@@ -67,6 +73,12 @@ public class ProductVariant {
         variant.color = dto.getColor();
         variant.modelNumber = dto.getModelNumber();
         variant.price = dto.getPrice();
+        variant.productVariantStatus = ProductVariantStatus.PREPARING;
+
         return variant;
+    }
+
+    public void onSale() {
+        this.productVariantStatus = ProductVariantStatus.ON_SALE;
     }
 }

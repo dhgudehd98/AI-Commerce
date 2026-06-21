@@ -52,7 +52,7 @@ public class ProductDocument {
     private String category;
 
     @Field(type = FieldType.Keyword)
-    private String productStatus;
+    private String productVariantStatus;
 
     @Field(type = FieldType.Keyword)
     private String color;
@@ -96,7 +96,7 @@ public class ProductDocument {
         document.brandId = product.getBrand().getId();
         document.brandName = product.getBrand().getBrandName();
         document.category = String.valueOf(product.getProductCategory());
-        document.productStatus = String.valueOf(product.getProductStatus()); // 색인 과정이 진행되면 상품상태에 대한 값은 판매중으로 변경
+        document.productVariantStatus = String.valueOf(variant.getProductVariantStatus()); // 색인 과정이 진행되면 상품상태에 대한 값은 판매중으로 변경
         document.color = variant.getColor();
         document.modelNumber = variant.getModelNumber();
         document.price = variant.getPrice();

@@ -26,12 +26,15 @@ public class ProductInventoryService {
     private final StockMovementRepository stockMovementRepository;
 
     @Transactional
-    public void inBoundProduct(InboundType inboundType, Product product, ProductOption option, Warehouse warehouse, int quantity, Integer safetyQuantity, Long inboundId) {
+    public void inBoundProduct(InboundType inboundType, Product product, ProductVariant variant, ProductOption option, Warehouse warehouse, int quantity, Integer safetyQuantity, Long inboundId) {
 
         // 최초 입고 / 재고추가 분기 처리
         try {
+            if(inboundType == InboundType.INITIAL && safetyQuantity == null)
+                throw new InventoryException("최초 입고시 안전재고에 대한 값은 필수입니다.");
+
             switch (inboundType) {
-                case INITIAL -> initialInbound(product, option, warehouse, quantity, safetyQuantity, inboundId);
+                case INITIAL -> initialInbound(product, variant, option, warehouse, quantity, safetyQuantity, inboundId);
                 case ADDITIONAL -> additionalInbound(option.getId(), option.getProduct().getId(), warehouse.getId(), quantity, inboundId);
             }
         } catch (Exception e) {
@@ -40,35 +43,8 @@ public class ProductInventoryService {
         }
     }
 
-    // 재고 추가 입고
-    private void additionalInbound(Long optionId, Long productId, Long warehouseId, int quantity, Long inboundId) {
-
-        // 상품 재고에 대한 정합성이 중요하기 때문에 비관적 락 설정
-        ProductInventory inventory = inventoryRepository.findByProductOptionIdAndWarehouseIdForUpdate(optionId, warehouseId).orElseThrow(() -> new ProductException("현재 등록되어 있는 재고가 존재하지 않습니다."));
-
-        // 입고 전 상품 수 취합 -> StockMovement에 설정하기 위해
-        Integer beforeQuantity = inventory.getOnHandQuantity();
-        inventory.increaseOnHandQuantity(quantity); // 재고 증가
-        Integer afterQuantity = inventory.getOnHandQuantity();
-
-        StockMovement stockMovement = new StockMovement(
-                inventory,
-                StockMovementStatus.INBOUND,
-                StockMovementReferenceType.ADDITIONAL_INBOUND,
-                inboundId,
-                quantity,
-                beforeQuantity,
-                afterQuantity, // afterQuantity
-                LocalDateTime.now()
-        );
-
-        stockMovementRepository.save(stockMovement);
-        log.info("[기존 상품 재고 추가] 상품 ID : {}, 상품 옵션 ID :{}", productId, optionId);
-
-    }
-
     // 재고 최초 입고
-    private void initialInbound(Product product, ProductOption option, Warehouse warehouse, int quantity, Integer safetyQuantity, Long inboundId) {
+    private void initialInbound(Product product, ProductVariant variant, ProductOption option, Warehouse warehouse, int quantity, Integer safetyQuantity, Long inboundId) {
         boolean exist = inventoryRepository.existsByProductOptionIdAndWarehouseId(option.getId(), warehouse.getId());
 
         // 최초 입고 상품인지 확인
@@ -80,7 +56,7 @@ public class ProductInventoryService {
         );
 
         option.onSale();
-        product.onSale();
+        variant.onSale();
         inventoryRepository.save(inventory);
         log.info("[최초 상품 입고 완료] 상품 옵션 ID : {}, 창고 ID : {}, 입고 수량 : {}", option.getId(), warehouse.getId(), quantity);
 
@@ -97,6 +73,35 @@ public class ProductInventoryService {
         );
 
         stockMovementRepository.save(stockMovement);
+
+    }
+
+    // 재고 추가 입고
+    private void additionalInbound(Long optionId, Long productId, Long warehouseId, int quantity, Long inboundId) {
+
+        // 상품 재고에 대한 정합성이 중요하기 때문에 비관적 락 설정
+        ProductInventory inventory = inventoryRepository.findByProductOptionIdAndWarehouseIdForUpdate(optionId, warehouseId).orElseThrow(() -> new ProductException("현재 등록되어 있는 재고가 존재하지 않습니다."));
+
+        // 입고 전 상품 수 취합 -> StockMovement에 설정하기 위해
+        Integer beforeQuantity = inventory.getOnHandQuantity();
+        inventory.increaseOnHandQuantity(quantity); // 재고 증가
+        inventory.getProductOption().onSale();
+        inventory.getProductOption().getProductVariant().onSale();
+        Integer afterQuantity = inventory.getOnHandQuantity();
+
+        StockMovement stockMovement = new StockMovement(
+                inventory,
+                StockMovementStatus.INBOUND,
+                StockMovementReferenceType.ADDITIONAL_INBOUND,
+                inboundId,
+                quantity,
+                beforeQuantity,
+                afterQuantity, // afterQuantity
+                LocalDateTime.now()
+        );
+
+        stockMovementRepository.save(stockMovement);
+        log.info("[기존 상품 재고 추가] 상품 ID : {}, 상품 옵션 ID :{}", productId, optionId);
 
     }
 }
