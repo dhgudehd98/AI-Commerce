@@ -3,6 +3,7 @@ package com.sh.aicommerce.wms.inBound.service;
 import com.sh.aicommerce.common.exception.product.ProductException;
 import com.sh.aicommerce.common.exception.wms.WarehouseException;
 import com.sh.aicommerce.entity.*;
+import com.sh.aicommerce.product.redis.ProductIndexEventRecord;
 import com.sh.aicommerce.product.repository.ProductRepository;
 import com.sh.aicommerce.product.repository.ProductVariantRepository;
 import com.sh.aicommerce.productOption.repository.ProductOptionRepository;
@@ -16,6 +17,7 @@ import com.sh.aicommerce.wms.inventory.service.ProductInventoryService;
 import com.sh.aicommerce.wms.warehouse.WarehouseRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,6 +39,7 @@ public class InboundService {
     private final InboundRepository inboundRepository;
     private final InboundItemRepository inboundItemRepository;
     private final ProductVariantRepository variantRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public ProductInboundResponseRecord inBoundProduct(InboundRequestDto inboundRequestDto) {
@@ -81,6 +84,10 @@ public class InboundService {
                 inboundItemRepository.save(inboundItem);
             }
         }
+
+        eventPublisher.publishEvent(
+                new ProductIndexEventRecord(product.getId(), "INBOUND")
+        );
 
         return new ProductInboundResponseRecord(
                 product.getId(),

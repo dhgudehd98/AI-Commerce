@@ -4,11 +4,9 @@ package com.sh.aicommerce.product.es.service;
 
 import com.sh.aicommerce.common.exception.product.ProductException;
 import com.sh.aicommerce.entity.Product;
-import com.sh.aicommerce.entity.ProductVariant;
 import com.sh.aicommerce.product.es.document.ProductDocument;
 import com.sh.aicommerce.product.es.repository.ProductDocumentRepository;
 import com.sh.aicommerce.product.repository.ProductRepository;
-import com.sh.aicommerce.product.repository.ProductVariantRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.stereotype.Service;
@@ -20,12 +18,13 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ProductDocumentService {
     private final ProductRepository productRepository;
-    private final ProductVariantRepository productVariantRepository;
     private final ProductDocumentRepository productDocumentRepository;
     private final EmbeddingModel embeddingModel;
 
+
+    // 상품 등록
     @Transactional(readOnly = true)
-    public List<ProductDocument> upSertDocument(Long productId) {
+    public List<ProductDocument> insertProductVariantDocument(Long productId) {
 
         Product product = productRepository.findWithBrandAndVariantsByProductId(productId).orElseThrow(() -> new ProductException("해당 상품이 존재하지 않습니다."));
 
@@ -35,7 +34,17 @@ public class ProductDocumentService {
 
 
         return product.getVariants().stream()
-                .map(productVariant -> ProductDocument.create(product, productVariant))
+                .map(productVariant -> ProductDocument.createProduct(product, productVariant))
+                .toList();
+    }
+
+    // 상품 입고 후
+    @Transactional(readOnly = true)
+    public List<ProductDocument> inboundProductVariantDocument(Long productId) {
+        Product product = productRepository.findWithBrandAndVariantsByProductId(productId).orElseThrow(() -> new ProductException("해당 상품이 존재하지 않습니다."));
+
+        return product.getVariants().stream()
+                .map(productVariant -> ProductDocument.inboundProduct(product, productVariant))
                 .toList();
     }
 

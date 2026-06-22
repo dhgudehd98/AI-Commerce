@@ -1,9 +1,6 @@
 package com.sh.aicommerce.product.es.document;
 
-import com.sh.aicommerce.entity.Product;
-import com.sh.aicommerce.entity.ProductImage;
-import com.sh.aicommerce.entity.ProductOption;
-import com.sh.aicommerce.entity.ProductVariant;
+import com.sh.aicommerce.entity.*;
 import com.sh.aicommerce.enums.product.ProductImageType;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
@@ -13,8 +10,8 @@ import org.springframework.data.elasticsearch.annotations.Field;
 import org.springframework.data.elasticsearch.annotations.FieldType;
 import org.springframework.data.elasticsearch.annotations.Setting;
 
+import java.util.Comparator;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Document(indexName = "product")
 @Setting(settingPath = "classpath:elasticSearch/products_setting.json")
@@ -25,7 +22,9 @@ import java.util.stream.Collectors;
 @Slf4j
 public class ProductDocument {
 
-    // Variant마다 개별 문서가 생성되므로 Variant ID 사용
+
+
+
     @Id
     private Long productVariantId;
 
@@ -52,9 +51,6 @@ public class ProductDocument {
     private String category;
 
     @Field(type = FieldType.Keyword)
-    private String productVariantStatus;
-
-    @Field(type = FieldType.Keyword)
     private String color;
 
     @Field(type = FieldType.Keyword)
@@ -64,10 +60,7 @@ public class ProductDocument {
     private Integer price;
 
     @Field(type = FieldType.Keyword)
-    private List<String> sizes;
-
-    @Field(type = FieldType.Keyword)
-    private List<String> skus;
+    private String productVariantStatus;
 
     @Field(type = FieldType.Keyword)
     private String thumbnailUrl;
@@ -75,8 +68,11 @@ public class ProductDocument {
     @Field(type = FieldType.Keyword)
     private List<String> imageUrls;
 
+    @Field(type = FieldType.Nested)
+    private List<ProductOptionDocument> options;
+
     @Field(type = FieldType.Integer)
-    private Integer availableStock;
+    private Integer totalAvailableStock;
 
     @Field(type = FieldType.Boolean)
     private Boolean inStock;
@@ -86,8 +82,11 @@ public class ProductDocument {
 
 
     // 벡터에 대한 값 임시 제거 - OpenAI API 결제 후, 벡터에 대한 값 다시 사용
-    public static ProductDocument create(Product product, ProductVariant variant) {
+
+    // 공통 값 설정
+    public static ProductDocument baseDocument(Product product, ProductVariant variant) {
         ProductDocument document = new ProductDocument();
+
         document.productVariantId = variant.getId();
         document.productId = product.getId();
         document.baseProductName = product.getBaseProductName();
@@ -95,30 +94,75 @@ public class ProductDocument {
         document.productDescription = product.getProductDescription();
         document.brandId = product.getBrand().getId();
         document.brandName = product.getBrand().getBrandName();
-        document.category = String.valueOf(product.getProductCategory());
-        document.productVariantStatus = String.valueOf(variant.getProductVariantStatus()); // 색인 과정이 진행되면 상품상태에 대한 값은 판매중으로 변경
+        document.category = product.getProductCategory().name();
+        document.productVariantStatus = String.valueOf(variant.getProductVariantStatus());
         document.color = variant.getColor();
         document.modelNumber = variant.getModelNumber();
         document.price = variant.getPrice();
-        document.sizes = variant.getOptions().stream()
-                .map(productOption -> productOption.getSize())
-                .toList();
-        document.skus = variant.getOptions().stream()
-                .map(ProductOption::getSku)
-                .toList();
         document.thumbnailUrl = variant.getImages().stream()
                 .filter(productImage -> productImage.getImageType() == ProductImageType.THUMBNAIL)
-                .map(ProductImage::getImageUrl)
+                .map(productImage -> productImage.getImageUrl())
                 .findFirst()
                 .orElse(null);
         document.imageUrls = variant.getImages().stream()
                 .filter(productImage -> productImage.getImageType() != ProductImageType.THUMBNAIL)
+                .sorted(Comparator.comparing(ProductImage::getDisplayOrder))
                 .map(ProductImage::getImageUrl)
                 .toList();
+
+        return document;
+    }
+    public static ProductDocument createProduct(Product product, ProductVariant variant) {
+        ProductDocument document = baseDocument(product, variant);
+        document.options = variant.getOptions().stream()
+                .map(option -> new ProductOptionDocument(
+                        option.getId(),
+                        option.getSku(),
+                        option.getSize(),
+                        option.getAdditionalPrice(),
+                        variant.getPrice() + option.getAdditionalPrice(),
+                        String.valueOf(option.getStatus()),
+                        0,
+                        false
+                ))
+                .toList();
+        // 초기 상품 등록 할 때는 이용 가능한 재고에 대한 값 0으로 설정
+        document.totalAvailableStock = 0;
         document.inStock = false;
-//       document.descriptionVector = vector;
+//        document.descriptionVector = descriptionVector;
 
         return document;
     }
 
+
+    // 상품 입고 후 , 옵션별 재고 업데이트
+    public static ProductDocument inboundProduct(Product product, ProductVariant variant) {
+        ProductDocument document = baseDocument(product, variant);
+        document.options = variant.getOptions().stream()
+                .map(option -> {
+                    int stock = option.getInventories().stream()
+                            .mapToInt(ProductInventory::getAvailableQuantity)
+                            .sum();
+
+                    return new ProductOptionDocument(
+                            option.getId(),
+                            option.getSku(),
+                            option.getSize(),
+                            option.getAdditionalPrice(),
+                            variant.getPrice() + option.getAdditionalPrice(),
+                            option.getStatus().name(),
+                            stock,
+                            stock > 0
+                    );
+                })
+                .toList();
+
+        document.totalAvailableStock = document.options.stream()
+                .mapToInt(ProductOptionDocument::getAvailableStock)
+                .sum();
+
+        document.inStock = document.totalAvailableStock > 0;
+
+        return document;
+    }
 }

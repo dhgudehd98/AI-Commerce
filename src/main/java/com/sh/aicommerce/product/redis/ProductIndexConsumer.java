@@ -94,18 +94,19 @@ public class ProductIndexConsumer implements ApplicationRunner {
         String messageId = message.getId().getValue();
 
         switch (action) {
-            case "CREATE" -> createProductIndex(productId, messageId);
-            case "UPDATE" -> updateProductIndex(productId, messageId);
+            case "CREATE" -> createProductVariantDocument(productId, messageId);
+            case "INBOUND" -> inboundProductVariantDocument(productId, messageId);
+            case "OUTBOUND" -> outboundProductVariantDocument(productId, messageId);
             case "DELETE" -> deleteProductIndex(productId, messageId);
         }
 
     }
 
     // 상품 색인 정보 생성
-    private void createProductIndex(Long productId, String messageId) {
+    private void createProductVariantDocument(Long productId, String messageId) {
         log.info("[ES 색인 상품 생성 시작] : ProductId : {}", productId);
         try {
-            List<ProductDocument> documents = productDocumentService.upSertDocument(productId);
+            List<ProductDocument> documents = productDocumentService.insertProductVariantDocument(productId);
             productDocumentRepository.saveAll(documents);
 
             redisTemplate.opsForStream()
@@ -117,23 +118,27 @@ public class ProductIndexConsumer implements ApplicationRunner {
         }
     }
 
-    // 상품 색인 정보 업데이트
-    private void updateProductIndex(Long productId, String messageId) {
-        log.info("[ES 색인 상품 수정 시작] : ProductId : {}", productId);
-
+    // 상품 입고
+    private void inboundProductVariantDocument(Long productId, String messageId) {
+        log.info("[ES 색인 상품 입고] : ProductId : {}", productId);
         try {
-            List<ProductDocument> documents= productDocumentService.upSertDocument(productId);
-
-            productDocumentRepository.saveAll(documents); // ES에서 save, saveAll() 자체는 upSert로 이루어져 있음.
+            List<ProductDocument> documents = productDocumentService.inboundProductVariantDocument(productId);
+            productDocumentRepository.saveAll(documents);
 
             redisTemplate.opsForStream()
                     .acknowledge(STREAM_NAME, GROUP_NAME, messageId);
-
-            log.info("[ES 상품 정보 수정 완료] productId : {}", productId);
+            log.info("[ES 색인 상품 입고 완료] : ProductId : {}", productId);
         } catch (Exception e) {
-            log.error("[ES 상품 수정 실패] : {}", e.getMessage());
+            log.error("[ES 색인 상품 정보 실패] : productId : {}", productId);
         }
     }
+
+    //상품 출고
+    private void outboundProductVariantDocument(Long productId, String messageId) {
+
+    }
+
+
 
     // 상품 색인 정보 삭제
     private void deleteProductIndex(Long productId, String messageId) {
@@ -143,7 +148,7 @@ public class ProductIndexConsumer implements ApplicationRunner {
 
             // 색인 데이터 삭제 -> 색인 삭제에 대한 부분은 DB에서는 이미 삭제가 되어 있기 때문에 DB 조회하지 않고 그냥
             productDocumentService.deleteProductDocument(productId);
-            
+
             log.info("[ES 상품 삭제 완료] 상품번호 : {}", productId);
 
             redisTemplate.opsForStream()

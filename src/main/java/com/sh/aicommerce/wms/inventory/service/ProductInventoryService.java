@@ -6,8 +6,6 @@ import com.sh.aicommerce.entity.*;
 import com.sh.aicommerce.enums.wms.StockMovementReferenceType;
 import com.sh.aicommerce.enums.wms.StockMovementStatus;
 import com.sh.aicommerce.wms.inBound.dto.InboundType;
-import com.sh.aicommerce.wms.inBound.dto.ProductOptionInboundReqDto;
-import com.sh.aicommerce.wms.inBound.repository.InboundRepository;
 import com.sh.aicommerce.wms.inventory.repository.ProductInventoryRepository;
 import com.sh.aicommerce.wms.stockMovement.repository.StockMovementRepository;
 import lombok.RequiredArgsConstructor;
@@ -16,7 +14,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -35,7 +32,7 @@ public class ProductInventoryService {
 
             switch (inboundType) {
                 case INITIAL -> initialInbound(product, variant, option, warehouse, quantity, safetyQuantity, inboundId);
-                case ADDITIONAL -> additionalInbound(option.getId(), option.getProduct().getId(), warehouse.getId(), quantity, inboundId);
+                case ADDITIONAL -> additionalInbound(variant, option, option.getProduct().getId(), warehouse.getId(), quantity, inboundId);
             }
         } catch (Exception e) {
             log.error("[입고 과정중 오류 발생] 에러 메세지 : {}", e.getMessage());
@@ -77,10 +74,10 @@ public class ProductInventoryService {
     }
 
     // 재고 추가 입고
-    private void additionalInbound(Long optionId, Long productId, Long warehouseId, int quantity, Long inboundId) {
+    private void additionalInbound(ProductVariant variant, ProductOption option, Long productId, Long warehouseId, int quantity, Long inboundId) {
 
         // 상품 재고에 대한 정합성이 중요하기 때문에 비관적 락 설정
-        ProductInventory inventory = inventoryRepository.findByProductOptionIdAndWarehouseIdForUpdate(optionId, warehouseId).orElseThrow(() -> new ProductException("현재 등록되어 있는 재고가 존재하지 않습니다."));
+        ProductInventory inventory = inventoryRepository.findByProductOptionIdAndWarehouseIdForUpdate(option.getId(), warehouseId).orElseThrow(() -> new ProductException("현재 등록되어 있는 재고가 존재하지 않습니다."));
 
         // 입고 전 상품 수 취합 -> StockMovement에 설정하기 위해
         Integer beforeQuantity = inventory.getOnHandQuantity();
@@ -101,7 +98,6 @@ public class ProductInventoryService {
         );
 
         stockMovementRepository.save(stockMovement);
-        log.info("[기존 상품 재고 추가] 상품 ID : {}, 상품 옵션 ID :{}", productId, optionId);
-
+        log.info("[기존 상품 재고 추가] 상품 ID : {}, 상품 옵션 ID :{}", productId, option.getId());
     }
 }
