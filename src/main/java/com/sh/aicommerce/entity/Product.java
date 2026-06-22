@@ -14,12 +14,6 @@ import java.util.List;
 @Entity
 @Getter
 @NoArgsConstructor
-@Table(
-        name="product",
-        uniqueConstraints = {
-                @UniqueConstraint(name = "uk_product_code", columnNames = "product_code")
-        }
-)
 public class Product {
 
     @Id

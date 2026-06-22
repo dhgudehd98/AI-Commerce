@@ -13,8 +13,7 @@ import org.springframework.data.elasticsearch.annotations.Setting;
 import java.util.Comparator;
 import java.util.List;
 
-@Document(indexName = "product")
-@Setting(settingPath = "classpath:elasticSearch/products_setting.json")
+@Document(indexName = "products", createIndex = false)
 @AllArgsConstructor
 @NoArgsConstructor
 @Getter

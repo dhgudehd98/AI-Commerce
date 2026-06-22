@@ -15,10 +15,6 @@ public interface ProductOptionRepository extends JpaRepository<ProductOption, Lo
 
     int countBySku(String duplicatedSku);
 
-    void deleteByProductId(Long productId);
-
-    boolean existsByProductId(Long productId);
-
     @Query(
     """
         select o
