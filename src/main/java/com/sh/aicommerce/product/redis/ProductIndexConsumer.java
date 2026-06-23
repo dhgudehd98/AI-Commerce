@@ -1,9 +1,9 @@
 package com.sh.aicommerce.product.redis;
 
-import com.sh.aicommerce.product.es.ProductDocument;
-import com.sh.aicommerce.product.repository.ProductDocumentRepository;
+import com.sh.aicommerce.product.es.document.ProductDocument;
+import com.sh.aicommerce.product.es.repository.ProductDocumentRepository;
+import com.sh.aicommerce.product.es.service.ProductDocumentService;
 import com.sh.aicommerce.product.repository.ProductRepository;
-import com.sh.aicommerce.product.service.ProductDocumentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.embedding.EmbeddingModel;
@@ -14,6 +14,8 @@ import org.springframework.data.redis.connection.stream.*;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.stream.StreamMessageListenerContainer;
 import org.springframework.stereotype.Component;
+
+import java.util.List;
 
 @Component
 @Slf4j
@@ -92,19 +94,20 @@ public class ProductIndexConsumer implements ApplicationRunner {
         String messageId = message.getId().getValue();
 
         switch (action) {
-            case "CREATE" -> createProductIndex(productId, messageId);
-            case "UPDATE" -> updateProductIndex(productId, messageId);
+            case "CREATE" -> createProductVariantDocument(productId, messageId);
+            case "INBOUND" -> inboundProductVariantDocument(productId, messageId);
+            case "OUTBOUND" -> outboundProductVariantDocument(productId, messageId);
             case "DELETE" -> deleteProductIndex(productId, messageId);
         }
 
     }
 
     // 상품 색인 정보 생성
-    private void createProductIndex(Long productId, String messageId) {
+    private void createProductVariantDocument(Long productId, String messageId) {
         log.info("[ES 색인 상품 생성 시작] : ProductId : {}", productId);
         try {
-            ProductDocument document = productDocumentService.upSertDocument(productId);
-            productDocumentRepository.save(document);
+            List<ProductDocument> documents = productDocumentService.insertProductVariantDocument(productId);
+            productDocumentRepository.saveAll(documents);
 
             redisTemplate.opsForStream()
                     .acknowledge(STREAM_NAME, GROUP_NAME, messageId);
@@ -115,22 +118,27 @@ public class ProductIndexConsumer implements ApplicationRunner {
         }
     }
 
-    // 상품 색인 정보 업데이트
-    private void updateProductIndex(Long productId, String messageId) {
-        log.info("[ES 색인 상품 수정 시작] : ProductId : {}", productId);
-
+    // 상품 입고
+    private void inboundProductVariantDocument(Long productId, String messageId) {
+        log.info("[ES 색인 상품 입고] : ProductId : {}", productId);
         try {
-            ProductDocument document = productDocumentService.upSertDocument(productId);
-            productDocumentRepository.save(document); // ES에서 save 자체는 upsert로 이루어지기 때문에 save로 사용
+            List<ProductDocument> documents = productDocumentService.inboundProductVariantDocument(productId);
+            productDocumentRepository.saveAll(documents);
 
             redisTemplate.opsForStream()
                     .acknowledge(STREAM_NAME, GROUP_NAME, messageId);
-
-            log.info("[ES 상품 정보 수정 완료] productId : {}", productId);
+            log.info("[ES 색인 상품 입고 완료] : ProductId : {}", productId);
         } catch (Exception e) {
-            log.error("[ES 상품 수정 실패] : {}", e.getMessage());
+            log.error("[ES 색인 상품 정보 실패] : productId : {}", productId);
         }
     }
+
+    //상품 출고
+    private void outboundProductVariantDocument(Long productId, String messageId) {
+
+    }
+
+
 
     // 상품 색인 정보 삭제
     private void deleteProductIndex(Long productId, String messageId) {
@@ -139,7 +147,7 @@ public class ProductIndexConsumer implements ApplicationRunner {
         try {
 
             // 색인 데이터 삭제 -> 색인 삭제에 대한 부분은 DB에서는 이미 삭제가 되어 있기 때문에 DB 조회하지 않고 그냥
-            productDocumentRepository.deleteById(productId);
+            productDocumentService.deleteProductDocument(productId);
 
             log.info("[ES 상품 삭제 완료] 상품번호 : {}", productId);
 

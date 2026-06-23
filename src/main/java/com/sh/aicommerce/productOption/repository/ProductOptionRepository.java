@@ -15,12 +15,15 @@ public interface ProductOptionRepository extends JpaRepository<ProductOption, Lo
 
     int countBySku(String duplicatedSku);
 
-    Optional<ProductOption> findByProductId(Long id);
-
-    void deleteByProductId(Long productId);
-
-    boolean existsByProductId(Long productId);
-
-    @Query("select o from ProductOption o where o.product.id = :productId and o.id = :optionId and o.status <> 'HIDDEN'")
-    Optional<ProductOption> findByProductIdAndNoHiddenProductOption(@Param("productId") Long productId, @Param("optionId") Long productOptionId);
+    @Query(
+    """
+        select o
+        from ProductOption o
+        where o.id = :optionId
+          and o.productVariant.product.id = :productId
+          and o.productVariant.id = :variantId
+          and o.status <> 'HIDDEN'
+    """
+    )
+    Optional<ProductOption> findByProductIdAndNoHiddenProductOption(@Param("optionId") Long optionId, @Param("productId") Long productId , @Param("variantId") Long variantId);
 }

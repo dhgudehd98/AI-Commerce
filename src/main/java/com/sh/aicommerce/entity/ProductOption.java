@@ -1,7 +1,7 @@
 package com.sh.aicommerce.entity;
 
 import com.sh.aicommerce.enums.product.ProductOptionStatus;
-import com.sh.aicommerce.product.dto.ProductOptionCreateRequestDto;
+import com.sh.aicommerce.product.dto.request.ProductOptionCreateRequestDto;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -19,16 +19,12 @@ public class ProductOption {
     @Column(name = "product_option_id")
     private Long id;
 
-    // 조회에 대한 성능을 향상 시키기 위해서 Product에 대한 값 저장
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "product_id", nullable = false)
-    private Product product;
+    @JoinColumn(name = "product_variant_id", nullable = false)
+    private ProductVariant productVariant;
 
     @Column(nullable = false, unique = true)
     private String sku;
-
-    @Column(nullable = false)
-    private String color;
 
     @Column(nullable = false)
     private String size;
@@ -43,11 +39,13 @@ public class ProductOption {
     @OneToMany(mappedBy = "productOption")
     private List<ProductInventory> inventories = new ArrayList<>();
 
-    public static ProductOption createOption(ProductOptionCreateRequestDto dto, Product product) {
+    public static ProductOption createOption(
+            ProductVariant productVariant,
+            ProductOptionCreateRequestDto dto
+    ) {
         ProductOption option = new ProductOption();
-        option.product = product;
+        option.productVariant = productVariant;
         option.sku = dto.getSku();
-        option.color = dto.getColor();
         option.size = dto.getSize();
         option.additionalPrice = dto.getAdditionalPrice();
         option.status = ProductOptionStatus.PREPARING;
@@ -57,5 +55,9 @@ public class ProductOption {
 
     public void onSale() {
         this.status = ProductOptionStatus.AVAILABLE;
+    }
+
+    public Product getProduct() {
+        return productVariant.getProduct();
     }
 }

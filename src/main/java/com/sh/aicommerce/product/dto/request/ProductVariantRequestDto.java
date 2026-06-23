@@ -1,6 +1,5 @@
-package com.sh.aicommerce.product.dto;
+package com.sh.aicommerce.product.dto.request;
 
-import com.sh.aicommerce.enums.product.ProductCategory;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
@@ -9,30 +8,31 @@ import jakarta.validation.constraints.Positive;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-
+import lombok.Setter;
 
 import java.util.List;
 
 @Getter
+@Setter
 @AllArgsConstructor
 @NoArgsConstructor
-public class ProductCreateRequestDto {
-
-    @NotNull
-    private Long brandId;
+public class ProductVariantRequestDto {
 
     @NotBlank
-    private String productName;
+    private String variantName;
 
-    @NotNull(message = "상품 카테고리는 필수입니다.")
-    private ProductCategory productCategory;
+    @NotBlank
+    private String color;
+
+    @NotBlank
+    private String modelNumber;
 
     @NotNull
     @Positive
-    private Integer productPrice;
+    private Integer price;
 
-    @NotBlank
-    private String productDescription;
+    @NotEmpty
+    private List<@Valid ProductImageCreateRequestDto> images;
 
     @NotEmpty
     private List<@Valid ProductOptionCreateRequestDto> productOptions;
