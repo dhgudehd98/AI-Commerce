@@ -31,4 +31,7 @@ public class ProductCreateRequestDto {
 
     @NotEmpty
     private List<@Valid ProductVariantRequestDto> variants;
+
+    @NotEmpty
+    private List<String> tags;
 }

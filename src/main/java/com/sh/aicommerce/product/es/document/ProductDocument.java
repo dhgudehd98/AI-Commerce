@@ -10,6 +10,7 @@ import org.springframework.data.elasticsearch.annotations.Field;
 import org.springframework.data.elasticsearch.annotations.FieldType;
 import org.springframework.data.elasticsearch.annotations.Setting;
 
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
@@ -33,6 +34,8 @@ public class ProductDocument {
 
     @Field(type = FieldType.Text)
     private String baseProductName;
+
+    private List<String> tags = new ArrayList<>();
 
     @Field(type = FieldType.Text)
     private String variantName;
@@ -89,6 +92,7 @@ public class ProductDocument {
         document.productVariantId = variant.getId();
         document.productId = product.getId();
         document.baseProductName = product.getBaseProductName();
+        document.tags = new ArrayList<>(product.getTags());
         document.variantName = variant.getVariantName();
         document.productDescription = product.getProductDescription();
         document.brandId = product.getBrand().getId();
