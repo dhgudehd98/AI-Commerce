@@ -162,15 +162,17 @@ public class ProductService {
         }
     }
 
+
+    //! 여기 상품 삭제에 대한 부분 수정해야됨
     @Transactional
     public ProductCreateResponseDto deleteProduct(Long id) {
 
         try {
             // 상품이랑 , 상품 옵션에 대한 정보가 존재하는지 확인
-            if (productRepository.existsById(id) && productOptionRepository.existsByProductId(id)) {
-                productOptionRepository.deleteByProductId(id);
-                productRepository.deleteById(id);
-            }
+//            if (productRepository.existsById(id) && productOptionRepository.existsByProductId(id)) {
+//                productOptionRepository.deleteByProductId(id);
+//                productRepository.deleteById(id);
+//            }
 
             eventPublisher.publishEvent(
                     new ProductIndexEventRecord(id, "DELETE")

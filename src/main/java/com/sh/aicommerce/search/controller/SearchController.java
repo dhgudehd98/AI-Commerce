@@ -1,6 +1,8 @@
 package com.sh.aicommerce.search.controller;
 
 import com.sh.aicommerce.brand.es.BrandDocument;
+import com.sh.aicommerce.product.es.document.ProductDocument;
+import com.sh.aicommerce.search.dto.SearchResultProductDto;
 import com.sh.aicommerce.search.service.SearchService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,9 +23,17 @@ public class SearchController {
 
     private final SearchService searchService;
     // 상품 검색 결과 출력
-    @GetMapping("result")
-    public void productSearchResult() {
+    @GetMapping("")
+    public List<SearchResultProductDto> search(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Long lastId,
+            @RequestParam(required = false) Double lastScore
+    ) {
+        List<Object> searchAfter = null;
 
+        if (lastId != null && lastScore != null) searchAfter = List.of(lastId, lastScore);
+
+        return searchService.search(keyword, searchAfter);
     }
     // 상품 자동 완성
     @GetMapping("autoCompletion")

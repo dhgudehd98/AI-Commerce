@@ -3,6 +3,9 @@ package com.sh.aicommerce.search.service;
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import co.elastic.clients.elasticsearch.core.SearchResponse;
 import com.sh.aicommerce.brand.es.BrandDocument;
+import com.sh.aicommerce.product.es.document.ProductDocument;
+import com.sh.aicommerce.product.es.repository.ProductDocumentRepository;
+import com.sh.aicommerce.search.dto.SearchResultProductDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -16,6 +19,16 @@ import java.util.stream.Collectors;
 @Slf4j
 public class SearchService {
     private final ElasticsearchClient elasticsearchClient;
+    private final ProductDocumentRepository productDocumentRepository;
+
+
+    // 검색 -> 모든 상품 조회
+    public List<SearchResultProductDto> search(String keyword, List<Object> searchAfter) {
+
+        // 인기 검색어 저장
+        List<SearchResultProductDto> results = productDocumentRepository.search(keyword, searchAfter);
+        return results;
+    }
 
     /**
      * elasticSearchClient : ElasticSearch 서버에 검색을 요청을 보내고 결과 값을 받아옴
@@ -45,4 +58,5 @@ public class SearchService {
                 .map(option -> option.source())
                 .collect(Collectors.toList());
     }
+
 }
