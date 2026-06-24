@@ -53,10 +53,33 @@
   "mappings": {
     "dynamic": "strict",
     "properties": {
+      "productVariantId": {
+        "type": "long"
+      },
       "productId": {
         "type": "long"
       },
-      "productName": {
+      "baseProductName": {
+        "type": "text",
+        "analyzer": "products_index_analyzer",
+        "search_analyzer": "products_search_analyzer",
+        "fields": {
+          "keyword": {
+            "type": "keyword"
+          }
+        }
+      },
+      "tags": {
+        "type": "text",
+        "analyzer": "products_index_analyzer",
+        "search_analyzer": "products_search_analyzer",
+        "fields": {
+          "keyword": {
+            "type": "keyword"
+          }
+        }
+      },
+      "variantName": {
         "type": "text",
         "analyzer": "products_index_analyzer",
         "search_analyzer": "products_search_analyzer",
@@ -87,33 +110,73 @@
       "category": {
         "type": "keyword"
       },
-      "productStatus": {
+      "color": {
+        "type": "text",
+        "analyzer": "products_index_analyzer",
+        "search_analyzer": "products_search_analyzer",
+        "fields": {
+          "keyword": {
+            "type": "keyword"
+          }
+        }
+      },
+      "modelNumber": {
         "type": "keyword"
       },
       "price": {
         "type": "integer"
       },
-      "colors": {
+      "productVariantStatus": {
         "type": "keyword"
       },
-      "sizes": {
-        "type": "keyword"
-      },
-      "skus": {
-        "type": "keyword"
-      },
-      "tags": {
-        "type": "keyword"
+      "thumbnailUrl": {
+        "type": "keyword",
+        "index": false
       },
       "imageUrls": {
         "type": "keyword",
         "index": false
       },
-      "availableStock": {
+      "options": {
+        "type": "nested",
+        "properties": {
+          "optionId": {
+            "type": "long"
+          },
+          "sku": {
+            "type": "keyword"
+          },
+          "size": {
+            "type": "keyword"
+          },
+          "additionalPrice": {
+            "type": "integer"
+          },
+          "totalPrice": {
+            "type": "integer"
+          },
+          "optionStatus": {
+            "type": "keyword"
+          },
+          "availableStock": {
+            "type": "integer"
+          },
+          "inStock": {
+            "type": "boolean"
+          }
+        }
+      },
+      "totalAvailableStock": {
         "type": "integer"
       },
       "inStock": {
         "type": "boolean"
+      },
+      "descriptionVector": {
+        "type": "dense_vector",
+        "dims": 1536,
+        "index": true,
+        "similarity": "cosine"
       }
     }
   }
