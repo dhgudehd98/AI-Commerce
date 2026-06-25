@@ -3,6 +3,7 @@ package com.sh.aicommerce.search.service;
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import co.elastic.clients.elasticsearch.core.SearchResponse;
 import com.sh.aicommerce.brand.es.BrandDocument;
+import com.sh.aicommerce.common.exception.search.SearchException;
 import com.sh.aicommerce.product.es.document.ProductDocument;
 import com.sh.aicommerce.product.es.repository.ProductDocumentRepository;
 import com.sh.aicommerce.search.dto.BrandAutoCompletionDto;
@@ -37,28 +38,36 @@ public class SearchService {
      * suggest : 자동 요청 설정 구성
      * suggests : 자동 요청 설정에 구성에 필요한 구성품
      */
-    public List<BrandAutoCompletionDto> productAutoCompletion(String prefix) throws IOException {
-        SearchResponse<BrandDocument> response = elasticsearchClient.search(searchRequest -> searchRequest
-                        .index("brands") // "brands" Index에서 검색
-                        .suggest(suggestBuilder -> suggestBuilder // suggest : 자동 완성 구성 요청
-                                // brand_suggest에 대한 값은 ES 안에 필드 값이 아닌 자동완성 요청 결과의 이름
-                                // KEY : "brand_suggest" -> Value : 자동 완성 결과 return 값
-                                .suggesters("brand_suggest", su -> su
-                                        .prefix(prefix)
-                                        .completion(c -> c
-                                                .field("suggest")
-                                                .size(5))
-                                )
-                        ),
-                BrandDocument.class
-        );
+    public List<BrandAutoCompletionDto> productAutoCompletion(String prefix){
 
-        return response.suggest()
-                .get("brand_suggest")
-                .stream()
-                .flatMap(s -> s.completion().options().stream())
-                .map(option -> new BrandAutoCompletionDto(option.source()))
-                .collect(Collectors.toList());
+        if(prefix == null || prefix.isEmpty()) return List.of();
+
+        try {
+            SearchResponse<BrandDocument> response = elasticsearchClient.search(searchRequest -> searchRequest
+                            .index("brands") // "brands" Index에서 검색
+                            .suggest(suggestBuilder -> suggestBuilder // suggest : 자동 완성 구성 요청
+                                    // brand_suggest에 대한 값은 ES 안에 필드 값이 아닌 자동완성 요청 결과의 이름
+                                    // KEY : "brand_suggest" -> Value : 자동 완성 결과 return 값
+                                    .suggesters("brand_suggest", su -> su
+                                            .prefix(prefix)
+                                            .completion(c -> c
+                                                    .field("suggest")
+                                                    .size(5))
+                                    )
+                            ),
+                    BrandDocument.class
+            );
+
+            return response.suggest()
+                    .get("brand_suggest")
+                    .stream()
+                    .flatMap(s -> s.completion().options().stream())
+                    .map(option -> new BrandAutoCompletionDto(option.source()))
+                    .collect(Collectors.toList());
+        } catch (IOException e) {
+            log.error("[브랜드 자동 완성 실패] prefix : {}", prefix, e);
+            throw new SearchException("브랜드 검색 시 오류가 발생했습니다.");
+        }
     }
 
 }
