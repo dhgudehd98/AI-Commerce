@@ -2,6 +2,7 @@ package com.sh.aicommerce.search.controller;
 
 import com.sh.aicommerce.brand.es.BrandDocument;
 import com.sh.aicommerce.product.es.document.ProductDocument;
+import com.sh.aicommerce.search.dto.BrandAutoCompletionDto;
 import com.sh.aicommerce.search.dto.SearchResultProductDto;
 import com.sh.aicommerce.search.service.SearchService;
 import lombok.RequiredArgsConstructor;
@@ -37,7 +38,7 @@ public class SearchController {
     }
     // 상품 자동 완성
     @GetMapping("autoCompletion")
-    public List<BrandDocument> productAutoCompletion(@RequestParam(required = false) String prefix) throws IOException {
+    public List<BrandAutoCompletionDto> productAutoCompletion(@RequestParam(required = false) String prefix) throws IOException {
         return searchService.productAutoCompletion(prefix);
 
     }

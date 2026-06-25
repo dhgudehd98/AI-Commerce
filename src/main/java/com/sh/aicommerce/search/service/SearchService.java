@@ -5,6 +5,7 @@ import co.elastic.clients.elasticsearch.core.SearchResponse;
 import com.sh.aicommerce.brand.es.BrandDocument;
 import com.sh.aicommerce.product.es.document.ProductDocument;
 import com.sh.aicommerce.product.es.repository.ProductDocumentRepository;
+import com.sh.aicommerce.search.dto.BrandAutoCompletionDto;
 import com.sh.aicommerce.search.dto.SearchResultProductDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,7 +37,7 @@ public class SearchService {
      * suggest : 자동 요청 설정 구성
      * suggests : 자동 요청 설정에 구성에 필요한 구성품
      */
-    public List<BrandDocument> productAutoCompletion(String prefix) throws IOException {
+    public List<BrandAutoCompletionDto> productAutoCompletion(String prefix) throws IOException {
         SearchResponse<BrandDocument> response = elasticsearchClient.search(searchRequest -> searchRequest
                         .index("brands") // "brands" Index에서 검색
                         .suggest(suggestBuilder -> suggestBuilder // suggest : 자동 완성 구성 요청
@@ -56,7 +57,7 @@ public class SearchService {
                 .get("brand_suggest")
                 .stream()
                 .flatMap(s -> s.completion().options().stream())
-                .map(option -> option.source())
+                .map(option -> new BrandAutoCompletionDto(option.source()))
                 .collect(Collectors.toList());
     }
 

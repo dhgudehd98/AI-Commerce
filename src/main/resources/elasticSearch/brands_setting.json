@@ -42,7 +42,7 @@
         "type": "completion",
         "analyzer": "standard"
       },
-      "imgUrl" : {
+      "brandImageUrl" : {
         "type" : "keyword"
       }
     }

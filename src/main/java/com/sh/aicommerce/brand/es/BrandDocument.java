@@ -26,10 +26,10 @@ import org.springframework.data.elasticsearch.core.suggest.Completion;
 public class BrandDocument {
     @Id
     private Long brandId;
-    private String name;
+    private String brandName;
 
     @CompletionField
     private Completion suggest;
 
-    private String imageUrl;
+    private String brandImageUrl;
 }
