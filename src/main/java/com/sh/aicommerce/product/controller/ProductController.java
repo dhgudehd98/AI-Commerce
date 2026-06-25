@@ -7,6 +7,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/admin")
@@ -15,8 +17,8 @@ public class ProductController {
     private final ProductService productService;
     @PostMapping("product")
     public ResponseEntity<?> createProduct(
-            @Valid @RequestBody ProductCreateRequestDto productCreateRequestDto) {
-        return ResponseEntity.ok(productService.createProduct(productCreateRequestDto));
+            @Valid @RequestBody List<ProductCreateRequestDto> dtos) {
+        return ResponseEntity.ok(productService.createProduct(dtos));
     }
 
     @PostMapping("delete/{id}")

@@ -42,29 +42,29 @@ public class ProductService {
 
 
     @Transactional
-    public ProductCreateResponseDto createProduct(ProductCreateRequestDto createRequestDto) {
+    public ProductCreateResponseDto createProduct(List<ProductCreateRequestDto> dtos) {
+        for (ProductCreateRequestDto createRequestDto : dtos) {
+            Brand brand = brandRepository.findById(createRequestDto.getBrandId()).orElseThrow(() -> new BrandException("현재 존재하지 않는 브랜드입니다. 브랜드를 다시 확인해주세요."));
 
-        Brand brand = brandRepository.findById(createRequestDto.getBrandId()).orElseThrow(() -> new BrandException("현재 존재하지 않는 브랜드입니다. 브랜드를 다시 확인해주세요."));
+            // 요청 값 유효성검사 -> 상품, 상품 Variant, 상품 옵션, 상품 이미지
+            validateProductRequest(createRequestDto.getVariants());
 
-        // 요청 값 유효성검사 -> 상품, 상품 Variant, 상품 옵션, 상품 이미지
-        validateProductRequest(createRequestDto.getVariants());
+            // 유효성 검사 통과하면 상품에 대한 데이터 저장
+            // 1. 상품 데이터 저장
+            Product product = Product.create(createRequestDto, brand);
+            productRepository.save(product);
+            // 2. 상품 Variandant 저장
+            try {
+                saveVariant(product, createRequestDto.getVariants());
+            } catch (DataIntegrityViolationException e) {
+                throw new ProductException("이미 등록된 모델번호 또는 SKU에 대한 값이 존재합니다.");
+            }
 
-        // 유효성 검사 통과하면 상품에 대한 데이터 저장
-        // 1. 상품 데이터 저장
-        Product product = Product.create(createRequestDto, brand);
-        productRepository.save(product);
-        // 2. 상품 Variandant 저장
-        try {
-            saveVariant(product, createRequestDto.getVariants());
-        } catch (DataIntegrityViolationException e) {
-            throw new ProductException("이미 등록된 모델번호 또는 SKU에 대한 값이 존재합니다.");
+            // 상품에 대한 정보를 색인하는 것이 아닌 상품 Variant 대한 부분을 색인
+            eventPublisher.publishEvent(
+                    new ProductIndexEventRecord(product.getId(), "CREATE")
+            );
         }
-
-        // 상품에 대한 정보를 색인하는 것이 아닌 상품 Variant 대한 부분을 색인
-        eventPublisher.publishEvent(
-                new ProductIndexEventRecord(product.getId(), "CREATE")
-        );
-
         return new ProductCreateResponseDto("Y", "상품이 성공적으로 저장되었습니다.");
     }
 

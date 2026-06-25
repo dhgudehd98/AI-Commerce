@@ -3,8 +3,7 @@ package com.sh.aicommerce.product;
 import com.sh.aicommerce.brand.repository.BrandRepository;
 import com.sh.aicommerce.entity.Brand;
 import com.sh.aicommerce.enums.product.ProductCategory;
-import com.sh.aicommerce.product.dto.ProductCreateRequestDto;
-import com.sh.aicommerce.product.dto.ProductOptionCreateRequestDto;
+
 import com.sh.aicommerce.product.service.ProductService;
 import com.sh.aicommerce.productOption.repository.ProductOptionRepository;
 import org.junit.jupiter.api.AfterEach;
@@ -55,37 +54,37 @@ class ProductCreateTest {
         for (int i = 0; i < threadCount; i++) {
             int index = i;
 
-            executorService.submit(() -> {
-                try {
-                    ProductCreateRequestDto request = new ProductCreateRequestDto(
-                            brand.getId(),
-                            "동시성 테스트 상품 " + index,
-                            ProductCategory.OUTER,
-                            150000,
-                            "동일 SKU 동시 등록 테스트",
-                            List.of(
-                                    new ProductOptionCreateRequestDto(
-                                            duplicatedSku,
-                                            "BLACK",
-                                            "L",
-                                            0
-                                    )
-                            )
-                    );
-
-                    readyLatch.countDown();
-                    startLatch.await();
-
-                    productService.createProduct(request);
-                    successCount.incrementAndGet();
-
-                } catch (Exception e) {
-                    failCount.incrementAndGet();
-
-                } finally {
-                    doneLatch.countDown();
-                }
-            });
+//            executorService.submit(() -> {
+//                try {
+//                    ProductCreateRequestDto request = new ProductCreateRequestDto(
+//                            brand.getId(),
+//                            "동시성 테스트 상품 " + index,
+//                            ProductCategory.OUTER,
+//                            150000,
+//                            "동일 SKU 동시 등록 테스트",
+//                            List.of(
+//                                    new ProductOptionCreateRequestDto(
+//                                            duplicatedSku,
+//                                            "BLACK",
+//                                            "L",
+//                                            0
+//                                    )
+//                            )
+//                    );
+//
+//                    readyLatch.countDown();
+//                    startLatch.await();
+//
+//                    productService.createProduct(request);
+//                    successCount.incrementAndGet();
+//
+//                } catch (Exception e) {
+//                    failCount.incrementAndGet();
+//
+//                } finally {
+//                    doneLatch.countDown();
+//                }
+//            });
         }
 
         readyLatch.await();

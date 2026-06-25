@@ -53,6 +53,10 @@
   "mappings": {
     "dynamic": "strict",
     "properties": {
+      "_class": {
+        "type": "keyword",
+        "index": false
+      },
       "productVariantId": {
         "type": "long"
       },

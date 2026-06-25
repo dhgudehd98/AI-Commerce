@@ -43,6 +43,12 @@ public class ProductDocumentNativeQueryImpl implements ProductDocumentNativeQuer
                                                 .boost(5f)
                                         )
                                 )
+//                                .filter(f -> f
+//                                        .term(t -> t
+//                                                .field("inStock")
+//                                                .value(true)
+//                                        )
+//                                )
                         )
                 )
                 // 2. 정렬 설정 - 스코어에대한 값 기준으로 내림차순 , 스코어에 대한 부분이 동일하다면 id에 대한 값은 오름차순으로 설정
@@ -60,6 +66,7 @@ public class ProductDocumentNativeQueryImpl implements ProductDocumentNativeQuer
             query.setSearchAfter(searchAfter);
         }
 
+        // ES index 검색 쿼리 설정
         SearchHits<ProductDocument> searchHits = operations.search(query, ProductDocument.class);
 
         return searchHits.getSearchHits()

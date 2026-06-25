@@ -27,6 +27,7 @@ public class SearchService {
 
         // 인기 검색어 저장
         List<SearchResultProductDto> results = productDocumentRepository.search(keyword, searchAfter);
+        log.info("[상품 검색] 검색어 : {} , 검색 결과 : {}", keyword, results.size());
         return results;
     }
 

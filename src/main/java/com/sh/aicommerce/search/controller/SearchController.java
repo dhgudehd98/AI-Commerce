@@ -31,7 +31,7 @@ public class SearchController {
     ) {
         List<Object> searchAfter = null;
 
-        if (lastId != null && lastScore != null) searchAfter = List.of(lastId, lastScore);
+        if (lastId != null && lastScore != null) searchAfter = List.of(lastScore, lastId);
 
         return searchService.search(keyword, searchAfter);
     }
