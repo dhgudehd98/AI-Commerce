@@ -30,19 +30,29 @@ public class ProductDocumentNativeQueryImpl implements ProductDocumentNativeQuer
                                                         "baseProductName^30",
                                                         "variantName^50",
                                                         "productDescription^5",
-                                                        "color^10"
+                                                        "tags^5"
                                                 )
                                                 .type(TextQueryType.CrossFields)
                                                 .minimumShouldMatch("70%")
                                         )
                                 )
+                                // should : must에 해당하는 상품들중 추가 점수 주고 싶을 때
+                                // variantName에 대한 값과 검색어에 대한 값이 일치하면 추가점수
                                 .should(s -> s
-                                        .match(ma -> ma
-                                                .field("tags")
-                                                .query(keyword)
-                                                .boost(5f)
+                                        .term(t -> t
+                                                .field("variantName.keyword")
+                                                .value(keyword)
+                                                .boost(250f)
                                         )
                                 )
+                                .should(s -> s
+                                        .term(t -> t
+                                                .field("brandName.keyword")
+                                                .value(keyword)
+                                                .boost(250f)
+                                        )
+                                )
+                                //! 나중에 여기는 주석해제
 //                                .filter(f -> f
 //                                        .term(t -> t
 //                                                .field("inStock")

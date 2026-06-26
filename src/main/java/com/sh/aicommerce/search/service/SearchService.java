@@ -27,6 +27,11 @@ public class SearchService {
     // 검색 -> 모든 상품 조회
     public List<SearchResultProductDto> search(String keyword, List<Object> searchAfter) {
 
+        if (keyword == null || keyword.isEmpty()) {
+            //! 여기에는 키워드에 대한 값 없이 검색 할 때 어떤 값이 추출하도록 할지 설정
+            return null;
+        }
+
         // 인기 검색어 저장
         List<SearchResultProductDto> results = productDocumentRepository.search(keyword, searchAfter);
         log.info("[상품 검색] 검색어 : {} , 검색 결과 : {}", keyword, results.size());
@@ -40,7 +45,7 @@ public class SearchService {
      */
     public List<BrandAutoCompletionDto> productAutoCompletion(String prefix){
 
-        if(prefix == null || prefix.isEmpty()) return List.of();
+        if(prefix == null || prefix.isBlank()) return List.of();
 
         try {
             SearchResponse<BrandDocument> response = elasticsearchClient.search(searchRequest -> searchRequest

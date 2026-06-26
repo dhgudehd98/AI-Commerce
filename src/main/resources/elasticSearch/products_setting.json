@@ -115,7 +115,7 @@
         "type": "keyword"
       },
       "color": {
-        "type": "text",
+        "type": "keyword",
         "analyzer": "products_index_analyzer",
         "search_analyzer": "products_search_analyzer",
         "fields": {

@@ -5,10 +5,7 @@ import com.sh.aicommerce.enums.product.ProductImageType;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.annotation.Id;
-import org.springframework.data.elasticsearch.annotations.Document;
-import org.springframework.data.elasticsearch.annotations.Field;
-import org.springframework.data.elasticsearch.annotations.FieldType;
-import org.springframework.data.elasticsearch.annotations.Setting;
+import org.springframework.data.elasticsearch.annotations.*;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -23,30 +20,68 @@ import java.util.List;
 public class ProductDocument {
 
 
-
-
     @Id
     private Long productVariantId;
 
-    // 동일한 상위 상품의 Variant들을 묶어서 조회할 때 사용
     @Field(type = FieldType.Long)
     private Long productId;
 
-    @Field(type = FieldType.Text)
+    @MultiField(
+            mainField = @Field(
+                    type = FieldType.Text,
+                    analyzer = "products_index_analyzer",
+                    searchAnalyzer = "products_search_analyzer"
+            ),
+            otherFields = {
+                    @InnerField(suffix = "keyword", type = FieldType.Keyword)
+            }
+    )
     private String baseProductName;
 
+    @MultiField(
+            mainField = @Field(
+                    type = FieldType.Text,
+                    analyzer = "products_index_analyzer",
+                    searchAnalyzer = "products_search_analyzer"
+            ),
+            otherFields = {
+                    @InnerField(suffix = "keyword", type = FieldType.Keyword)
+            }
+    )
     private List<String> tags = new ArrayList<>();
 
-    @Field(type = FieldType.Text)
+    @MultiField(
+            mainField = @Field(
+                    type = FieldType.Text,
+                    analyzer = "products_index_analyzer",
+                    searchAnalyzer = "products_search_analyzer"
+            ),
+            otherFields = {
+                    @InnerField(suffix = "keyword", type = FieldType.Keyword)
+            }
+    )
     private String variantName;
 
-    @Field(type = FieldType.Text)
+    @Field(
+            type = FieldType.Text,
+            analyzer = "products_index_analyzer",
+            searchAnalyzer = "products_search_analyzer"
+    )
     private String productDescription;
 
     @Field(type = FieldType.Long)
     private Long brandId;
 
-    @Field(type = FieldType.Keyword)
+    @MultiField(
+            mainField = @Field(
+                    type = FieldType.Text,
+                    analyzer = "products_index_analyzer",
+                    searchAnalyzer = "products_search_analyzer"
+            ),
+            otherFields = {
+                    @InnerField(suffix = "keyword", type = FieldType.Keyword)
+            }
+    )
     private String brandName;
 
     @Field(type = FieldType.Keyword)
@@ -64,10 +99,10 @@ public class ProductDocument {
     @Field(type = FieldType.Keyword)
     private String productVariantStatus;
 
-    @Field(type = FieldType.Keyword)
+    @Field(type = FieldType.Keyword, index = false)
     private String thumbnailUrl;
 
-    @Field(type = FieldType.Keyword)
+    @Field(type = FieldType.Keyword, index = false)
     private List<String> imageUrls;
 
     @Field(type = FieldType.Nested)
