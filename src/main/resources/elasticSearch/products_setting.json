@@ -115,14 +115,7 @@
         "type": "keyword"
       },
       "color": {
-        "type": "keyword",
-        "analyzer": "products_index_analyzer",
-        "search_analyzer": "products_search_analyzer",
-        "fields": {
-          "keyword": {
-            "type": "keyword"
-          }
-        }
+        "type": "keyword"
       },
       "modelNumber": {
         "type": "keyword"

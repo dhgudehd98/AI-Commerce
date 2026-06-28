@@ -6,7 +6,9 @@ import com.sh.aicommerce.brand.es.BrandDocument;
 import com.sh.aicommerce.common.exception.search.SearchException;
 import com.sh.aicommerce.product.es.document.ProductDocument;
 import com.sh.aicommerce.product.es.repository.ProductDocumentRepository;
+import com.sh.aicommerce.redis.search.SearchRanking;
 import com.sh.aicommerce.search.dto.BrandAutoCompletionDto;
+import com.sh.aicommerce.search.dto.RankingDto;
 import com.sh.aicommerce.search.dto.SearchResultProductDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,14 +24,18 @@ import java.util.stream.Collectors;
 public class SearchService {
     private final ElasticsearchClient elasticsearchClient;
     private final ProductDocumentRepository productDocumentRepository;
+    private final SearchRanking searchRanking;
 
 
     // 검색 -> 모든 상품 조회
     public List<SearchResultProductDto> search(String keyword, List<Object> searchAfter) {
 
-        if (keyword == null || keyword.isEmpty()) {
+        //인기 검색어 저장
+        searchRanking.saveKeyword(keyword);
+
+        if (keyword == null || keyword.isBlank()) {
             //! 여기에는 키워드에 대한 값 없이 검색 할 때 어떤 값이 추출하도록 할지 설정
-            return null;
+            return List.of();
         }
 
         // 인기 검색어 저장
@@ -75,4 +81,7 @@ public class SearchService {
         }
     }
 
+    public List<RankingDto> getRankingList() {
+        return searchRanking.getKeywordRanking();
+    }
 }

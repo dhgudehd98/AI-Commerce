@@ -3,6 +3,7 @@ package com.sh.aicommerce.search.controller;
 import com.sh.aicommerce.brand.es.BrandDocument;
 import com.sh.aicommerce.product.es.document.ProductDocument;
 import com.sh.aicommerce.search.dto.BrandAutoCompletionDto;
+import com.sh.aicommerce.search.dto.RankingDto;
 import com.sh.aicommerce.search.dto.SearchResultProductDto;
 import com.sh.aicommerce.search.service.SearchService;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +24,7 @@ import java.util.List;
 public class SearchController {
 
     private final SearchService searchService;
+
     // 상품 검색 결과 출력
     @GetMapping("")
     public List<SearchResultProductDto> search(
@@ -36,6 +38,7 @@ public class SearchController {
 
         return searchService.search(keyword, searchAfter);
     }
+
     // 상품 자동 완성
     @GetMapping("autoCompletion")
     public List<BrandAutoCompletionDto> productAutoCompletion(@RequestParam(required = false) String prefix) throws IOException {
@@ -43,6 +46,8 @@ public class SearchController {
 
     }
 
-    // 상품 검색
-
+    @GetMapping("ranking")
+    public List<RankingDto> getRankingList() {
+        return searchService.getRankingList();
+    }
 }
