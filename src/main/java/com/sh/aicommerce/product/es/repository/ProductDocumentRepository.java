@@ -9,6 +9,6 @@ public interface ProductDocumentRepository extends
         ElasticsearchRepository<ProductDocument, Long>,
         ProductDocumentNativeQuery
 {
-
     void deleteAllByProductId(Long productId);
+
 }

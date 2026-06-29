@@ -1,5 +1,6 @@
 package com.sh.aicommerce.product.es.repository;
 
+import co.elastic.clients.elasticsearch._types.KnnQuery;
 import co.elastic.clients.elasticsearch._types.SortOrder;
 import co.elastic.clients.elasticsearch._types.query_dsl.TextQueryType;
 import com.sh.aicommerce.product.es.document.ProductDocument;
@@ -8,8 +9,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.elasticsearch.client.elc.NativeQuery;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
+import org.springframework.data.elasticsearch.core.SearchHit;
 import org.springframework.data.elasticsearch.core.SearchHits;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @RequiredArgsConstructor
@@ -87,5 +90,38 @@ public class ProductDocumentNativeQueryImpl implements ProductDocumentNativeQuer
                     return dto;
                 })
                 .toList();
+    }
+
+    @Override
+    public List<SearchResultProductDto> findByVectors(float[] weatherVectors) {
+
+        List<Float> vectors = new ArrayList<>();
+
+        for (float f : weatherVectors) {
+            vectors.add(f);
+        }
+
+        KnnQuery knnQuery = KnnQuery.of(k -> k
+                .field("descriptionVector") // ES에 정의된 필드명
+                .queryVector(vectors)
+                .k(50)                       // 가져올 결과 개수
+                .numCandidates(100)
+        );
+
+        NativeQuery nativeQuery = NativeQuery.builder()
+                .withKnnQuery(knnQuery)
+                .withPageable(PageRequest.of(0, 50))
+                .build();
+
+        SearchHits<ProductDocument> hits = operations.search(nativeQuery, ProductDocument.class);
+
+        List<ProductDocument> documents = hits.getSearchHits().stream()
+                .map(SearchHit::getContent)
+                .toList();
+
+        return documents.stream()
+                .map(productDocument -> new SearchResultProductDto(productDocument))
+                .toList();
+
     }
 }

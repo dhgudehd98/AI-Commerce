@@ -6,6 +6,7 @@ import com.sh.aicommerce.search.dto.BrandAutoCompletionDto;
 import com.sh.aicommerce.search.dto.RankingDto;
 import com.sh.aicommerce.search.dto.SearchResultProductDto;
 import com.sh.aicommerce.search.service.SearchService;
+import com.sh.aicommerce.weather.service.WeatherService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Controller;
@@ -24,6 +25,7 @@ import java.util.List;
 public class SearchController {
 
     private final SearchService searchService;
+    private final WeatherService weatherService;
 
     // 상품 검색 결과 출력
     @GetMapping("")
@@ -49,5 +51,10 @@ public class SearchController {
     @GetMapping("ranking")
     public List<RankingDto> getRankingList() {
         return searchService.getRankingList();
+    }
+
+    @GetMapping("weather")
+    public List<SearchResultProductDto> recommendProductByWeather() {
+        return weatherService.recommendProductByWeather();
     }
 }

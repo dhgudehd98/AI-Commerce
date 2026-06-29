@@ -6,4 +6,6 @@ import java.util.List;
 
 public interface ProductDocumentNativeQuery {
     List<SearchResultProductDto> search(String keyword , List<Object> searchAfter);
+
+    List<SearchResultProductDto> findByVectors(float[] weatherVectors);
 }
