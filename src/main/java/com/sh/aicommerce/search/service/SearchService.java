@@ -30,14 +30,18 @@ public class SearchService {
     // 검색 -> 모든 상품 조회
     public List<SearchResultProductDto> search(String keyword, List<Object> searchAfter) {
 
-        keyword = keyword.trim();
-        //인기 검색어 저장
-        searchRanking.saveKeyword(keyword);
-
         if (keyword == null || keyword.isBlank()) {
             //! 여기에는 키워드에 대한 값 없이 검색 할 때 어떤 값이 추출하도록 할지 설정
             return List.of();
         }
+
+        // Keyword에 대한 값 빈 값 제거
+        keyword = keyword.trim();
+        //인기 검색어 저장
+        searchRanking.saveKeyword(keyword);
+
+
+
 
         // 인기 검색어 저장
         List<SearchResultProductDto> results = productDocumentRepository.search(keyword, searchAfter);
