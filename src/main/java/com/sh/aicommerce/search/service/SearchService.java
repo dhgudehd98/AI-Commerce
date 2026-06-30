@@ -30,6 +30,7 @@ public class SearchService {
     // 검색 -> 모든 상품 조회
     public List<SearchResultProductDto> search(String keyword, List<Object> searchAfter) {
 
+        keyword = keyword.trim();
         //인기 검색어 저장
         searchRanking.saveKeyword(keyword);
 
