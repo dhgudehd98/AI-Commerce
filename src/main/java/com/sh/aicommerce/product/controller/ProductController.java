@@ -17,8 +17,8 @@ public class ProductController {
     private final ProductService productService;
     @PostMapping("product")
     public ResponseEntity<?> createProduct(
-            @Valid @RequestBody List<ProductCreateRequestDto> dtos) {
-        return ResponseEntity.ok(productService.createProduct(dtos));
+            @Valid @RequestBody ProductCreateRequestDto dto) {
+        return ResponseEntity.ok(productService.createProduct(dto));
     }
 
     @PostMapping("delete/{id}")

@@ -150,7 +150,7 @@ public class ProductDocument {
 
         return document;
     }
-    public static ProductDocument createProduct(Product product, ProductVariant variant) {
+    public static ProductDocument createProduct(Product product, ProductVariant variant, float[] descriptionVector) {
         ProductDocument document = baseDocument(product, variant);
         document.options = variant.getOptions().stream()
                 .map(option -> new ProductOptionDocument(
@@ -167,7 +167,7 @@ public class ProductDocument {
         // 초기 상품 등록 할 때는 이용 가능한 재고에 대한 값 0으로 설정
         document.totalAvailableStock = 0;
         document.inStock = false;
-//        document.descriptionVector = descriptionVector;
+        document.descriptionVector = descriptionVector;
 
         return document;
     }

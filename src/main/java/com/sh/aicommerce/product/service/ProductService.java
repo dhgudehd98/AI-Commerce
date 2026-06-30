@@ -42,8 +42,8 @@ public class ProductService {
 
 
     @Transactional
-    public ProductCreateResponseDto createProduct(List<ProductCreateRequestDto> dtos) {
-        for (ProductCreateRequestDto createRequestDto : dtos) {
+    public ProductCreateResponseDto createProduct(ProductCreateRequestDto createRequestDto) {
+
             Brand brand = brandRepository.findById(createRequestDto.getBrandId()).orElseThrow(() -> new BrandException("현재 존재하지 않는 브랜드입니다. 브랜드를 다시 확인해주세요."));
 
             // 요청 값 유효성검사 -> 상품, 상품 Variant, 상품 옵션, 상품 이미지
@@ -64,7 +64,7 @@ public class ProductService {
             eventPublisher.publishEvent(
                     new ProductIndexEventRecord(product.getId(), "CREATE")
             );
-        }
+
         return new ProductCreateResponseDto("Y", "상품이 성공적으로 저장되었습니다.");
     }
 

@@ -28,13 +28,13 @@ public class ProductDocumentService {
 
         Product product = productRepository.findWithBrandAndVariantsByProductId(productId).orElseThrow(() -> new ProductException("해당 상품이 존재하지 않습니다."));
 
-        //! 상품 설명 임베딩 처리 - OpenAI API 플랫폼 결제 후 해당 기능 주석해제
-//        float[] descriptionVectors = embeddingModel.embed(product.getProductDescription());
-//        return new ProductDocument(product, descriptionVectors);
+        // 상품 설명 임베딩 처리
+        float[] descriptionVectors = embeddingModel.embed(product.getProductDescription());
+
 
 
         return product.getVariants().stream()
-                .map(productVariant -> ProductDocument.createProduct(product, productVariant))
+                .map(productVariant -> ProductDocument.createProduct(product, productVariant, descriptionVectors))
                 .toList();
     }
 
