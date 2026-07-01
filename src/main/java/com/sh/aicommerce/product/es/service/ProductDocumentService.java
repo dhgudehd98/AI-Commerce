@@ -43,8 +43,11 @@ public class ProductDocumentService {
     public List<ProductDocument> inboundProductVariantDocument(Long productId) {
         Product product = productRepository.findWithBrandAndVariantsByProductId(productId).orElseThrow(() -> new ProductException("해당 상품이 존재하지 않습니다."));
 
+        // 상품 설명 임베딩 처리
+        float[] descriptionVectors = embeddingModel.embed(product.getProductDescription());
+
         return product.getVariants().stream()
-                .map(productVariant -> ProductDocument.inboundProduct(product, productVariant))
+                .map(productVariant -> ProductDocument.inboundProduct(product, productVariant, descriptionVectors))
                 .toList();
     }
 

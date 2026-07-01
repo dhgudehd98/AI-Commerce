@@ -174,7 +174,7 @@ public class ProductDocument {
 
 
     // 상품 입고 후 , 옵션별 재고 업데이트
-    public static ProductDocument inboundProduct(Product product, ProductVariant variant) {
+    public static ProductDocument inboundProduct(Product product, ProductVariant variant, float[] descriptionVector) {
         ProductDocument document = baseDocument(product, variant);
         document.options = variant.getOptions().stream()
                 .map(option -> {
@@ -200,7 +200,7 @@ public class ProductDocument {
                 .sum();
 
         document.inStock = document.totalAvailableStock > 0;
-
+        document.descriptionVector = descriptionVector;
         return document;
     }
 }
