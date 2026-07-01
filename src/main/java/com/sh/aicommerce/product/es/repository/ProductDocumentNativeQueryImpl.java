@@ -3,6 +3,7 @@ package com.sh.aicommerce.product.es.repository;
 import co.elastic.clients.elasticsearch._types.KnnQuery;
 import co.elastic.clients.elasticsearch._types.SortOrder;
 import co.elastic.clients.elasticsearch._types.query_dsl.TextQueryType;
+import com.sh.aicommerce.common.exception.search.SearchException;
 import com.sh.aicommerce.product.es.document.ProductDocument;
 import com.sh.aicommerce.search.dto.SearchResultProductDto;
 import lombok.RequiredArgsConstructor;
@@ -95,6 +96,8 @@ public class ProductDocumentNativeQueryImpl implements ProductDocumentNativeQuer
     @Override
     public List<SearchResultProductDto> findByVectors(float[] weatherVectors) {
 
+        // 날씨 임베딩 정보가 정상적으로 넘어 왔는지 확인 여기까지 와서 안오면 에외처리
+        if(weatherVectors == null || weatherVectors.length == 0) throw new SearchException("날씨와 관련된 정보가 존재하지 않습니다.");
         List<Float> vectors = new ArrayList<>();
 
         for (float f : weatherVectors) {
