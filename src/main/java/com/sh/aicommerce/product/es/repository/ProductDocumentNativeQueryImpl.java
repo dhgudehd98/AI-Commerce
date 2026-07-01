@@ -118,12 +118,13 @@ public class ProductDocumentNativeQueryImpl implements ProductDocumentNativeQuer
 
         SearchHits<ProductDocument> hits = operations.search(nativeQuery, ProductDocument.class);
 
-        List<ProductDocument> documents = hits.getSearchHits().stream()
-                .map(SearchHit::getContent)
-                .toList();
-
-        return documents.stream()
-                .map(productDocument -> new SearchResultProductDto(productDocument))
+        return hits.getSearchHits()
+                .stream()
+                .map(hit -> {
+                    SearchResultProductDto dto = new SearchResultProductDto(hit.getContent());
+                    dto.setScore(hit.getScore());
+                    return dto;
+                })
                 .toList();
 
     }
