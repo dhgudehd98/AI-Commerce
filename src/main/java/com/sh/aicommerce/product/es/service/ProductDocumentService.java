@@ -5,6 +5,7 @@ package com.sh.aicommerce.product.es.service;
 import com.sh.aicommerce.common.exception.product.ProductException;
 import com.sh.aicommerce.entity.Product;
 import com.sh.aicommerce.product.es.document.ProductDocument;
+import com.sh.aicommerce.product.es.record.ProductIndexRecord;
 import com.sh.aicommerce.product.es.repository.ProductDocumentRepository;
 import com.sh.aicommerce.product.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
@@ -17,37 +18,31 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class ProductDocumentService {
-    private final ProductRepository productRepository;
     private final ProductDocumentRepository productDocumentRepository;
     private final EmbeddingModel embeddingModel;
+    private final ProductIndexService indexService;
 
 
     // 상품 등록
-    @Transactional(readOnly = true)
     public List<ProductDocument> insertProductVariantDocument(Long productId) {
-
-        Product product = productRepository.findWithBrandAndVariantsByProductId(productId).orElseThrow(() -> new ProductException("해당 상품이 존재하지 않습니다."));
+        ProductIndexRecord productRecord = indexService.productEntityToRecord(productId);
 
         // 상품 설명 임베딩 처리
-        float[] descriptionVectors = embeddingModel.embed(product.getProductDescription());
+        float[] descriptionVectors = embeddingModel.embed(productRecord.productDescription());
 
-
-
-        return product.getVariants().stream()
-                .map(productVariant -> ProductDocument.createProduct(product, productVariant, descriptionVectors))
+        return productRecord.variantRecords().stream()
+                .map(variantRecord -> ProductDocument.createProduct(productRecord, variantRecord, descriptionVectors))
                 .toList();
     }
 
     // 상품 입고 후
-    @Transactional(readOnly = true)
     public List<ProductDocument> inboundProductVariantDocument(Long productId) {
-        Product product = productRepository.findWithBrandAndVariantsByProductId(productId).orElseThrow(() -> new ProductException("해당 상품이 존재하지 않습니다."));
 
-        // 상품 설명 임베딩 처리
-        float[] descriptionVectors = embeddingModel.embed(product.getProductDescription());
+        ProductIndexRecord productRecord = indexService.productEntityToRecord(productId);
+        float[] descriptionVector = embeddingModel.embed(productRecord.productDescription());
 
-        return product.getVariants().stream()
-                .map(productVariant -> ProductDocument.inboundProduct(product, productVariant, descriptionVectors))
+        return productRecord.variantRecords().stream()
+                .map(variantRecord -> ProductDocument.inboundProductVariantDocumentFromRecord(productRecord, variantRecord, descriptionVector))
                 .toList();
     }
 

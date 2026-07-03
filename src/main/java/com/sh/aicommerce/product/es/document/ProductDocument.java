@@ -2,6 +2,9 @@ package com.sh.aicommerce.product.es.document;
 
 import com.sh.aicommerce.entity.*;
 import com.sh.aicommerce.enums.product.ProductImageType;
+import com.sh.aicommerce.product.es.record.ProductIndexRecord;
+import com.sh.aicommerce.product.es.record.ProductOptionIndexRecord;
+import com.sh.aicommerce.product.es.record.ProductVariantIndexRecord;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.annotation.Id;
@@ -118,48 +121,39 @@ public class ProductDocument {
     private float[] descriptionVector;
 
 
-    // 벡터에 대한 값 임시 제거 - OpenAI API 결제 후, 벡터에 대한 값 다시 사용
 
-    // 공통 값 설정
-    public static ProductDocument baseDocument(Product product, ProductVariant variant) {
+    public static ProductDocument baseDocumentFromRecord(ProductIndexRecord productRecord, ProductVariantIndexRecord variantRecord) {
         ProductDocument document = new ProductDocument();
 
-        document.productVariantId = variant.getId();
-        document.productId = product.getId();
-        document.baseProductName = product.getBaseProductName();
-        document.tags = new ArrayList<>(product.getTags());
-        document.variantName = variant.getVariantName();
-        document.productDescription = product.getProductDescription();
-        document.brandId = product.getBrand().getId();
-        document.brandName = product.getBrand().getBrandName();
-        document.category = product.getProductCategory().name();
-        document.productVariantStatus = String.valueOf(variant.getProductVariantStatus());
-        document.color = variant.getColor();
-        document.modelNumber = variant.getModelNumber();
-        document.price = variant.getPrice();
-        document.thumbnailUrl = variant.getImages().stream()
-                .filter(productImage -> productImage.getImageType() == ProductImageType.THUMBNAIL)
-                .map(productImage -> productImage.getImageUrl())
-                .findFirst()
-                .orElse(null);
-        document.imageUrls = variant.getImages().stream()
-                .filter(productImage -> productImage.getImageType() != ProductImageType.THUMBNAIL)
-                .sorted(Comparator.comparing(ProductImage::getDisplayOrder))
-                .map(ProductImage::getImageUrl)
-                .toList();
-
+        document.productVariantId = variantRecord.productVariantId();
+        document.productId = productRecord.productId();
+        document.baseProductName = productRecord.baseProductName();
+        document.tags = new ArrayList<>(productRecord.tags());
+        document.variantName = variantRecord.variantName();
+        document.productDescription = productRecord.productDescription();
+        document.brandId = productRecord.brandId();
+        document.brandName = productRecord.brandName();
+        document.category = productRecord.productCategory();
+        document.productVariantStatus = variantRecord.productVariantStatus();
+        document.color = variantRecord.color();
+        document.modelNumber = variantRecord.modelNumber();
+        document.price = variantRecord.price();
+        document.thumbnailUrl = variantRecord.thumbnailUrl();
+        document.imageUrls = variantRecord.imageUrls();
         return document;
     }
-    public static ProductDocument createProduct(Product product, ProductVariant variant, float[] descriptionVector) {
-        ProductDocument document = baseDocument(product, variant);
-        document.options = variant.getOptions().stream()
-                .map(option -> new ProductOptionDocument(
-                        option.getId(),
-                        option.getSku(),
-                        option.getSize(),
-                        option.getAdditionalPrice(),
-                        variant.getPrice() + option.getAdditionalPrice(),
-                        String.valueOf(option.getStatus()),
+
+    public static ProductDocument createProduct(ProductIndexRecord productRecord, ProductVariantIndexRecord variantRecord, float[] descriptionVector) {
+        ProductDocument document = baseDocumentFromRecord(productRecord, variantRecord);
+
+        document.options = variantRecord.options().stream()
+                .map(optionRecord -> new ProductOptionDocument(
+                        optionRecord.optionId(),
+                        optionRecord.sku(),
+                        optionRecord.size(),
+                        optionRecord.additionalPrice(),
+                        optionRecord.totalPrice(variantRecord.price()),
+                        optionRecord.optionStatus(),
                         0,
                         false
                 ))
@@ -172,35 +166,28 @@ public class ProductDocument {
         return document;
     }
 
+    public static ProductDocument inboundProductVariantDocumentFromRecord(ProductIndexRecord productRecord, ProductVariantIndexRecord variantRecord, float[] descriptionVector) {
+        ProductDocument document = baseDocumentFromRecord(productRecord, variantRecord);
 
-    // 상품 입고 후 , 옵션별 재고 업데이트
-    public static ProductDocument inboundProduct(Product product, ProductVariant variant, float[] descriptionVector) {
-        ProductDocument document = baseDocument(product, variant);
-        document.options = variant.getOptions().stream()
-                .map(option -> {
-                    int stock = option.getInventories().stream()
-                            .mapToInt(ProductInventory::getAvailableQuantity)
-                            .sum();
-
-                    return new ProductOptionDocument(
-                            option.getId(),
-                            option.getSku(),
-                            option.getSize(),
-                            option.getAdditionalPrice(),
-                            variant.getPrice() + option.getAdditionalPrice(),
-                            option.getStatus().name(),
-                            stock,
-                            stock > 0
-                    );
-                })
+        document.options = variantRecord.options().stream()
+                .map(optionRecord -> new ProductOptionDocument(
+                        optionRecord.optionId(),
+                        optionRecord.sku(),
+                        optionRecord.size(),
+                        optionRecord.additionalPrice(),
+                        optionRecord.totalPrice(variantRecord.price()),
+                        optionRecord.optionStatus(),
+                        optionRecord.availableStock(),
+                        optionRecord.inStock()
+                ))
                 .toList();
 
         document.totalAvailableStock = document.options.stream()
                 .mapToInt(ProductOptionDocument::getAvailableStock)
                 .sum();
-
         document.inStock = document.totalAvailableStock > 0;
         document.descriptionVector = descriptionVector;
+
         return document;
     }
 }

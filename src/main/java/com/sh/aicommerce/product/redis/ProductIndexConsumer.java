@@ -102,7 +102,7 @@ public class ProductIndexConsumer implements ApplicationRunner {
 
     }
 
-    // 상품 색인 정보 생성
+    // 상품 등록
     private void createProductVariantDocument(Long productId, String messageId) {
         log.info("[ES 색인 상품 생성 시작] : ProductId : {}", productId);
         try {
