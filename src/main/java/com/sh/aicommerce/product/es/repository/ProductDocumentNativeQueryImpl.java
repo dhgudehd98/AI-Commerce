@@ -4,11 +4,13 @@ import co.elastic.clients.elasticsearch._types.KnnQuery;
 import co.elastic.clients.elasticsearch._types.SortOrder;
 import co.elastic.clients.elasticsearch._types.query_dsl.TextQueryType;
 import com.sh.aicommerce.common.exception.search.SearchException;
+import com.sh.aicommerce.enums.product.ProductSearchSort;
 import com.sh.aicommerce.product.es.document.ProductDocument;
 import com.sh.aicommerce.search.dto.SearchResultProductDto;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.elasticsearch.client.elc.NativeQuery;
+import org.springframework.data.elasticsearch.client.elc.NativeQueryBuilder;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.data.elasticsearch.core.SearchHit;
 import org.springframework.data.elasticsearch.core.SearchHits;
@@ -21,8 +23,11 @@ public class ProductDocumentNativeQueryImpl implements ProductDocumentNativeQuer
 
     private final ElasticsearchOperations operations;
     @Override
-    public List<SearchResultProductDto> search(String keyword , List<Object> searchAfter) {
-        NativeQuery query = NativeQuery.builder()
+    public List<SearchResultProductDto> search(String keyword, String sort, List<Object> searchAfter) {
+
+        ProductSearchSort searchSort = ProductSearchSort.from(sort);
+
+        NativeQueryBuilder builder = NativeQuery.builder()
                 // Query 설정
                 .withQuery(q -> q
                         .bool(b -> b
@@ -65,17 +70,11 @@ public class ProductDocumentNativeQueryImpl implements ProductDocumentNativeQuer
 //                                )
                         )
                 )
-                // 2. 정렬 설정 - 스코어에대한 값 기준으로 내림차순 , 스코어에 대한 부분이 동일하다면 id에 대한 값은 오름차순으로 설정
-                .withSort(s -> s
-                        .field(f -> f.field("_score").order(SortOrder.Desc))
-                )
-                .withSort(s -> s
-                        .field(f -> f.field("productVariantId").order(SortOrder.Asc))
-                )
                 // 페이징 설정
-                .withPageable(PageRequest.of(0, 10))
-                .build();
+                .withPageable(PageRequest.of(0, 10));
+        applySort(builder, searchSort);
 
+        NativeQuery query = builder.build();
         if (searchAfter != null && !searchAfter.isEmpty()) {
             query.setSearchAfter(searchAfter);
         }
@@ -91,6 +90,32 @@ public class ProductDocumentNativeQueryImpl implements ProductDocumentNativeQuer
                     return dto;
                 })
                 .toList();
+    }
+
+    private void applySort(NativeQueryBuilder builder, ProductSearchSort searchSort) {
+        switch (searchSort) {
+            case PRICE_ASC -> {
+                builder.withSort(s -> s.field(f ->
+                        f.field("price").order(SortOrder.Asc)));
+                builder.withSort(s -> s.field(f ->
+                        f.field("productVariantId").order(SortOrder.Asc)));
+            }
+            case PRICE_DESC -> {
+                builder.withSort(s -> s.field(f ->
+                        f.field("price").order(SortOrder.Desc)));
+                builder.withSort(s -> s.field(f ->
+                        f.field("productVariantId").order(SortOrder.Asc)));
+            }
+            case LATEST -> builder.withSort(s ->
+                    s.field(f -> f.field("productVariantId").order(SortOrder.Desc))
+            );
+            case RELEVANCE -> {
+                builder.withSort(s -> s.field(f ->
+                        f.field("_score").order(SortOrder.Desc)));
+                builder.withSort(s -> s.field(f ->
+                        f.field("productVariantId").order(SortOrder.Asc)));
+            }
+        }
     }
 
     @Override

@@ -1,6 +1,7 @@
 package com.sh.aicommerce.search.controller;
 
 import com.sh.aicommerce.brand.es.BrandDocument;
+import com.sh.aicommerce.enums.product.ProductSearchSort;
 import com.sh.aicommerce.product.es.document.ProductDocument;
 import com.sh.aicommerce.search.dto.BrandAutoCompletionDto;
 import com.sh.aicommerce.search.dto.RankingDto;
@@ -31,21 +32,19 @@ public class SearchController {
     @GetMapping("")
     public List<SearchResultProductDto> search(
             @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String sort,
             @RequestParam(required = false) Long lastId,
-            @RequestParam(required = false) Double lastScore
+            @RequestParam(required = false) Double lastScore,
+            @RequestParam(required = false) Integer lastPrice
     ) {
-        List<Object> searchAfter = null;
-
-        if (lastId != null && lastScore != null) searchAfter = List.of(lastScore, lastId);
-
-        return searchService.search(keyword, searchAfter);
+        List<Object> searchAfter = ProductSearchSort.createSearchAfter(sort, lastId, lastScore, lastPrice);
+        return searchService.search(keyword, sort, searchAfter);
     }
 
     // 상품 자동 완성
     @GetMapping("autoCompletion")
     public List<BrandAutoCompletionDto> productAutoCompletion(@RequestParam(required = false) String prefix) throws IOException {
         return searchService.productAutoCompletion(prefix);
-
     }
 
     @GetMapping("ranking")
