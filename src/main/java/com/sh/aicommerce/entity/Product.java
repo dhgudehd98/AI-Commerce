@@ -38,12 +38,20 @@ public class Product {
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ProductVariant> variants = new ArrayList<>();
 
+    @ElementCollection
+    @CollectionTable(
+            name = "product_tags",
+            joinColumns = @JoinColumn(name = "product_id")
+    )
+    private List<String> tags = new ArrayList<>();
+
     public static Product create(ProductCreateRequestDto dto, Brand brand) {
         Product product = new Product();
         product.brand = brand;
         product.baseProductName = dto.getBaseProductName();
         product.productDescription = dto.getProductDescription();
         product.productCategory = dto.getProductCategory();
+        product.tags = new ArrayList<>(dto.getTags());
 
         return product;
     }

@@ -5,6 +5,7 @@ package com.sh.aicommerce.product.es.service;
 import com.sh.aicommerce.common.exception.product.ProductException;
 import com.sh.aicommerce.entity.Product;
 import com.sh.aicommerce.product.es.document.ProductDocument;
+import com.sh.aicommerce.product.es.record.ProductIndexRecord;
 import com.sh.aicommerce.product.es.repository.ProductDocumentRepository;
 import com.sh.aicommerce.product.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
@@ -17,34 +18,31 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class ProductDocumentService {
-    private final ProductRepository productRepository;
     private final ProductDocumentRepository productDocumentRepository;
     private final EmbeddingModel embeddingModel;
+    private final ProductIndexService indexService;
 
 
     // 상품 등록
-    @Transactional(readOnly = true)
     public List<ProductDocument> insertProductVariantDocument(Long productId) {
+        ProductIndexRecord productRecord = indexService.productEntityToRecord(productId);
 
-        Product product = productRepository.findWithBrandAndVariantsByProductId(productId).orElseThrow(() -> new ProductException("해당 상품이 존재하지 않습니다."));
+        // 상품 설명 임베딩 처리
+        float[] descriptionVectors = embeddingModel.embed(productRecord.productDescription());
 
-        //! 상품 설명 임베딩 처리 - OpenAI API 플랫폼 결제 후 해당 기능 주석해제
-//        float[] descriptionVectors = embeddingModel.embed(product.getProductDescription());
-//        return new ProductDocument(product, descriptionVectors);
-
-
-        return product.getVariants().stream()
-                .map(productVariant -> ProductDocument.createProduct(product, productVariant))
+        return productRecord.variantRecords().stream()
+                .map(variantRecord -> ProductDocument.createProduct(productRecord, variantRecord, descriptionVectors))
                 .toList();
     }
 
     // 상품 입고 후
-    @Transactional(readOnly = true)
     public List<ProductDocument> inboundProductVariantDocument(Long productId) {
-        Product product = productRepository.findWithBrandAndVariantsByProductId(productId).orElseThrow(() -> new ProductException("해당 상품이 존재하지 않습니다."));
 
-        return product.getVariants().stream()
-                .map(productVariant -> ProductDocument.inboundProduct(product, productVariant))
+        ProductIndexRecord productRecord = indexService.productEntityToRecord(productId);
+        float[] descriptionVector = embeddingModel.embed(productRecord.productDescription());
+
+        return productRecord.variantRecords().stream()
+                .map(variantRecord -> ProductDocument.inboundProductVariantDocumentFromRecord(productRecord, variantRecord, descriptionVector))
                 .toList();
     }
 

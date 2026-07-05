@@ -2,14 +2,15 @@ package com.sh.aicommerce.product.es.document;
 
 import com.sh.aicommerce.entity.*;
 import com.sh.aicommerce.enums.product.ProductImageType;
+import com.sh.aicommerce.product.es.record.ProductIndexRecord;
+import com.sh.aicommerce.product.es.record.ProductOptionIndexRecord;
+import com.sh.aicommerce.product.es.record.ProductVariantIndexRecord;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.annotation.Id;
-import org.springframework.data.elasticsearch.annotations.Document;
-import org.springframework.data.elasticsearch.annotations.Field;
-import org.springframework.data.elasticsearch.annotations.FieldType;
-import org.springframework.data.elasticsearch.annotations.Setting;
+import org.springframework.data.elasticsearch.annotations.*;
 
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
@@ -22,28 +23,68 @@ import java.util.List;
 public class ProductDocument {
 
 
-
-
     @Id
     private Long productVariantId;
 
-    // 동일한 상위 상품의 Variant들을 묶어서 조회할 때 사용
     @Field(type = FieldType.Long)
     private Long productId;
 
-    @Field(type = FieldType.Text)
+    @MultiField(
+            mainField = @Field(
+                    type = FieldType.Text,
+                    analyzer = "products_index_analyzer",
+                    searchAnalyzer = "products_search_analyzer"
+            ),
+            otherFields = {
+                    @InnerField(suffix = "keyword", type = FieldType.Keyword)
+            }
+    )
     private String baseProductName;
 
-    @Field(type = FieldType.Text)
+    @MultiField(
+            mainField = @Field(
+                    type = FieldType.Text,
+                    analyzer = "products_index_analyzer",
+                    searchAnalyzer = "products_search_analyzer"
+            ),
+            otherFields = {
+                    @InnerField(suffix = "keyword", type = FieldType.Keyword)
+            }
+    )
+    private List<String> tags = new ArrayList<>();
+
+    @MultiField(
+            mainField = @Field(
+                    type = FieldType.Text,
+                    analyzer = "products_index_analyzer",
+                    searchAnalyzer = "products_search_analyzer"
+            ),
+            otherFields = {
+                    @InnerField(suffix = "keyword", type = FieldType.Keyword)
+            }
+    )
     private String variantName;
 
-    @Field(type = FieldType.Text)
+    @Field(
+            type = FieldType.Text,
+            analyzer = "products_index_analyzer",
+            searchAnalyzer = "products_search_analyzer"
+    )
     private String productDescription;
 
     @Field(type = FieldType.Long)
     private Long brandId;
 
-    @Field(type = FieldType.Keyword)
+    @MultiField(
+            mainField = @Field(
+                    type = FieldType.Text,
+                    analyzer = "products_index_analyzer",
+                    searchAnalyzer = "products_search_analyzer"
+            ),
+            otherFields = {
+                    @InnerField(suffix = "keyword", type = FieldType.Keyword)
+            }
+    )
     private String brandName;
 
     @Field(type = FieldType.Keyword)
@@ -61,10 +102,10 @@ public class ProductDocument {
     @Field(type = FieldType.Keyword)
     private String productVariantStatus;
 
-    @Field(type = FieldType.Keyword)
+    @Field(type = FieldType.Keyword, index = false)
     private String thumbnailUrl;
 
-    @Field(type = FieldType.Keyword)
+    @Field(type = FieldType.Keyword, index = false)
     private List<String> imageUrls;
 
     @Field(type = FieldType.Nested)
@@ -80,47 +121,39 @@ public class ProductDocument {
     private float[] descriptionVector;
 
 
-    // 벡터에 대한 값 임시 제거 - OpenAI API 결제 후, 벡터에 대한 값 다시 사용
 
-    // 공통 값 설정
-    public static ProductDocument baseDocument(Product product, ProductVariant variant) {
+    public static ProductDocument baseDocumentFromRecord(ProductIndexRecord productRecord, ProductVariantIndexRecord variantRecord) {
         ProductDocument document = new ProductDocument();
 
-        document.productVariantId = variant.getId();
-        document.productId = product.getId();
-        document.baseProductName = product.getBaseProductName();
-        document.variantName = variant.getVariantName();
-        document.productDescription = product.getProductDescription();
-        document.brandId = product.getBrand().getId();
-        document.brandName = product.getBrand().getBrandName();
-        document.category = product.getProductCategory().name();
-        document.productVariantStatus = String.valueOf(variant.getProductVariantStatus());
-        document.color = variant.getColor();
-        document.modelNumber = variant.getModelNumber();
-        document.price = variant.getPrice();
-        document.thumbnailUrl = variant.getImages().stream()
-                .filter(productImage -> productImage.getImageType() == ProductImageType.THUMBNAIL)
-                .map(productImage -> productImage.getImageUrl())
-                .findFirst()
-                .orElse(null);
-        document.imageUrls = variant.getImages().stream()
-                .filter(productImage -> productImage.getImageType() != ProductImageType.THUMBNAIL)
-                .sorted(Comparator.comparing(ProductImage::getDisplayOrder))
-                .map(ProductImage::getImageUrl)
-                .toList();
-
+        document.productVariantId = variantRecord.productVariantId();
+        document.productId = productRecord.productId();
+        document.baseProductName = productRecord.baseProductName();
+        document.tags = new ArrayList<>(productRecord.tags());
+        document.variantName = variantRecord.variantName();
+        document.productDescription = productRecord.productDescription();
+        document.brandId = productRecord.brandId();
+        document.brandName = productRecord.brandName();
+        document.category = productRecord.productCategory();
+        document.productVariantStatus = variantRecord.productVariantStatus();
+        document.color = variantRecord.color();
+        document.modelNumber = variantRecord.modelNumber();
+        document.price = variantRecord.price();
+        document.thumbnailUrl = variantRecord.thumbnailUrl();
+        document.imageUrls = variantRecord.imageUrls();
         return document;
     }
-    public static ProductDocument createProduct(Product product, ProductVariant variant) {
-        ProductDocument document = baseDocument(product, variant);
-        document.options = variant.getOptions().stream()
-                .map(option -> new ProductOptionDocument(
-                        option.getId(),
-                        option.getSku(),
-                        option.getSize(),
-                        option.getAdditionalPrice(),
-                        variant.getPrice() + option.getAdditionalPrice(),
-                        String.valueOf(option.getStatus()),
+
+    public static ProductDocument createProduct(ProductIndexRecord productRecord, ProductVariantIndexRecord variantRecord, float[] descriptionVector) {
+        ProductDocument document = baseDocumentFromRecord(productRecord, variantRecord);
+
+        document.options = variantRecord.options().stream()
+                .map(optionRecord -> new ProductOptionDocument(
+                        optionRecord.optionId(),
+                        optionRecord.sku(),
+                        optionRecord.size(),
+                        optionRecord.additionalPrice(),
+                        optionRecord.totalPrice(variantRecord.price()),
+                        optionRecord.optionStatus(),
                         0,
                         false
                 ))
@@ -128,39 +161,32 @@ public class ProductDocument {
         // 초기 상품 등록 할 때는 이용 가능한 재고에 대한 값 0으로 설정
         document.totalAvailableStock = 0;
         document.inStock = false;
-//        document.descriptionVector = descriptionVector;
+        document.descriptionVector = descriptionVector;
 
         return document;
     }
 
+    public static ProductDocument inboundProductVariantDocumentFromRecord(ProductIndexRecord productRecord, ProductVariantIndexRecord variantRecord, float[] descriptionVector) {
+        ProductDocument document = baseDocumentFromRecord(productRecord, variantRecord);
 
-    // 상품 입고 후 , 옵션별 재고 업데이트
-    public static ProductDocument inboundProduct(Product product, ProductVariant variant) {
-        ProductDocument document = baseDocument(product, variant);
-        document.options = variant.getOptions().stream()
-                .map(option -> {
-                    int stock = option.getInventories().stream()
-                            .mapToInt(ProductInventory::getAvailableQuantity)
-                            .sum();
-
-                    return new ProductOptionDocument(
-                            option.getId(),
-                            option.getSku(),
-                            option.getSize(),
-                            option.getAdditionalPrice(),
-                            variant.getPrice() + option.getAdditionalPrice(),
-                            option.getStatus().name(),
-                            stock,
-                            stock > 0
-                    );
-                })
+        document.options = variantRecord.options().stream()
+                .map(optionRecord -> new ProductOptionDocument(
+                        optionRecord.optionId(),
+                        optionRecord.sku(),
+                        optionRecord.size(),
+                        optionRecord.additionalPrice(),
+                        optionRecord.totalPrice(variantRecord.price()),
+                        optionRecord.optionStatus(),
+                        optionRecord.availableStock(),
+                        optionRecord.inStock()
+                ))
                 .toList();
 
         document.totalAvailableStock = document.options.stream()
                 .mapToInt(ProductOptionDocument::getAvailableStock)
                 .sum();
-
         document.inStock = document.totalAvailableStock > 0;
+        document.descriptionVector = descriptionVector;
 
         return document;
     }

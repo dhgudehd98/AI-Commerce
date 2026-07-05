@@ -1,0 +1,59 @@
+package com.sh.aicommerce.search.controller;
+
+import com.sh.aicommerce.brand.es.BrandDocument;
+import com.sh.aicommerce.enums.product.ProductSearchSort;
+import com.sh.aicommerce.product.es.document.ProductDocument;
+import com.sh.aicommerce.search.dto.BrandAutoCompletionDto;
+import com.sh.aicommerce.search.dto.RankingDto;
+import com.sh.aicommerce.search.dto.SearchResultProductDto;
+import com.sh.aicommerce.search.service.SearchService;
+import com.sh.aicommerce.weather.service.WeatherService;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.io.IOException;
+import java.util.List;
+
+@RestController
+@RequiredArgsConstructor
+@Slf4j
+@RequestMapping("/api/search")
+public class SearchController {
+
+    private final SearchService searchService;
+    private final WeatherService weatherService;
+
+    // 상품 검색 결과 출력
+    @GetMapping("")
+    public List<SearchResultProductDto> search(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String sort,
+            @RequestParam(required = false) Long lastId,
+            @RequestParam(required = false) Double lastScore,
+            @RequestParam(required = false) Integer lastPrice
+    ) {
+        List<Object> searchAfter = ProductSearchSort.createSearchAfter(sort, lastId, lastScore, lastPrice);
+        return searchService.search(keyword, sort, searchAfter);
+    }
+
+    // 상품 자동 완성
+    @GetMapping("autoCompletion")
+    public List<BrandAutoCompletionDto> productAutoCompletion(@RequestParam(required = false) String prefix) throws IOException {
+        return searchService.productAutoCompletion(prefix);
+    }
+
+    @GetMapping("ranking")
+    public List<RankingDto> getRankingList() {
+        return searchService.getRankingList();
+    }
+
+    @GetMapping("weather")
+    public List<SearchResultProductDto> recommendProductByWeather() {
+        return weatherService.recommendProductByWeather();
+    }
+}
