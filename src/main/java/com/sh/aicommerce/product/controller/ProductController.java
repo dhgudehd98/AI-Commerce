@@ -11,21 +11,32 @@ import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/admin")
+@RequestMapping("/api/product")
 public class ProductController {
 
     private final ProductService productService;
-    @PostMapping("product")
+
+    @GetMapping("{variantId}")
+    public ResponseEntity<?> getProduct(
+            @PathVariable Long variantId
+    ) {
+
+        return ResponseEntity.ok(productService.getProduct(variantId));
+    }
+
+    // 상품 등록
+    @PostMapping("")
     public ResponseEntity<?> createProduct(
             @Valid @RequestBody ProductCreateRequestDto dto) {
         return ResponseEntity.ok(productService.createProduct(dto));
     }
 
-    @PostMapping("delete/{id}")
+    // 상품 삭제
+    @DeleteMapping("{variantId}")
     public ResponseEntity<?> deleteProduct(
-            @PathVariable Long id
+            @PathVariable Long variantId
     ) {
-        return ResponseEntity.ok(productService.deleteProduct(id));
+        return ResponseEntity.ok(productService.deleteProduct(variantId));
     }
 
 }

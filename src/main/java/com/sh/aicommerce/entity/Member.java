@@ -28,6 +28,12 @@ public class Member {
     private List<Orders> orders = new ArrayList<>();
 
     @Column(nullable = false)
+    private String memberName;
+
+    @Column(nullable = false)
+    private String phone;
+
+    @Column(nullable = false)
     private String email; // 실제 로그인 할 떄 사용하는 이메일
 
     @Column(nullable = false)
@@ -41,6 +47,8 @@ public class Member {
     private String addressDetail;
 
     public Member(AuthJoinRequestDto authJoinRequestDto) {
+        this.memberName = authJoinRequestDto.getMemberName();
+        this.phone = authJoinRequestDto.getPhone();
         this.email = authJoinRequestDto.getEmail();
         this.passwd = authJoinRequestDto.getPasswd();
         this.nickName = authJoinRequestDto.getNickName();

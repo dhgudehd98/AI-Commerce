@@ -26,4 +26,18 @@ public interface ProductOptionRepository extends JpaRepository<ProductOption, Lo
     """
     )
     Optional<ProductOption> findByProductIdAndNoHiddenProductOption(@Param("optionId") Long optionId, @Param("productId") Long productId , @Param("variantId") Long variantId);
+
+    @Query(
+    """
+    select distinct o
+    from ProductOption o
+    join fetch o.productVariant v
+    left join fetch o.inventories i
+    where v.id = :variantId and 
+          o.id = :optionId and 
+          v.productVariantStatus = 'ON_SALE' and 
+          o.status = 'AVAILABLE'
+    """
+    )
+    Optional<ProductOption> findWithProductVariantByVariantIdAndOptionId(@Param("variantId") Long variantId , @Param("optionId") Long optionId);
 }
