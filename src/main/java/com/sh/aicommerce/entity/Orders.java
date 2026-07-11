@@ -6,13 +6,18 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 @Entity
 @NoArgsConstructor
 @Getter
 public class Orders {
+
+    private static final DateTimeFormatter ORDER_NUMBER_FORMATTER =
+            DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -43,4 +48,44 @@ public class Orders {
     private Delivery delivery;
 
     private LocalDateTime orderedAt;
+
+    public static Orders createOrder(Member member, Long optionId, Integer
+            totalPaymentPrice) {
+        Orders order = new Orders();
+        order.member = member;
+        order.orderNumber = createOrderNumber(optionId);
+        order.status = OrderStatus.CREATED;
+        order.totalPrice = totalPaymentPrice;
+        order.orderedAt = LocalDateTime.now();
+
+        return order;
+    }
+
+    private static String createOrderNumber(Long optionId) {
+        String orderedAt = LocalDateTime.now().format(ORDER_NUMBER_FORMATTER);
+        String suffix = UUID.randomUUID()
+                .toString()
+                .replace("-", "")
+                .substring(0, 6)
+                .toUpperCase();
+
+        return "ORD-" + orderedAt + "-" + optionId + "-" + suffix;
+    }
+
+    public void setDelivery(Delivery delivery) {
+        this.delivery = delivery;
+        delivery.setOrder(this);
+    }
+
+    public void setPayment(Payment payment) {
+        this.payment = payment;
+        payment.setOrder(this);
+    }
+
+    public void addOrderItem(OrderItem item) {
+        this.orderItems.add(item);
+        item.setOrder(this);
+    }
+
+
 }

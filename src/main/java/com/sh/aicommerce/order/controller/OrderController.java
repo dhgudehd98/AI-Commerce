@@ -20,11 +20,12 @@ public class OrderController {
     @GetMapping("/sheet/{variantId}")
     public ResponseEntity<?> orderSheet(
             @PathVariable(name = "variantId") Long variantId,
-            @RequestParam("optionId") Long optionId,
-            Authentication authentication
+            @RequestParam("optionId") Long optionId
+//            Authentication authentication
     ) {
         // 일단 여기에서 회원 / 비회원 가입 여부 파악 ->
-        Long memberId = (Long)authentication.getPrincipal();
+        Long memberId = 1L;
+//        Long memberId = (Long)authentication.getPrincipal();
         return ResponseEntity.ok(orderService.orderSheet(memberId, variantId, optionId));
     }
 

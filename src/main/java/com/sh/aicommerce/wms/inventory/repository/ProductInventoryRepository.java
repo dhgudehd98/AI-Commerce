@@ -23,4 +23,17 @@ public interface ProductInventoryRepository extends JpaRepository<ProductInvento
     Optional<ProductInventory> findByProductOptionIdAndWarehouseIdForUpdate(@Param("productOptionId") Long productOptionId,@Param("warehouseId") Long warehouseId);
 
     boolean existsByProductOptionIdAndWarehouseId(Long optionId, Long warehouseId);
+
+
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query(
+    """
+    select pi 
+    from ProductInventory pi 
+    where pi.productOption.id = :optionId
+        and pi.onHandQuantity >= 1
+    """
+    )
+    Optional<ProductInventory> findByProductOptionIdForUpdate(@Param("optionId") Long optionId);
 }

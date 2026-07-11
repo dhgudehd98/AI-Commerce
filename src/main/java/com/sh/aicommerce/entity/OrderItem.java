@@ -29,9 +29,6 @@ public class OrderItem {
     private String brandNameSnapshot;
 
     @Column(nullable = false)
-    private String optionNameSnapshot;
-
-    @Column(nullable = false)
     private String skuSnapshot;
 
     @Column(nullable = false)
@@ -49,4 +46,22 @@ public class OrderItem {
     @Column(nullable = false)
     private Integer lineTotalPrice;
 
+    public static OrderItem createOrderItem(ProductOption option) {
+        OrderItem item = new OrderItem();
+        item.productOption = option;
+        item.productNameSnapshot = option.getProductVariant().getVariantName();
+        item.brandNameSnapshot = option.getProduct().getBrand().getBrandName();
+        item.skuSnapshot = option.getSku();
+        item.basePriceSnapshot = option.getProductVariant().getPrice();
+        item.additionalPriceSnapshot = option.getAdditionalPrice();
+        item.unitPrice = item.basePriceSnapshot + item.additionalPriceSnapshot;
+        item.quantity = 1;
+        item.lineTotalPrice = item.unitPrice * item.quantity;
+
+        return item;
+    }
+
+    public void setOrder(Orders order) {
+        this.order = order;
+    }
 }

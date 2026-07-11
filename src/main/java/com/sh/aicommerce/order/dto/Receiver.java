@@ -15,6 +15,8 @@ public class Receiver {
     private String zipCode;
     private String address;
     private String addressDetail;
+    private ReceiverMethod receiverMethod; // 받는 방법
+    private String deliveryRequestMessage; // 받는 방법이 직접 입력인 경우
 
     public Receiver(Member member) {
         this.name = member.getMemberName();
@@ -22,5 +24,6 @@ public class Receiver {
         this.zipCode = member.getZipCode();
         this.address = member.getAddress();
         this.addressDetail = member.getAddressDetail();
+        this.receiverMethod = ReceiverMethod.DOOR;
     }
 }
