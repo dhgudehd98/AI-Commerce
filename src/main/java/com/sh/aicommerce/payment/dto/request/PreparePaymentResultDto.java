@@ -11,6 +11,8 @@ import lombok.Getter;
 @AllArgsConstructor
 public class PreparePaymentResultDto {
     private Long orderId;
+    private String orderNumber;
+    private String productName;
     private Long paymentId;
 
     private Integer amount;

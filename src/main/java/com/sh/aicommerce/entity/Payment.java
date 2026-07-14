@@ -82,33 +82,11 @@ public class Payment {
         }
 
         if (dto.getPaymentMethod() == PaymentMethod.GENERAL) {
-            if (dto.getGeneralPayment() == GeneralPayment.KAKAO_PAY) {
-                payment.paymentProvider = "KAKAO_PAY";
-                payment.paymentMethodLabel = "카카오페이";
-                return payment;
-            }
+            payment.paymentProvider = "TOSS_PAYMENTS";
+            payment.paymentMethodLabel = "토스페이먼츠";
 
-            if (dto.getGeneralPayment() == GeneralPayment.NAVER_PAY) {
-                payment.paymentProvider = "NAVER_PAY";
-                payment.paymentMethodLabel = "네이버페이";
-                return payment;
-            }
+            return payment;
 
-            if (dto.getGeneralPayment() == GeneralPayment.TOSS) {
-                payment.paymentProvider = "TOSS";
-                payment.paymentMethodLabel = "토스페이";
-                return payment;
-            }
-
-            if (dto.getGeneralPayment() == GeneralPayment.CREDIT_CARD) {
-
-                if(dto.getCardCompany() == null) throw new PaymentException("일반 카드 결제 시 카드 선택은 필수입니다.");
-                payment.paymentProvider = dto.getCardCompany().name() + "_CARD";
-                payment.paymentMethodLabel = dto.getCardCompany() .name() + " 카드 일반결제";
-                payment.installmentMonths = dto.getInstallmentMonths();
-                payment.cardCompany = dto.getCardCompany();
-                return payment;
-            }
         }
 
         return payment;

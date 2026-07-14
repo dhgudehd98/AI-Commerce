@@ -121,6 +121,8 @@ public class PaymentPrepareService {
 
             return new PreparePaymentResultDto(
                     order.getId(),
+                    order.getOrderNumber(),
+                    variant.getVariantName(),
 
                     payment.getId(),
                     payment.getAmount(),

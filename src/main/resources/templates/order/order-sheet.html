@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <script src="https://js.tosspayments.com/v2/standard"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>배송/결제</title>
+    <link rel="stylesheet" th:href="@{/css/order-sheet.css}" href="/css/order-sheet.css">
+</head>
+<body>
+<header class="top-bar">
+    <div class="top-bar__inner">
+        <a class="back-button" href="#" aria-label="이전 화면으로 이동">‹</a>
+        <h1>배송/결제</h1>
+        <span class="top-bar__spacer" aria-hidden="true"></span>
+    </div>
+</header>
+
+<main class="page" th:object="${orderSheet}">
+    <section class="section" aria-labelledby="address-title">
+        <div class="section-heading">
+            <h2 id="address-title">배송 주소</h2>
+            <button class="outline-button" type="button">주소 변경</button>
+        </div>
+
+        <div class="card address-card">
+            <dl class="address-list">
+                <div>
+                    <dt>받는 분</dt>
+                    <dd th:text="*{receiver.name}">홍길동</dd>
+                </div>
+                <div>
+                    <dt>연락처</dt>
+                    <dd th:text="*{receiver.phone}">01012345678</dd>
+                </div>
+                <div>
+                    <dt>주소</dt>
+                    <dd>
+                        <span th:text="|[${orderSheet.receiver.zipCode}] ${orderSheet.receiver.address} ${orderSheet.receiver.addressDetail}|">[01234] 서울 압구정구 211 123-1234</span>
+                    </dd>
+                </div>
+            </dl>
+
+            <button class="request-row" type="button" aria-label="배송 요청사항 변경">
+                <span th:text="*{receiver.deliveryRequestMessage != null and !receiver.deliveryRequestMessage.isBlank()
+                    ? receiver.deliveryRequestMessage
+                    : (receiver.receiverMethod == 'DOOR' ? '문 앞에 놓아주세요' : '배송 요청사항 없음')}">문 앞에 놓아주세요</span>
+                <span class="chevron" aria-hidden="true">›</span>
+            </button>
+        </div>
+    </section>
+
+    <section class="section" aria-labelledby="product-title">
+        <div class="section-heading">
+            <h2 id="product-title">주문 상품</h2>
+            <strong class="item-count">총 1건</strong>
+        </div>
+
+        <article class="card product-card">
+            <div class="product-summary">
+                <div class="product-image" role="img" aria-label="상품 이미지 영역"></div>
+                <div class="product-info">
+                    <p class="product-name" th:text="*{orderSheetProductDto.variantName}">아이앱 스튜디오 후드 라이트 그레이</p>
+                    <p class="product-meta">
+                        <span th:text="|상품 번호 ${orderSheet.orderSheetProductDto.productId}|">상품 번호 1</span>
+                        <span class="divider" aria-hidden="true"></span>
+                        <span th:text="|옵션 번호 ${orderSheet.orderSheetProductDto.optionId}|">옵션 번호 1</span>
+                    </p>
+                    <p class="product-option" th:text="|${orderSheet.orderSheetProductDto.size} 사이즈|">M 사이즈</p>
+                </div>
+                <strong class="product-price" th:text="|${#numbers.formatInteger(orderSheet.orderSheetProductDto.productPrice, 0, 'COMMA')}원|">110,000원</strong>
+            </div>
+        </article>
+    </section>
+
+    <section class="section" aria-labelledby="discount-title">
+        <div class="section-heading">
+            <h2 id="discount-title">할인 및 포인트</h2>
+        </div>
+
+        <div class="card discount-card">
+            <div class="field-group">
+                <label for="coupon">쿠폰</label>
+                <div class="field-row">
+                    <div class="input-like input-like--disabled" id="coupon" aria-disabled="true">사용 가능한 쿠폰이 없습니다.</div>
+                    <button class="small-button" type="button" disabled>쿠폰 선택</button>
+                </div>
+            </div>
+
+            <div class="field-group">
+                <label for="pointAmount">포인트</label>
+                <div class="field-row">
+                    <input id="pointAmount" type="number" min="0" value="0" inputmode="numeric" aria-describedby="point-help">
+                    <button class="small-button" type="button" disabled>최대 사용</button>
+                </div>
+                <p class="field-help" id="point-help">보유 포인트 <strong>0P</strong></p>
+            </div>
+        </div>
+    </section>
+
+    <section class="section" aria-labelledby="payment-title">
+        <div class="section-heading">
+            <h2 id="payment-title">결제 방법</h2>
+        </div>
+
+        <fieldset class="card payment-card">
+            <legend class="sr-only">결제 방법을 선택하세요</legend>
+            <label class="payment-option">
+                <input type="radio" name="paymentMethod" value="SAVED_ACCOUNT">
+                <span class="radio-mark" aria-hidden="true"></span>
+                <span><strong>계좌 간편결제</strong></span>
+            </label>
+            <label class="payment-option">
+                <input type="radio" name="paymentMethod" value="SAVED_CARD">
+                <span class="radio-mark" aria-hidden="true"></span>
+                <span><strong>카드 간편결제</strong></span>
+            </label>
+            <label class="payment-option">
+                <input type="radio" name="paymentMethod" value="GENERAL" checked>
+                <span class="radio-mark" aria-hidden="true"></span>
+                <span>
+                    <strong>일반 결제(일시불·할부)</strong>
+                </span>
+            </label>
+        </fieldset>
+    </section>
+
+    <section class="section final-section" aria-labelledby="summary-title">
+        <div class="section-heading">
+            <h2 id="summary-title">최종 주문정보</h2>
+        </div>
+
+        <div class="card summary-card">
+            <dl class="price-list">
+                <div>
+                    <dt>상품 금액</dt>
+                    <dd th:text="|${#numbers.formatInteger(orderSheet.orderSheetPriceDto.productTotalPrice, 0, 'COMMA')}원|">110,000원</dd>
+                </div>
+                <div>
+                    <dt>배송비</dt>
+                    <dd th:text="|${#numbers.formatInteger(orderSheet.orderSheetPriceDto.deliveryPrice, 0, 'COMMA')}원|">5,000원</dd>
+                </div>
+                <div>
+                    <dt>쿠폰 할인</dt>
+                    <dd th:text="|-${#numbers.formatInteger(orderSheet.orderSheetPriceDto.couponAmount, 0, 'COMMA')}원|">-0원</dd>
+                </div>
+                <div>
+                    <dt>포인트 사용</dt>
+                    <dd th:text="|-${#numbers.formatInteger(orderSheet.orderSheetPriceDto.pointAmount, 0, 'COMMA')}원|">-0원</dd>
+                </div>
+            </dl>
+            <div class="total-price">
+                <strong>총 결제금액</strong>
+                <strong th:text="|${#numbers.formatInteger(orderSheet.orderSheetPriceDto.paymentAmount, 0, 'COMMA')}원|">115,000원</strong>
+            </div>
+        </div>
+    </section>
+
+    <div class="pay-area">
+        <button class="pay-button" type="button"
+                th:text="|${#numbers.formatInteger(orderSheet.orderSheetPriceDto.paymentAmount, 0, 'COMMA')}원 · 결제하기|" onclick="requestPayment()">
+            115,000원 · 결제하기
+        </button>
+    </div>
+</main>
+
+<script th:inline="javascript">
+    const clientKey = "test_ck_Ba5PzR0Arnng5v5K4koGrvmYnNeD";
+    const customerKey = "0WzADI4Mzbw8LPliS9CoE";
+    const tossPayments = TossPayments(clientKey);
+    // 회원 결제
+    // @docs https://docs.tosspayments.com/sdk/v2/js#tosspaymentspayment
+    const payment = tossPayments.payment({ customerKey });
+    const variantId = [[${orderSheet.orderSheetProductDto.variantId}]];
+    const optionId = [[${orderSheet.orderSheetProductDto.optionId}]];
+    const orderNameFromOrderSheet = /*[[${orderSheet.orderSheetProductDto.variantName}]]*/ "상품명";
+    const receiverNameFromOrderSheet = /*[[${orderSheet.receiver.name}]]*/ "구매자";
+    const receiverPhoneFromOrderSheet = /*[[${orderSheet.receiver.phone}]]*/ "01000000000";
+
+    async function requestPayment() {
+        const paymentRequestDto = {
+            receiver: {
+                name: /*[[${orderSheet.receiver.name}]]*/ "구매자",
+                phone: /*[[${orderSheet.receiver.phone}]]*/ "01000000000",
+                zipCode: /*[[${orderSheet.receiver.zipCode}]]*/ "00000",
+                address: /*[[${orderSheet.receiver.address}]]*/ "주소",
+                addressDetail: /*[[${orderSheet.receiver.addressDetail}]]*/ "",
+                receiverMethod: /*[[${orderSheet.receiver.receiverMethod}]]*/ "DOOR",
+                deliveryRequestMessage: /*[[${orderSheet.receiver.deliveryRequestMessage}]]*/ null
+            },
+            couponId: null,
+            usedPoint: Number(document.getElementById("pointAmount").value || 0),
+            paymentMethod: document.querySelector("input[name='paymentMethod']:checked").value,
+            savedAccountId: null,
+            savedCardId: null,
+            generalPayment: "CREDIT_CARD",
+            cardCompany: null,
+            installmentMonths: 0
+        };
+
+        const prepareResponse = await fetch(`/api/pay/${variantId}?optionId=${optionId}`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(paymentRequestDto)
+        });
+
+        const prepared = await prepareResponse.json();
+        console.log("[결제 요청]");
+        console.log(prepared);
+
+        await payment.requestPayment({
+            method: "CARD",
+            amount: {
+                currency: "KRW",
+                value: prepared.amount
+            },
+            orderId: prepared.orderNumber,
+            orderName: orderNameFromOrderSheet,
+            successUrl: window.location.origin + "/api/toss/pay/success",
+            failUrl: window.location.origin + "/api/pay/toss/fail",
+            customerName: receiverNameFromOrderSheet,
+            customerMobilePhone: receiverPhoneFromOrderSheet,
+            card: {
+                useEscrow: false,
+                flowMode: "DEFAULT",
+                useCardPoint: false,
+                useAppCardOnly: false
+            }
+        });
+    }
+</script>
+</body>
+</html>
