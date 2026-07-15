@@ -1,7 +1,12 @@
 package com.sh.aicommerce.toss.service;
 
 
+import com.sh.aicommerce.common.exception.payment.PaymentException;
+import com.sh.aicommerce.entity.Orders;
+import com.sh.aicommerce.entity.Payment;
+import com.sh.aicommerce.payment.repository.PaymentRepository;
 import com.sh.aicommerce.toss.dto.request.TossPaymentRequestDto;
+import com.sh.aicommerce.toss.dto.response.TossPaymentResponseDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -24,8 +29,16 @@ public class TossAPIService {
     @Qualifier("tossRestTemplate")
     private final RestTemplate tossRestTemplate;
 
-    public ResponseEntity<?> tossPaymentConfirm(TossPaymentRequestDto paymentDto) {
+    private final PaymentRepository paymentRepository;
+
+    public TossPaymentResponseDto tossPaymentConfirm(TossPaymentRequestDto paymentDto) {
         log.info("[토스 페이먼츠 결제 승인 요청] : 주문번호(orderId) : {}", paymentDto.getOrderId());
+
+        // TossPayment 결제 승인 요청 하기전에 DB에 해당 Payment에 대한 값이 정상적으로 들어가있는지 || 결제 금액이 일치한지 확인
+        Payment payment = validatePayment(paymentDto);
+        Orders order = payment.getOrder();
+
+        // Toss Payment 결제 승인 요청
         String encodedSecretKey = Base64.getEncoder()
                 .encodeToString((tossSecretKey +
                         ":").getBytes(StandardCharsets.UTF_8));
@@ -37,17 +50,51 @@ public class TossAPIService {
         HttpEntity<TossPaymentRequestDto> httpEntity = new
                 HttpEntity<>(paymentDto, headers);
 
-        ResponseEntity<?> response =
-                tossRestTemplate.exchange(
 
+        // Toss Payments API 응답 요청
+        ResponseEntity<TossPaymentResponseDto> response =
+                tossRestTemplate.exchange(
                         "https://api.tosspayments.com/v1/payments/confirm",
                         HttpMethod.POST,
                         httpEntity,
-                        String.class
+                        TossPaymentResponseDto.class
                 );
 
         log.info("[토스 페이먼츠 결제 승인 완료] 응답 데이터 :{}", response.getBody());
-        return null;
 
+        // 결제 승인이 성공적으로 완료되었다면 , DB에 저장된 Payment, Order에 대한 값 업데이트
+        TossPaymentResponseDto responsePayment = response.getBody();
+
+        // 결제를 카드로 계산 한 경우
+        if (responsePayment.getCard() != null) {
+
+        }
+
+        // 결제 승인이 완룓
+        return response.getBody();
+    }
+
+
+
+    private Payment validatePayment(TossPaymentRequestDto paymentDto) {
+        /**
+         * 결제 승인을 하기 위한 정합성 검증
+         * Payment
+         * - amount = dto.getAmount(Toss Payment에서 실제 결제 준비된 금액)
+         * - status = 'READY'
+         * - paymentMethod = 'GENERAL'
+         * - general_payment = 'TOSS'
+         * Order
+         * - orderNumber = paymentDto.getOrderId(PK의 orderId에 대한 값이 아닌 주문번호(OrderNumber))
+         * - status = 'CREATED'
+         *
+         */
+        Integer amount = paymentDto.getAmount(); // Tosss Payment를 통한 결제 금액
+        Payment payment = paymentRepository.findWithOrderByOrderNumber(paymentDto.getAmount(), paymentDto.getOrderId()).orElseThrow(() -> new PaymentException("해당 결제 정보가 존재하지 않습니다."));
+
+        // 금액에 대한 부분 한번 더 검증
+        if(!amount.equals(payment.getAmount())) throw new PaymentException("실제 결제 금액과 저장되어 있는 결제 금액이 일치하지 않습니다.");
+
+        return payment;
     }
 }
