@@ -1,18 +1,24 @@
 package com.sh.aicommerce.toss.service;
 
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sh.aicommerce.common.exception.payment.PaymentException;
 import com.sh.aicommerce.entity.Orders;
 import com.sh.aicommerce.entity.Payment;
+import com.sh.aicommerce.entity.TossPaymentLog;
+import com.sh.aicommerce.enums.payment.CardCompany;
+import com.sh.aicommerce.enums.payment.PaymentStatus;
 import com.sh.aicommerce.payment.repository.PaymentRepository;
 import com.sh.aicommerce.toss.dto.request.TossPaymentRequestDto;
-import com.sh.aicommerce.toss.dto.response.TossPaymentResponseDto;
+import com.sh.aicommerce.toss.dto.response.TossPaymentSuccessResponseDto;
+import com.sh.aicommerce.toss.repository.TossPaymentLogRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 
 import java.nio.charset.StandardCharsets;
@@ -28,10 +34,13 @@ public class TossAPIService {
 
     @Qualifier("tossRestTemplate")
     private final RestTemplate tossRestTemplate;
+    private final ObjectMapper objectMapper;
 
     private final PaymentRepository paymentRepository;
+    private final TossPaymentLogRepository logRepository;
 
-    public TossPaymentResponseDto tossPaymentConfirm(TossPaymentRequestDto paymentDto) {
+    @Transactional
+    public TossPaymentSuccessResponseDto tossPaymentConfirm(TossPaymentRequestDto paymentDto) {
         log.info("[토스 페이먼츠 결제 승인 요청] : 주문번호(orderId) : {}", paymentDto.getOrderId());
 
         // TossPayment 결제 승인 요청 하기전에 DB에 해당 Payment에 대한 값이 정상적으로 들어가있는지 || 결제 금액이 일치한지 확인
@@ -52,23 +61,32 @@ public class TossAPIService {
 
 
         // Toss Payments API 응답 요청
-        ResponseEntity<TossPaymentResponseDto> response =
+        ResponseEntity<TossPaymentSuccessResponseDto> response =
                 tossRestTemplate.exchange(
                         "https://api.tosspayments.com/v1/payments/confirm",
                         HttpMethod.POST,
                         httpEntity,
-                        TossPaymentResponseDto.class
+                        TossPaymentSuccessResponseDto.class
                 );
 
         log.info("[토스 페이먼츠 결제 승인 완료] 응답 데이터 :{}", response.getBody());
 
         // 결제 승인이 성공적으로 완료되었다면 , DB에 저장된 Payment, Order에 대한 값 업데이트
-        TossPaymentResponseDto responsePayment = response.getBody();
+        TossPaymentSuccessResponseDto responsePayment = response.getBody();
 
-        // 결제를 카드로 계산 한 경우
+        TossPaymentLog log = TossPaymentLog.confirmSuccess(payment, responsePayment, response.getStatusCode().value(), paymentDto.toString(), responsePayment.toString());
+        logRepository.save(log);
+
+        // 카드로 결제한 경우에 -> 결제내역 Payment에 대한 부분 카드 내역으로 update
         if (responsePayment.getCard() != null) {
-
+            payment.updateCardPayment(paymentDto, responsePayment);
         }
+
+        // 간단결제(카카오페이 , 네이버페이)로 결제 한 경우에 -> 결제내역 Payment에 대한 부분 해당 결제 내역으로 update
+        if (responsePayment.getEasyPay() != null) {
+            payment.updateEasyPayment(paymentDto, responsePayment);
+        }
+
 
         // 결제 승인이 완룓
         return response.getBody();

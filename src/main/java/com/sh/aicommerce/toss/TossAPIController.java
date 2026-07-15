@@ -2,7 +2,7 @@ package com.sh.aicommerce.toss;
 
 
 import com.sh.aicommerce.toss.dto.request.TossPaymentRequestDto;
-import com.sh.aicommerce.toss.dto.response.TossPaymentResponseDto;
+import com.sh.aicommerce.toss.dto.response.TossPaymentSuccessResponseDto;
 import com.sh.aicommerce.toss.service.TossAPIService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,8 +31,8 @@ public class TossAPIController {
         log.info("[토스 페이먼츠 결제 완료]");
         log.info("[토스 페이먼츠 응답 데이터] OrderNumber : {}, PaymentKey : {}. Amount : {}", orderNumber, paymentKey, amount);
 
-        TossPaymentResponseDto tossPaymentResponseDto = tossAPIService.tossPaymentConfirm(new TossPaymentRequestDto(paymentKey, amount, orderNumber));
-        model.addAttribute("payment",tossPaymentResponseDto);
+        TossPaymentSuccessResponseDto tossPaymentSuccessResponseDto = tossAPIService.tossPaymentConfirm(new TossPaymentRequestDto(paymentKey, amount, orderNumber));
+        model.addAttribute("payment", tossPaymentSuccessResponseDto);
 
         return "toss/pay-success";
     }
