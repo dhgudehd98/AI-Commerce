@@ -27,9 +27,7 @@ public class Payment {
     @Column(nullable = false)
     private PaymentMethod paymentMethod;
 
-    @Enumerated(EnumType.STRING)
-    private GeneralPayment generalPayment;
-
+    private String cardCode;
     @Enumerated(EnumType.STRING)
     private CardCompany cardCompany;
 
@@ -54,7 +52,7 @@ public class Payment {
     @Column(unique = true)
     private String paymentKey; // 결제사(PG)가 발급하는 결제 건의 식별자
 
-    private String approvedNumber;
+    private String approvedNumber; // 승인번호
 
     private LocalDateTime createdAt;
     private LocalDateTime paidAt;
@@ -62,7 +60,6 @@ public class Payment {
     public static Payment createPayment(PaymentRequestDto dto, Integer totalPrice) {
         Payment payment = new Payment();
         payment.paymentMethod = dto.getPaymentMethod();
-        payment.generalPayment = dto.getGeneralPayment();
         payment.status = PaymentStatus.READY;
         payment.amount = totalPrice;
         payment.createdAt = LocalDateTime.now();
@@ -81,9 +78,9 @@ public class Payment {
             return payment;
         }
 
-        if (dto.getPaymentMethod() == PaymentMethod.GENERAL) {
+        if (dto.getPaymentMethod() == PaymentMethod.TOSS) {
             payment.paymentProvider = "TOSS_PAYMENTS";
-            payment.paymentMethodLabel = "토스페이먼츠";
+            payment.paymentMethodLabel = "토스페이먼츠 일반결제";
 
             return payment;
 

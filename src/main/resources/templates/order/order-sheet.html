@@ -116,7 +116,7 @@
                 <span><strong>카드 간편결제</strong></span>
             </label>
             <label class="payment-option">
-                <input type="radio" name="paymentMethod" value="GENERAL" checked>
+                <input type="radio" name="paymentMethod" value="TOSS" checked>
                 <span class="radio-mark" aria-hidden="true"></span>
                 <span>
                     <strong>일반 결제(일시불·할부)</strong>
@@ -193,7 +193,6 @@
             paymentMethod: document.querySelector("input[name='paymentMethod']:checked").value,
             savedAccountId: null,
             savedCardId: null,
-            generalPayment: "CREDIT_CARD",
             cardCompany: null,
             installmentMonths: 0
         };

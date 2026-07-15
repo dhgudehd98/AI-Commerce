@@ -123,11 +123,9 @@ public class PaymentPrepareService {
                     order.getId(),
                     order.getOrderNumber(),
                     variant.getVariantName(),
-
                     payment.getId(),
                     payment.getAmount(),
                     payment.getPaymentMethod(),
-                    paymentRequestDto.getGeneralPayment(),
                     payment.getCardCompany(),
                     paymentRequestDto.getSavedCardId(),
                     paymentRequestDto.getSavedAccountId()

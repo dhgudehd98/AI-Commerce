@@ -1,7 +1,5 @@
 package com.sh.aicommerce.payment.service;
 
-import com.sh.aicommerce.payment.apiGateway.PaymentAPIGateway;
-import com.sh.aicommerce.payment.apiGateway.PaymentRouteGateway;
 import com.sh.aicommerce.payment.dto.request.PaymentRequestDto;
 import com.sh.aicommerce.payment.dto.request.PreparePaymentResultDto;
 import lombok.RequiredArgsConstructor;
@@ -15,8 +13,6 @@ import java.util.Map;
 @RequiredArgsConstructor
 @Slf4j
 public class PaymentService {
-
-    private final PaymentRouteGateway route;
     private final PaymentPrepareService paymentPrepareService;
 
     public PreparePaymentResultDto pay(Long memberId, Long variantId, Long optionId, PaymentRequestDto paymentRequestDto) {

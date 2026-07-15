@@ -1,7 +1,6 @@
 package com.sh.aicommerce.payment.dto.request;
 
 import com.sh.aicommerce.enums.payment.CardCompany;
-import com.sh.aicommerce.enums.payment.GeneralPayment;
 import com.sh.aicommerce.enums.payment.PaymentMethod;
 import com.sh.aicommerce.order.dto.Receiver;
 import lombok.AllArgsConstructor;
@@ -29,7 +28,6 @@ public class PaymentRequestDto {
     private PaymentMethod paymentMethod; // 결제 방식
     private Long savedAccountId; // 결제방식 > 계좌 간편 결제 > 선택한 계좌 ID
     private Long savedCardId; // 결제 방식 > 카드 간편 결제 > 선택한 카드 ID
-    private GeneralPayment generalPayment; // 일반 결제 > 신용카드 , 네이버 페이 , 카카오페이
     private CardCompany cardCompany; // 일반 결제 > 신용카드 선택시
     private Integer installmentMonths; // 일반 결제 -> 신용카드 -> 할부 || 일시불
 
