@@ -3,6 +3,8 @@ package com.sh.aicommerce.entity;
 import com.sh.aicommerce.common.exception.payment.PaymentException;
 import com.sh.aicommerce.enums.payment.*;
 import com.sh.aicommerce.payment.dto.request.PaymentRequestDto;
+import com.sh.aicommerce.toss.dto.request.TossPaymentRequestDto;
+import com.sh.aicommerce.toss.dto.response.TossPaymentSuccessResponseDto;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -26,6 +28,8 @@ public class Payment {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private PaymentMethod paymentMethod;
+
+    private String provider;
 
     private String cardCode;
     @Enumerated(EnumType.STRING)
@@ -88,6 +92,39 @@ public class Payment {
 
         return payment;
     }
+
+    public void updateCardPayment(TossPaymentRequestDto request, TossPaymentSuccessResponseDto response) {
+        if (response == null) {
+            throw new PaymentException("토스 결제 승인 응답이 존재하지 않습니다.");
+        }
+
+        if (response.getCard() == null) {
+            throw new PaymentException("카드 결제 승인 정보가 존재하지 않습니다.");
+        }
+
+        if (!"DONE".equals(response.getStatus())) {
+            throw new PaymentException("토스 결제 승인이 완료되지 않았 습니다.");
+        }
+
+        this.paidAt = LocalDateTime.now();
+        this.provider = response.getMethod();
+        this.approvedNumber = response.getCard().getApproveNo();
+        this.paymentKey = request.getPaymentKey();
+        this.cardCode = response.getCard().getIssuerCode();
+        this.cardCompany =
+                CardCompany.fromCode(response.getCard().getIssuerCode());
+        this.status = PaymentStatus.PAID;
+        this.installmentMonths =
+                response.getCard().getInstallmentPlanMonths();
+    }
+
+    public void updateEasyPayment(TossPaymentRequestDto request, TossPaymentSuccessResponseDto response) {
+        this.paidAt = LocalDateTime.now();
+        this.paymentKey = request.getPaymentKey();
+        this.provider = response.getEasyPay().getProvider();
+        this.status = PaymentStatus.PAID;
+    }
+
 
     public void setOrder(Orders orders) {
         this.order = orders;

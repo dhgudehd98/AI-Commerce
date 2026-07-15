@@ -1,8 +1,12 @@
 package com.sh.aicommerce.toss.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 @Getter
+@NoArgsConstructor
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class CardResponse {
 
     private String issuerCode;
@@ -16,5 +20,5 @@ public class CardResponse {
     private String cardType;
     private String ownerType;
     private String acquireStatus;
-    private Long amount;
+    private Integer amount;
 }
