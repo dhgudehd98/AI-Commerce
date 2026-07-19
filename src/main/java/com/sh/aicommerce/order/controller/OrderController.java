@@ -32,6 +32,24 @@ public class OrderController {
 //        return ResponseEntity.ok(orderService.orderSheet(memberId, variantId, optionId));
 //    }
 
+//    @GetMapping("/sheet/{variantId}")
+//    public String orderSheet(
+//            @PathVariable Long variantId,
+//            @RequestParam Long optionId,
+//            Model model
+////      Authentication authentication
+//    ) {
+//        Long memberId = 1L;
+////  Long memberId = (Long) authentication.getPrincipal();
+//
+//        OrderSheetResponseDto orderSheetResponseDto =
+//                orderService.orderSheet(memberId, variantId, optionId);
+//
+//        model.addAttribute("orderSheet", orderSheetResponseDto);
+//
+//        return "order/order-sheet";
+//    }
+
     @GetMapping("/sheet/{variantId}")
     public String orderSheet(
             @PathVariable Long variantId,
@@ -47,7 +65,7 @@ public class OrderController {
 
         model.addAttribute("orderSheet", orderSheetResponseDto);
 
-        return "order/order-sheet";
+        return "order/order-sheet-widget";
     }
 
 }

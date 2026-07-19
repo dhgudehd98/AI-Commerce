@@ -2,10 +2,10 @@
 <html lang="ko" xmlns:th="http://www.thymeleaf.org">
 <head>
     <script src="https://js.tosspayments.com/v2/standard"></script>
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>배송/결제</title>
-    <link rel="stylesheet" th:href="@{/css/order-sheet.css}" href="/css/order-sheet.css">
 </head>
 <body>
 <header class="top-bar">
@@ -106,7 +106,7 @@
         <fieldset class="card payment-card">
             <legend class="sr-only">결제 방법을 선택하세요</legend>
             <label class="payment-option">
-                <input type="radio" name="paymentMethod" value="SAVED_ACCOUNT">
+                <input type="radio" name="paymentMethod" value="SAVED_ACCOUNT" checked>
                 <span class="radio-mark" aria-hidden="true"></span>
                 <span><strong>계좌 간편결제</strong></span>
             </label>
@@ -116,12 +116,19 @@
                 <span><strong>카드 간편결제</strong></span>
             </label>
             <label class="payment-option">
-                <input type="radio" name="paymentMethod" value="TOSS" checked>
+                <input type="radio" name="paymentMethod" value="TOSS">
                 <span class="radio-mark" aria-hidden="true"></span>
                 <span>
                     <strong>일반 결제(일시불·할부)</strong>
                 </span>
             </label>
+            <!-- 결제 UI -->
+            <div id="payment-method" style = "display:none"></div>
+            <!-- 이용약관 UI -->
+            <div id="agreement" style="display:none"></div>
+            <!-- 결제하기 버튼 -->
+            <button class="button" id="payment-button" style="margin-top: 30px">결제하기</button>
+
         </fieldset>
     </section>
 
@@ -156,29 +163,55 @@
         </div>
     </section>
 
-    <div class="pay-area">
-        <button class="pay-button" type="button"
-                th:text="|${#numbers.formatInteger(orderSheet.orderSheetPriceDto.paymentAmount, 0, 'COMMA')}원 · 결제하기|" onclick="requestPayment()">
-            115,000원 · 결제하기
-        </button>
-    </div>
 </main>
 
-<script th:inline="javascript">
-    const clientKey = "test_ck_Ba5PzR0Arnng5v5K4koGrvmYnNeD";
-    const customerKey = "0WzADI4Mzbw8LPliS9CoE";
+<script>
+    // ------ 전역 상태 ------
+    let widgets;
+    let widgetRendered = false;
+    let prepared; // 서버에서 받은 최신 결제 정보(금액, 주문번호 등)
+
+    const clientKey = "test_gck_docs_Ovk5rk1EwkEbP0W43n07xlzm";
     const tossPayments = TossPayments(clientKey);
-    // 회원 결제
-    // @docs https://docs.tosspayments.com/sdk/v2/js#tosspaymentspayment
-    const payment = tossPayments.payment({ customerKey });
+    widgets = tossPayments.widgets({ customerKey: TossPayments.ANONYMOUS });
+
     const variantId = [[${orderSheet.orderSheetProductDto.variantId}]];
     const optionId = [[${orderSheet.orderSheetProductDto.optionId}]];
     const orderNameFromOrderSheet = /*[[${orderSheet.orderSheetProductDto.variantName}]]*/ "상품명";
     const receiverNameFromOrderSheet = /*[[${orderSheet.receiver.name}]]*/ "구매자";
     const receiverPhoneFromOrderSheet = /*[[${orderSheet.receiver.phone}]]*/ "01000000000";
 
-    async function requestPayment() {
+    init();
 
+    function init() {
+        // 라디오 변경 이벤트 등록
+        document.querySelectorAll("input[name='paymentMethod']").forEach(radio => {
+            radio.addEventListener("change", (e) => handlePaymentMethodChange(e.target.value));
+        });
+
+        // 버튼 클릭 리스너는 여기서 딱 한 번만 등록
+        document.getElementById("payment-button").addEventListener("click", onPaymentButtonClick);
+
+        // 최초 로드 시 기본 선택값 반영 (지금은 SAVED_ACCOUNT가 기본이라 TOSS 위젯은 숨김 상태 유지)
+        const initialChecked = document.querySelector("input[name='paymentMethod']:checked").value;
+        handlePaymentMethodChange(initialChecked);
+    }
+
+    async function handlePaymentMethodChange(method) {
+        const paymentMethodDiv = document.getElementById("payment-method");
+        const agreementDiv = document.getElementById("agreement");
+
+        if (method === "TOSS") {
+            paymentMethodDiv.style.display = "block";
+            agreementDiv.style.display = "block";
+            await tossPaymentWidget();
+        } else {
+            paymentMethodDiv.style.display = "none";
+            agreementDiv.style.display = "none";
+        }
+    }
+
+    async function tossPaymentWidget() {
         // 실제로 결제하기 위한 데이터(사용자 정보, 최종 결제 금액 서버에서 조회)
         const paymentRequestDto = {
             receiver: {
@@ -192,42 +225,58 @@
             },
             couponId: null,
             usedPoint: Number(document.getElementById("pointAmount").value || 0),
-            paymentMethod: document.querySelector("input[name='paymentMethod']:checked").value,
+            paymentMethod: "TOSS",
             savedAccountId: null,
             savedCardId: null,
             cardCompany: null,
             installmentMonths: 0
         };
 
+        // 서버에서 사용자 정보 및 최종 결제 금액 요청 (선택할 때마다 최신화)
         const prepareResponse = await fetch(`/api/pay/${variantId}?optionId=${optionId}`, {
             method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify(paymentRequestDto)
         });
 
-        const prepared = await prepareResponse.json();
+        prepared = await prepareResponse.json();
 
-        await payment.requestPayment({
-            method: "CARD",
-            amount: {
-                currency: "KRW",
-                value: prepared.amount
-            },
-            orderId: prepared.orderNumber,
-            orderName: orderNameFromOrderSheet,
-            successUrl: window.location.origin + "/api/toss/pay/success",
-            failUrl: window.location.origin + "/api/pay/toss/fail",
-            customerName: receiverNameFromOrderSheet,
-            customerMobilePhone: receiverPhoneFromOrderSheet,
-            card: {
-                useEscrow: false,
-                flowMode: "DEFAULT",
-                useCardPoint: false,
-                useAppCardOnly: false
-            }
+        // ------ 주문의 결제 금액 설정 (항상 최신화) ------
+        await widgets.setAmount({
+            currency: "KRW",
+            value: prepared.amount
         });
+
+        // ------ 위젯 렌더링은 최초 1회만 ------
+        if (!widgetRendered) {
+            await Promise.all([
+                widgets.renderPaymentMethods({
+                    selector: "#payment-method",
+                    variantKey: "DEFAULT",
+                }),
+                widgets.renderAgreement({ selector: "#agreement", variantKey: "AGREEMENT" }),
+            ]);
+            widgetRendered = true;
+        }
+    }
+
+    // ------ '결제하기' 버튼 누르면 결제창 띄우기 ------
+    async function onPaymentButtonClick() {
+        const method = document.querySelector("input[name='paymentMethod']:checked").value;
+
+        if (method === "TOSS") {
+            await widgets.requestPayment({
+                orderId: prepared.orderNumber,
+                orderName: orderNameFromOrderSheet,
+                successUrl: window.location.origin + "/api/toss/pay/success",
+                failUrl: window.location.origin + "/api/pay/toss/fail",
+                customerName: receiverNameFromOrderSheet,
+                customerMobilePhone: receiverPhoneFromOrderSheet
+            });
+        } else {
+            // TODO: SAVED_ACCOUNT / SAVED_CARD 결제 로직
+            // savedAccountId / savedCardId를 담아 /api/pay/... 재요청 후 결제 처리
+        }
     }
 </script>
 </body>
