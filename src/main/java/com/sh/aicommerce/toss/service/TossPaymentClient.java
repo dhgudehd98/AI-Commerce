@@ -27,6 +27,7 @@ public class TossPaymentClient {
     private final RestTemplate tossRestTemplate;
 
     public TossPaymentSuccessResponseDto confirm(TossPaymentRequestDto request) {
+        log.info("[토스 페이먼츠 API 요청] 요청 주문번호 :{}", request.getOrderId());
 
         // Toss Payment 결제 승인 요청
         String encodedSecretKey = Base64.getEncoder()
