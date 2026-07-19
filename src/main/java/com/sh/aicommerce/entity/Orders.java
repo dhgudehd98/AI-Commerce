@@ -87,5 +87,9 @@ public class Orders {
         item.setOrder(this);
     }
 
+    public void updateStatus() {
+        this.status = OrderStatus.PAID;
+    }
+
 
 }

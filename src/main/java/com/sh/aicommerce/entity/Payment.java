@@ -93,6 +93,14 @@ public class Payment {
         return payment;
     }
 
+    public void setStatusConfirming(String paymentKey) {
+        if (this.status != PaymentStatus.READY) {
+            throw new PaymentException("결제 승인 가능한 상태가 아닙니다.");
+        }
+        this.paymentKey = paymentKey;
+        this.status = PaymentStatus.CONFIRMING;
+    }
+
     public void updateCardPayment(TossPaymentRequestDto request, TossPaymentSuccessResponseDto response) {
         if (response == null) {
             throw new PaymentException("토스 결제 승인 응답이 존재하지 않습니다.");
