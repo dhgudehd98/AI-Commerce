@@ -24,6 +24,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Map;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -75,9 +76,10 @@ public class AuthService {
     public Map<String, String> join(AuthJoinRequestDto joinRequestDto) {
         try {
             String passwd = encoder.encode(joinRequestDto.getPasswd()); // 비밀번호 암호화
+            String customerKey = createCustomerKey();
 
             joinRequestDto.setPasswd(passwd);
-            authRepository.save(new Member(joinRequestDto));
+            authRepository.save(new Member(joinRequestDto, customerKey));
 
             return Map.of("result", "Y", "msg", "회원가입이 성공적으로 완료되었습니다.");
         } catch (Exception e) {
@@ -128,5 +130,9 @@ public class AuthService {
         }
 
         throw new AuthException("쿠키를 찾을 수 없습니다.");
+    }
+
+    private String createCustomerKey() {
+        return "Cus_" + UUID.randomUUID();
     }
 }

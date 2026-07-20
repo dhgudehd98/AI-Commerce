@@ -15,10 +15,12 @@ public class OrderSheetResponseDto {
     OrderSheetProductDto orderSheetProductDto;
     // OrderSheet 가격 정보
     OrderSheetPriceDto orderSheetPriceDto;
+    String customerKey;
 
-    public OrderSheetResponseDto(Receiver receiver, OrderSheetProductDto orderSheetProductDto, OrderSheetPriceDto orderSheetPriceDto) {
+    public OrderSheetResponseDto(Receiver receiver, OrderSheetProductDto orderSheetProductDto, OrderSheetPriceDto orderSheetPriceDto, String customerKey) {
         this.receiver = receiver;
         this.orderSheetProductDto = orderSheetProductDto;
         this.orderSheetPriceDto = orderSheetPriceDto;
+        this.customerKey = customerKey;
     }
 }

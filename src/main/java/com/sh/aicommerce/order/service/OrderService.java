@@ -49,9 +49,7 @@ public class OrderService {
 
         // 여기는 나중에 Coupon에 대한 값이 존재하면 설정하도록 변경 일단은 discountPrice에 대한 값은 0으로
         OrderSheetPriceDto orderSheetPriceDto = new OrderSheetPriceDto(orderSheetProductDto.getProductPrice(), deliveryPrice, 0, 0, orderSheetProductDto.getProductPrice() + deliveryPrice);
-
-
-        return new OrderSheetResponseDto(receiver, orderSheetProductDto, orderSheetPriceDto);
+        return new OrderSheetResponseDto(receiver, orderSheetProductDto, orderSheetPriceDto, member.getCustomerKey());
     }
 
     private int setDeliveryPrice(Integer productPrice) {
