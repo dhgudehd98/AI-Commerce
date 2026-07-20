@@ -3,12 +3,14 @@ package com.sh.aicommerce.entity;
 import com.sh.aicommerce.enums.payment.CardCompany;
 import com.sh.aicommerce.enums.payment.CardType;
 import jakarta.persistence.*;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
 @Entity
 @NoArgsConstructor
+@Getter
 public class Card {
 
     @Id
@@ -17,6 +19,7 @@ public class Card {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "member_id")
     private Member member;
 
     // PG에서 발급받은 결제수단 식별 토큰

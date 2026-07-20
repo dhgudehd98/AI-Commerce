@@ -46,6 +46,7 @@ public class SecurityConfig {
                                 "/api/product",
                                 "/api/order/**",
                                 "/api/pay/**",
+                                "api/**",
 
                                 "/api/toss/**"
                         ).permitAll()

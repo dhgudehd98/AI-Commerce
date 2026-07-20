@@ -6,6 +6,202 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>배송/결제</title>
+
+    <style>
+        /* ------ 카드 간편결제: 선택된 카드 표시 행 ------ */
+        .card-select-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            padding: 16px;
+            border: 1px solid #e5e5e5;
+            border-radius: 12px;
+            background: #fff;
+            cursor: pointer;
+            text-align: left;
+        }
+        .card-select-row:hover {
+            border-color: #b3b3b3;
+        }
+        .card-select-row .card-select-info strong {
+            display: block;
+            font-size: 14px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+        .card-select-row .card-select-info span {
+            font-size: 14px;
+            color: #333;
+            letter-spacing: 1px;
+        }
+        .card-select-row .chevron {
+            font-size: 18px;
+            color: #999;
+        }
+
+        /* ------ 카드 관리 모달 ------ */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.45);
+            z-index: 1000;
+            align-items: flex-end;
+            justify-content: center;
+        }
+        .modal-overlay.open {
+            display: flex;
+        }
+        .modal-panel {
+            width: 100%;
+            max-width: 520px;
+            max-height: 90vh;
+            overflow-y: auto;
+            background: #fff;
+            border-radius: 20px 20px 0 0;
+            padding: 24px 20px 32px;
+            box-sizing: border-box;
+        }
+        @media (min-width: 560px) {
+            .modal-overlay {
+                align-items: center;
+            }
+            .modal-panel {
+                border-radius: 20px;
+            }
+        }
+        .modal-close-btn {
+            border: none;
+            background: none;
+            font-size: 20px;
+            line-height: 1;
+            cursor: pointer;
+            padding: 4px;
+            margin-bottom: 12px;
+        }
+        .modal-title {
+            font-size: 20px;
+            font-weight: 700;
+            margin: 0 0 12px;
+        }
+        .modal-desc {
+            font-size: 13px;
+            color: #767676;
+            line-height: 1.5;
+            margin: 0 0 20px;
+        }
+        .add-card-btn {
+            width: 100%;
+            padding: 14px;
+            border: 1px solid #e5e5e5;
+            border-radius: 12px;
+            background: #fff;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-bottom: 16px;
+        }
+        .add-card-btn:hover {
+            border-color: #b3b3b3;
+        }
+        .toggle-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 16px;
+            background: #f5f5f5;
+            border-radius: 12px;
+            margin-bottom: 12px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        .toggle-switch {
+            position: relative;
+            width: 44px;
+            height: 26px;
+            border-radius: 999px;
+            background: #e0e0e0;
+            border: none;
+            cursor: pointer;
+            transition: background 0.2s;
+            flex-shrink: 0;
+        }
+        .toggle-switch.on {
+            background: #111;
+        }
+        .toggle-switch::after {
+            content: "";
+            position: absolute;
+            top: 3px;
+            left: 3px;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #fff;
+            transition: transform 0.2s;
+        }
+        .toggle-switch.on::after {
+            transform: translateX(18px);
+        }
+        .card-list-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 4px;
+            border-bottom: 1px solid #f0f0f0;
+            cursor: pointer;
+            background: none;
+            border-left: none;
+            border-right: none;
+            border-top: none;
+            width: 100%;
+            text-align: left;
+        }
+        .card-list-item:last-child {
+            border-bottom: none;
+        }
+        .card-badge {
+            flex-shrink: 0;
+            width: 48px;
+            height: 32px;
+            border-radius: 6px;
+            background: #111;
+            color: #fff;
+            font-size: 12px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .card-list-item-info strong {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 14px;
+            font-weight: 700;
+        }
+        .default-tag {
+            font-size: 11px;
+            font-weight: 600;
+            color: #767676;
+            border: 1px solid #ddd;
+            border-radius: 999px;
+            padding: 2px 8px;
+        }
+        .card-list-item-info span {
+            display: block;
+            margin-top: 4px;
+            font-size: 13px;
+            color: #767676;
+            letter-spacing: 1px;
+        }
+        .panel-loading, .panel-error {
+            font-size: 13px;
+            color: #767676;
+            padding: 8px 0;
+        }
+    </style>
 </head>
 <body>
 <header class="top-bar">
@@ -105,32 +301,67 @@
 
         <fieldset class="card payment-card">
             <legend class="sr-only">결제 방법을 선택하세요</legend>
-            <label class="payment-option">
-                <input type="radio" name="paymentMethod" value="SAVED_ACCOUNT" checked>
-                <span class="radio-mark" aria-hidden="true"></span>
-                <span><strong>계좌 간편결제</strong></span>
-            </label>
-            <label class="payment-option">
-                <input type="radio" name="paymentMethod" value="SAVED_CARD">
-                <span class="radio-mark" aria-hidden="true"></span>
-                <span><strong>카드 간편결제</strong></span>
-            </label>
-            <label class="payment-option">
-                <input type="radio" name="paymentMethod" value="TOSS">
-                <span class="radio-mark" aria-hidden="true"></span>
-                <span>
-                    <strong>일반 결제(일시불·할부)</strong>
-                </span>
-            </label>
-            <!-- 결제 UI -->
-            <div id="payment-method" style = "display:none"></div>
+
+            <div class="payment-option-wrapper">
+                <label class="payment-option">
+                    <input type="radio" name="paymentMethod" value="SAVED_ACCOUNT" checked>
+                    <span class="radio-mark" aria-hidden="true"></span>
+                    <span><strong>계좌 간편결제</strong></span>
+                </label>
+                <!-- 계좌 간편결제 전용 패널 (비동기 렌더링) -->
+                <div id="saved-account-panel" class="payment-sub-panel" style="display:none"></div>
+            </div>
+
+            <div class="payment-option-wrapper">
+                <label class="payment-option">
+                    <input type="radio" name="paymentMethod" value="SAVED_CARD">
+                    <span class="radio-mark" aria-hidden="true"></span>
+                    <span><strong>카드 간편결제</strong></span>
+                </label>
+                <!-- 카드 간편결제 전용 패널 (비동기 렌더링) -->
+                <div id="saved-card-panel" class="payment-sub-panel" style="display:none"></div>
+            </div>
+
+            <div class="payment-option-wrapper">
+                <label class="payment-option">
+                    <input type="radio" name="paymentMethod" value="TOSS">
+                    <span class="radio-mark" aria-hidden="true"></span>
+                    <span>
+                        <strong>일반 결제(일시불·할부)</strong>
+                    </span>
+                </label>
+            </div>
+
+            <!-- 일반 결제(TOSS) 위젯 UI -->
+            <div id="payment-method" style="display:none"></div>
             <!-- 이용약관 UI -->
             <div id="agreement" style="display:none"></div>
+
             <!-- 결제하기 버튼 -->
             <button class="button" id="payment-button" style="margin-top: 30px">결제하기</button>
-
         </fieldset>
     </section>
+
+    <!-- ------ 간편결제 카드 관리 모달 ------ -->
+    <div class="modal-overlay" id="card-manage-overlay">
+        <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="card-manage-title">
+            <button type="button" class="modal-close-btn" id="card-manage-close" aria-label="닫기">✕</button>
+            <h2 class="modal-title" id="card-manage-title">간편결제 카드 관리</h2>
+            <p class="modal-desc">
+                수수료(페널티, 착불배송비 등)가 정산되지 않을 경우, 별도 고지 없이 해당 금액을 결제 시도할 수 있습니다.<br>
+                대체 결제 수단 설정시 등록하신 순서대로 시도됩니다.
+            </p>
+
+            <button type="button" class="add-card-btn" id="add-card-btn">+ 새 카드 추가하기</button>
+
+            <div class="toggle-row">
+                <span id="toggle-label">대체 결제 수단 사용 설정됨</span>
+                <button type="button" class="toggle-switch on" id="fallback-toggle" role="switch" aria-checked="true"></button>
+            </div>
+
+            <div id="card-manage-list"></div>
+        </div>
+    </div>
 
     <section class="section final-section" aria-labelledby="summary-title">
         <div class="section-heading">
@@ -169,7 +400,14 @@
     // ------ 전역 상태 ------
     let widgets;
     let widgetRendered = false;
-    let prepared; // 서버에서 받은 최신 결제 정보(금액, 주문번호 등)
+    let prepared; // 서버에서 받은 최신 결제 정보(금액, 주문번호 등) - TOSS(일반결제)용
+
+    let savedCardCache = null;     // 기본 카드 1장 (결제 화면에 표시될 카드) 캐시
+    let savedAccountCache = null;  // 등록된 계좌 목록 캐시
+    let cardListCache = null;      // 카드 관리 모달용 - 등록된 카드 전체 목록 캐시
+    let selectedSavedCardId = null;
+    let selectedSavedAccountId = null;
+    let fallbackEnabled = true;    // 대체 결제 수단 사용 여부 (토글 상태)
 
     const clientKey = "test_gck_docs_Ovk5rk1EwkEbP0W43n07xlzm";
     const tossPayments = TossPayments(clientKey);
@@ -192,27 +430,213 @@
         // 버튼 클릭 리스너는 여기서 딱 한 번만 등록
         document.getElementById("payment-button").addEventListener("click", onPaymentButtonClick);
 
-        // 최초 로드 시 기본 선택값 반영 (지금은 SAVED_ACCOUNT가 기본이라 TOSS 위젯은 숨김 상태 유지)
+        // ------ 카드 관리 모달 관련 리스너 (한 번만 등록) ------
+        document.getElementById("card-manage-close").addEventListener("click", closeCardManageModal);
+        document.getElementById("card-manage-overlay").addEventListener("click", (e) => {
+            if (e.target.id === "card-manage-overlay") closeCardManageModal(); // 오버레이 바깥 클릭 시 닫기
+        });
+        document.getElementById("add-card-btn").addEventListener("click", () => {
+            window.location.href = "/mypage/cards/register";
+        });
+        document.getElementById("fallback-toggle").addEventListener("click", onFallbackToggleClick);
+
+        // 최초 로드 시 기본 선택값 반영
         const initialChecked = document.querySelector("input[name='paymentMethod']:checked").value;
         handlePaymentMethodChange(initialChecked);
     }
 
+    // ------ 라디오 선택에 따른 패널 토글 ------
     async function handlePaymentMethodChange(method) {
         const paymentMethodDiv = document.getElementById("payment-method");
         const agreementDiv = document.getElementById("agreement");
+        const savedAccountPanel = document.getElementById("saved-account-panel");
+        const savedCardPanel = document.getElementById("saved-card-panel");
+
+        // 매번 전부 숨긴 뒤, 선택된 패널만 다시 보여줌
+        paymentMethodDiv.style.display = "none";
+        agreementDiv.style.display = "none";
+        savedAccountPanel.style.display = "none";
+        savedCardPanel.style.display = "none";
 
         if (method === "TOSS") {
             paymentMethodDiv.style.display = "block";
             agreementDiv.style.display = "block";
             await tossPaymentWidget();
-        } else {
-            paymentMethodDiv.style.display = "none";
-            agreementDiv.style.display = "none";
+        } else if (method === "SAVED_ACCOUNT") {
+            savedAccountPanel.style.display = "block";
+            await renderSavedAccountPanel();
+        } else if (method === "SAVED_CARD") {
+            savedCardPanel.style.display = "block";
+            await renderSavedCardPanel();
         }
     }
 
+    // ------ 계좌 간편결제 패널 (비동기: 등록된 계좌 조회 후 목록/등록CTA 분기) ------
+    async function renderSavedAccountPanel() {
+        const panel = document.getElementById("saved-account-panel");
+        panel.innerHTML = `<p class="panel-loading">불러오는 중...</p>`;
+
+        if (savedAccountCache === null) {
+            try {
+                const res = await fetch("/api/pay/saved-accounts");
+                if (!res.ok) throw new Error("요청 실패");
+                savedAccountCache = await res.json(); // 예: { accounts: [{ id, bankName, accountNumberMasked }, ...] }
+            } catch (e) {
+                panel.innerHTML = `<p class="panel-error">계좌 정보를 불러오지 못했습니다.</p>`;
+                return;
+            }
+        }
+
+        if (!savedAccountCache.accounts || savedAccountCache.accounts.length === 0) {
+            panel.innerHTML = `
+                <button type="button" class="register-cta" id="register-account-btn">
+                    계좌 등록하고 빠르게 결제하기 <span aria-hidden="true">›</span>
+                </button>
+            `;
+            document.getElementById("register-account-btn")
+                .addEventListener("click", () => {
+                    window.location.href = "/mypage/accounts/register";
+                });
+            return;
+        }
+
+        panel.innerHTML = savedAccountCache.accounts.map(acc => `
+            <label class="saved-method-option">
+                <input type="radio" name="savedAccount" value="${acc.id}">
+                <span>${acc.bankName} ${acc.accountNumberMasked}</span>
+            </label>
+        `).join("");
+
+        panel.querySelectorAll("input[name='savedAccount']").forEach(radio => {
+            radio.addEventListener("change", (e) => {
+                selectedSavedAccountId = e.target.value;
+            });
+        });
+    }
+
+    // ------ 카드 간편결제 패널: 기본 카드 조회 → 행 클릭 시 관리 모달 오픈 ------
+    async function renderSavedCardPanel() {
+        const panel = document.getElementById("saved-card-panel");
+        panel.innerHTML = `<p class="panel-loading">불러오는 중...</p>`;
+
+        if (savedCardCache === null) {
+            try {
+                const res = await fetch("/api/card");
+                if (!res.ok) throw new Error("요청 실패");
+                savedCardCache = await res.json(); // { cardId, cardName, maskedCardNumber, billingKey, defaultCard }
+            } catch (e) {
+                panel.innerHTML = `<p class="panel-error">카드 정보를 불러오지 못했습니다.</p>`;
+                return;
+            }
+        }
+
+        // 등록된 카드가 없을 때
+        if (!savedCardCache || !savedCardCache.cardId) {
+            panel.innerHTML = `
+                <button type="button" class="register-cta" id="register-card-btn">
+                    카드 등록하고 빠르게 결제하기 <span aria-hidden="true">›</span>
+                </button>
+            `;
+            document.getElementById("register-card-btn")
+                .addEventListener("click", () => {
+                    window.location.href = "/mypage/cards/register";
+                });
+            return;
+        }
+
+        // 등록된 카드가 있을 때 - 기본 카드를 행으로 표시, 클릭 시 관리 모달 오픈
+        selectedSavedCardId = savedCardCache.cardId; // 기본 카드로 자동 선택
+
+        panel.innerHTML = `
+            <button type="button" class="card-select-row" id="card-select-row">
+                <span class="card-select-info">
+                    <strong>${savedCardCache.cardName}</strong>
+                    <span>${savedCardCache.maskedCardNumber}</span>
+                </span>
+                <span class="chevron" aria-hidden="true">›</span>
+            </button>
+        `;
+
+        document.getElementById("card-select-row")
+            .addEventListener("click", openCardManageModal);
+    }
+
+    // ------ 카드 관리 모달 열기 ------
+    async function openCardManageModal() {
+        document.getElementById("card-manage-overlay").classList.add("open");
+        await renderCardManageList();
+    }
+
+    function closeCardManageModal() {
+        document.getElementById("card-manage-overlay").classList.remove("open");
+    }
+
+    // ------ 모달 내부 카드 전체 목록 렌더링 (비동기 조회) ------
+    async function renderCardManageList() {
+        const listEl = document.getElementById("card-manage-list");
+        listEl.innerHTML = `<p class="panel-loading">불러오는 중...</p>`;
+
+        if (cardListCache === null) {
+            try {
+                const res = await fetch("/api/card/list");
+                if (!res.ok) throw new Error("요청 실패");
+                cardListCache = await res.json(); // [{ cardId, cardName, maskedCardNumber, defaultCard }, ...]
+            } catch (e) {
+                listEl.innerHTML = `<p class="panel-error">카드 목록을 불러오지 못했습니다.</p>`;
+                return;
+            }
+        }
+
+        if (!cardListCache || cardListCache.length === 0) {
+            listEl.innerHTML = `<p class="panel-error">등록된 카드가 없습니다.</p>`;
+            return;
+        }
+
+        listEl.innerHTML = cardListCache.map(card => `
+            <button type="button" class="card-list-item" data-card-id="${card.cardId}">
+                <span class="card-badge">${card.cardName.slice(0, 2)}</span>
+                <span class="card-list-item-info">
+                    <strong>
+                        ${card.cardName}
+                        ${card.defaultCard ? '<span class="default-tag">기본 결제</span>' : ""}
+                    </strong>
+                    <span>${card.maskedCardNumber}</span>
+                </span>
+            </button>
+        `).join("");
+
+        listEl.querySelectorAll(".card-list-item").forEach(item => {
+            item.addEventListener("click", () => {
+                const cardId = item.dataset.cardId;
+                const selected = cardListCache.find(c => String(c.cardId) === String(cardId));
+                if (!selected) return;
+
+                // 선택한 카드를 결제 화면의 기본 표시 카드로 반영
+                selectedSavedCardId = selected.cardId;
+                savedCardCache = selected;
+
+                closeCardManageModal();
+                renderSavedCardPanel(); // 결제 화면의 카드 행을 갱신된 선택값으로 다시 그림
+            });
+        });
+    }
+
+    // ------ 대체 결제 수단 사용 토글 ------
+    function onFallbackToggleClick() {
+        fallbackEnabled = !fallbackEnabled;
+        const toggle = document.getElementById("fallback-toggle");
+        const label = document.getElementById("toggle-label");
+
+        toggle.classList.toggle("on", fallbackEnabled);
+        toggle.setAttribute("aria-checked", String(fallbackEnabled));
+        label.textContent = fallbackEnabled ? "대체 결제 수단 사용 설정됨" : "대체 결제 수단 사용 안 함";
+
+        // TODO: 서버에 토글 상태 저장이 필요하면 여기서 PATCH 요청
+        // fetch("/api/card/fallback-setting", { method: "PATCH", ... })
+    }
+
+    // ------ TOSS(일반 결제) 위젯 초기화 + 렌더링 ------
     async function tossPaymentWidget() {
-        // 실제로 결제하기 위한 데이터(사용자 정보, 최종 결제 금액 서버에서 조회)
         const paymentRequestDto = {
             receiver: {
                 name: /*[[${orderSheet.receiver.name}]]*/ "구매자",
@@ -232,7 +656,7 @@
             installmentMonths: 0
         };
 
-        // 서버에서 사용자 정보 및 최종 결제 금액 요청 (선택할 때마다 최신화)
+        // 서버에서 사용자 정보 및 최종 결제 금액 요청 (선택할 때마다 최신화 - 쿠폰/포인트 반영)
         const prepareResponse = await fetch(`/api/pay/${variantId}?optionId=${optionId}`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -260,7 +684,7 @@
         }
     }
 
-    // ------ '결제하기' 버튼 누르면 결제창 띄우기 ------
+    // ------ '결제하기' 버튼 누르면 선택된 결제수단에 맞게 분기 ------
     async function onPaymentButtonClick() {
         const method = document.querySelector("input[name='paymentMethod']:checked").value;
 
@@ -273,9 +697,60 @@
                 customerName: receiverNameFromOrderSheet,
                 customerMobilePhone: receiverPhoneFromOrderSheet
             });
-        } else {
-            // TODO: SAVED_ACCOUNT / SAVED_CARD 결제 로직
-            // savedAccountId / savedCardId를 담아 /api/pay/... 재요청 후 결제 처리
+        } else if (method === "SAVED_CARD") {
+            if (!selectedSavedCardId) {
+                alert("결제할 카드를 선택해주세요.");
+                return;
+            }
+            await requestSavedPayment({ paymentMethod: "SAVED_CARD", savedCardId: selectedSavedCardId });
+        } else if (method === "SAVED_ACCOUNT") {
+            if (!selectedSavedAccountId) {
+                alert("결제할 계좌를 선택해주세요.");
+                return;
+            }
+            await requestSavedPayment({ paymentMethod: "SAVED_ACCOUNT", savedAccountId: selectedSavedAccountId });
+        }
+    }
+
+    // ------ 계좌/카드 간편결제 실제 결제 요청 ------
+    async function requestSavedPayment(extra) {
+        const paymentRequestDto = {
+            receiver: {
+                name: /*[[${orderSheet.receiver.name}]]*/ "구매자",
+                phone: /*[[${orderSheet.receiver.phone}]]*/ "01000000000",
+                zipCode: /*[[${orderSheet.receiver.zipCode}]]*/ "00000",
+                address: /*[[${orderSheet.receiver.address}]]*/ "주소",
+                addressDetail: /*[[${orderSheet.receiver.addressDetail}]]*/ "",
+                receiverMethod: /*[[${orderSheet.receiver.receiverMethod}]]*/ "DOOR",
+                deliveryRequestMessage: /*[[${orderSheet.receiver.deliveryRequestMessage}]]*/ null
+            },
+            couponId: null,
+            usedPoint: Number(document.getElementById("pointAmount").value || 0),
+            savedAccountId: null,
+            savedCardId: null,
+            cardCompany: null,
+            installmentMonths: 0,
+            ...extra
+        };
+
+        try {
+            const res = await fetch(`/api/pay/${variantId}?optionId=${optionId}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(paymentRequestDto)
+            });
+
+            if (!res.ok) {
+                const err = await res.json().catch(() => null);
+                alert(err?.message || "결제 요청에 실패했습니다.");
+                return;
+            }
+
+            const result = await res.json();
+            // 결제 성공 처리 (예: 결과 페이지로 이동)
+            window.location.href = `/order/complete?orderNumber=${result.orderNumber}`;
+        } catch (e) {
+            alert("결제 처리 중 오류가 발생했습니다. 다시 시도해주세요.");
         }
     }
 </script>
