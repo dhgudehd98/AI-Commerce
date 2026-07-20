@@ -48,4 +48,22 @@ public class TossAPIController {
 
         return "toss/pay-fail";
     }
+
+    @GetMapping("/card/set/success")
+    public void cardSetSuccess(
+            @RequestParam("customerKey") String customerKey,
+            @RequestParam("authKey") String authKey
+    ) {
+        log.info("[토스 페이먼츠] 카드 등록 성공 응답 데이터 : customerKey : {}, authKey : {}", customerKey, authKey);
+        tossAPIService.getBillingKey(customerKey, authKey);
+    }
+
+    @GetMapping("/card/set/fail")
+    public void cardSetFail(
+            @RequestParam("code") String errorCode,
+            @RequestParam("message") String errorMessage
+    ) {
+        log.info("[토스 페이먼츠] 카드 등록 실패 에러코드 : {} , 에러 메세지 : {)", errorCode, errorMessage);
+    }
+
 }

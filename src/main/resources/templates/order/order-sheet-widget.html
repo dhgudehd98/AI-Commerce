@@ -352,7 +352,7 @@
                 대체 결제 수단 설정시 등록하신 순서대로 시도됩니다.
             </p>
 
-            <button type="button" class="add-card-btn" id="add-card-btn">+ 새 카드 추가하기</button>
+            <button type="button" class="add-card-btn" id="add-card-btn" onClick="requestBillingAuth()">+ 새 카드 추가하기</button>
 
             <div class="toggle-row">
                 <span id="toggle-label">대체 결제 수단 사용 설정됨</span>
@@ -409,9 +409,18 @@
     let selectedSavedAccountId = null;
     let fallbackEnabled = true;    // 대체 결제 수단 사용 여부 (토글 상태)
 
-    const clientKey = "test_gck_docs_Ovk5rk1EwkEbP0W43n07xlzm";
-    const tossPayments = TossPayments(clientKey);
-    widgets = tossPayments.widgets({ customerKey: TossPayments.ANONYMOUS });
+    // 토스페이먼츠 - 위젯 관련 SDK 초기화
+    const widgetClientKey = "test_gck_docs_Ovk5rk1EwkEbP0W43n07xlzm";
+    const widgetTossPayments = TossPayments(widgetClientKey);
+    widgets = widgetTossPayments.widgets({ customerKey: TossPayments.ANONYMOUS });
+
+    // 토스페이먼츠 - 자동결제(빌링) 관련 SDK 초기화
+    const billingClientKey = "test_ck_D5GePWvyJnrK0W0k6q8gLzN97Eoq";
+    const customerKey = /*[[${orderSheet.customerKey}]]*/ "Cus_9f3B2d6e-9c1A-4a7e-8c1F-16b5f6c12a31";
+    console.log("customerKey : " + customerKey);
+    const billingTossPayments = TossPayments(billingClientKey);
+    const payment = billingTossPayments.payment({ customerKey });
+
 
     const variantId = [[${orderSheet.orderSheetProductDto.variantId}]];
     const optionId = [[${orderSheet.orderSheetProductDto.optionId}]];
@@ -434,9 +443,6 @@
         document.getElementById("card-manage-close").addEventListener("click", closeCardManageModal);
         document.getElementById("card-manage-overlay").addEventListener("click", (e) => {
             if (e.target.id === "card-manage-overlay") closeCardManageModal(); // 오버레이 바깥 클릭 시 닫기
-        });
-        document.getElementById("add-card-btn").addEventListener("click", () => {
-            window.location.href = "/mypage/cards/register";
         });
         document.getElementById("fallback-toggle").addEventListener("click", onFallbackToggleClick);
 
@@ -621,6 +627,15 @@
         });
     }
 
+    async function requestBillingAuth() {
+        await payment.requestBillingAuth({
+            method: "CARD", // 자동결제(빌링)는 카드만 지원합니다
+            successUrl: window.location.origin + "/api/toss/card/set/success", // 요청이 성공하면 리다이렉트되는 URL
+            failUrl: window.location.origin + "/api/toss/card/set/fail", // 요청이 실패하면 리다이렉트되는 URL
+            customerEmail: "customer123@gmail.com",
+            customerName: "김토스",
+        });
+    }
     // ------ 대체 결제 수단 사용 토글 ------
     function onFallbackToggleClick() {
         fallbackEnabled = !fallbackEnabled;

@@ -31,6 +31,7 @@ public enum CardCompany {
     KOOKMIN("11"),
     NONGHYEOP("91"),
     SUHYEOP("34"),
+    현대("100"), //! 여기에 대한 값은 나중에 어떻게 할지 좀 생각을 해봐야겠따
 
     UNKNOWN(null);
 
