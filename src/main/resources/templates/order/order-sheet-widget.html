@@ -629,7 +629,7 @@
     async function requestBillingAuth() {
         await payment.requestBillingAuth({
             method: "CARD", // 자동결제(빌링)는 카드만 지원합니다
-            successUrl: window.location.origin + "/api/toss/card/set/success", // 요청이 성공하면 리다이렉트되는 URL
+            successUrl: window.location.origin + `/api/toss/card/set/success?variantId=${variantId}&optionId=${optionId}`,
             failUrl: window.location.origin + "/api/toss/card/set/fail", // 요청이 실패하면 리다이렉트되는 URL
             customerEmail: "customer123@gmail.com",
             customerName: "김토스",

@@ -50,12 +50,17 @@ public class TossAPIController {
     }
 
     @GetMapping("/card/set/success")
-    public void cardSetSuccess(
+    public String cardSetSuccess(
+            @RequestParam("variantId") Long variantId,
+            @RequestParam("optionId") Long optionId,
             @RequestParam("customerKey") String customerKey,
             @RequestParam("authKey") String authKey
     ) {
         log.info("[토스 페이먼츠] 카드 등록 성공 응답 데이터 : customerKey : {}, authKey : {}", customerKey, authKey);
         tossAPIService.getBillingKey(customerKey, authKey);
+
+        return "redirect:/api/order/sheet/" + variantId
+                + "?optionId=" + optionId;
     }
 
     @GetMapping("/card/set/fail")
