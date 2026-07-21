@@ -24,9 +24,10 @@ public class CardService {
 
     public SavedCardResponseDto getCardInPayment(Long memberId) {
         Member member = authRepository.findById(memberId).orElseThrow(() -> new MemberException("존재하지 않는 회원정보입니다."));
-        Card card = cardRepository.findByMemberIdAndActiveTrueAndDefaultCardTrue(memberId).orElseThrow(() -> new CardException("현재 등록되어 있는 카드가 존재하지 않습니다."));
 
-        return new SavedCardResponseDto(card);
+        return cardRepository.findByMemberIdAndActiveTrueAndDefaultCardTrue(memberId)
+                .map(card -> new SavedCardResponseDto(card))
+                .orElse(null);
     }
 
     public List<SavedCardResponseDto> getCardListInPayment(Long memberId) {

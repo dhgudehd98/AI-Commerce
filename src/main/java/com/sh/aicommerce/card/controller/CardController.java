@@ -1,5 +1,6 @@
 package com.sh.aicommerce.card.controller;
 
+import com.sh.aicommerce.card.dto.SavedCardResultDto;
 import com.sh.aicommerce.card.service.CardService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -20,7 +21,7 @@ public class CardController {
 //            Authentication authentication
     ) {
         Long memberId = 1L;
-        return ResponseEntity.ok(cardService.getCardInPayment(memberId));
+        return ResponseEntity.ok(new SavedCardResultDto(cardService.getCardInPayment(memberId)));
     }
 
     @GetMapping("/list")

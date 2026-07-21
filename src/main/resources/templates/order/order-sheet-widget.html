@@ -529,7 +529,8 @@
             try {
                 const res = await fetch("/api/card");
                 if (!res.ok) throw new Error("요청 실패");
-                savedCardCache = await res.json(); // { cardId, cardName, maskedCardNumber, billingKey, defaultCard }
+                const data = await res.json(); // { card: { cardId, cardName, maskedCardNumber, billingKey } }
+                savedCardCache = data.card;
             } catch (e) {
                 panel.innerHTML = `<p class="panel-error">카드 정보를 불러오지 못했습니다.</p>`;
                 return;
@@ -544,9 +545,7 @@
                 </button>
             `;
             document.getElementById("register-card-btn")
-                .addEventListener("click", () => {
-                    window.location.href = "/mypage/cards/register";
-                });
+                .addEventListener("click", requestBillingAuth);
             return;
         }
 

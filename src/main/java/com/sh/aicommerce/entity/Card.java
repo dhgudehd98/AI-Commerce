@@ -49,13 +49,10 @@ public class Card {
     public Card(Member member, TossPaymentBillingResponseDto response) {
         this.member = member;
         this.billingKey = response.getBillingKey();
-        //! 여기도 나중에 변경 어떻게 값을 맞춰야될지
-        this.cardCompany = CardCompany.HYUNDAI;
-//        this.cardCompany = CardCompany.valueOf(response.getCardCompany());
+        this.cardCompany = CardCompany.fromCode(response.getCard().getIssuerCode());
+        this.cardName = response.getCardCompany() + "카드";
         this.maskedCardNumber = response.getCardNumber();
-        this.cardType = CardType.CREDIT; //! 여기는 나중에 한국어로 변경해서 설정 CREDIT -> 신용, 체크 아래 코드로 변경
-//        this.cardType = CardType.valueOf(response.getCard().getCardType());
-        // 일단 등록을 하면 defaultCard, active에 대한 값들을 true로 설정
+        this.cardType = CardType.fromLabel(response.getCard().getCardType());
         this.defaultCard = true;
         this.active = true;
         this.registeredAt = LocalDateTime.now();
