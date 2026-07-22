@@ -17,4 +17,6 @@ public interface CardRepository extends JpaRepository<Card, Long> {
     List<Card> findByMemberIdAndActiveTrue(Long memberId);
 
     boolean existsByBillingKey(String billingKey);
+
+    Optional<Card> findByIdAndActiveTrueAndDefaultCardTrue(Long savedCardId);
 }

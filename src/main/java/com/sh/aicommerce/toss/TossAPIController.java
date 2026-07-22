@@ -1,6 +1,7 @@
 package com.sh.aicommerce.toss;
 
 
+import com.sh.aicommerce.payment.service.PaymentService;
 import com.sh.aicommerce.toss.dto.request.TossPaymentRequestDto;
 import com.sh.aicommerce.toss.dto.response.TossPaymentSuccessResponseDto;
 import com.sh.aicommerce.toss.service.TossAPIService;
@@ -19,19 +20,19 @@ import org.springframework.web.bind.annotation.RequestParam;
 public class TossAPIController {
 
     private final TossAPIService tossAPIService;
+    private final PaymentService paymentService;
 
 
     @GetMapping("/pay/success")
-    public String paySuccess(
+    public String payByTossWidget(
             @RequestParam("orderId") String orderNumber,
             @RequestParam("paymentKey") String paymentKey,
             @RequestParam("amount") Integer amount,
             Model model
     ) {
-        log.info("[토스 페이먼츠 결제 완료]");
         log.info("[토스 페이먼츠 응답 데이터] OrderNumber : {}, PaymentKey : {}. Amount : {}", orderNumber, paymentKey, amount);
 
-        TossPaymentSuccessResponseDto tossPaymentSuccessResponseDto = tossAPIService.tossPaymentConfirm(new TossPaymentRequestDto(paymentKey, amount, orderNumber));
+        TossPaymentSuccessResponseDto tossPaymentSuccessResponseDto = paymentService.payByTossWidget(orderNumber, paymentKey, amount);
         model.addAttribute("payment", tossPaymentSuccessResponseDto);
 
         return "toss/pay-success";

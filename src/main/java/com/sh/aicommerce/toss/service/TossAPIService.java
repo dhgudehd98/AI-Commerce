@@ -45,7 +45,7 @@ public class TossAPIService {
         TossPaymentSuccessResponseDto response = client.confirm(request);
 
         // 결제가 성공적으로 완료된 경우 DB에 해당 내용 업데이트 및 Payment, Order에 대한 내역 업데이트
-        transactionService.applyConfirmResult(response, request);
+//        transactionService.applyConfirmResult(response, request);
 
 
         // 결제 승인이 완룓

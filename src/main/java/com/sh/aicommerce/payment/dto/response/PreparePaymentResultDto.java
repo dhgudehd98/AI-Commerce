@@ -1,5 +1,6 @@
-package com.sh.aicommerce.payment.dto.request;
+package com.sh.aicommerce.payment.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.sh.aicommerce.enums.payment.Bank;
 import com.sh.aicommerce.enums.payment.CardCompany;
 
@@ -21,4 +22,11 @@ public class PreparePaymentResultDto {
 
     private Long savedCardId;
     private Long savedAccountId;
+
+    @JsonIgnore
+    private String billingKey;
+
+    @JsonIgnore
+    private String customerKey;
+
 }

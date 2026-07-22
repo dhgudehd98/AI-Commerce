@@ -1,35 +1,64 @@
-package com.sh.aicommerce.toss.service;
+package com.sh.aicommerce.payment.service;
 
 
 import com.sh.aicommerce.auth.repository.AuthRepository;
 import com.sh.aicommerce.card.repository.CardRepository;
-import com.sh.aicommerce.common.exception.card.CardException;
-import com.sh.aicommerce.common.exception.member.MemberException;
+import com.sh.aicommerce.common.exception.order.OrderException;
 import com.sh.aicommerce.common.exception.payment.PaymentException;
-import com.sh.aicommerce.entity.*;
+import com.sh.aicommerce.entity.Orders;
+import com.sh.aicommerce.entity.Payment;
+import com.sh.aicommerce.entity.TossPaymentLog;
+import com.sh.aicommerce.order.orderRepository.OrderRepository;
 import com.sh.aicommerce.payment.repository.PaymentRepository;
 import com.sh.aicommerce.toss.dto.request.TossPaymentRequestDto;
-import com.sh.aicommerce.toss.dto.response.TossPaymentBillingResponseDto;
 import com.sh.aicommerce.toss.dto.response.TossPaymentSuccessResponseDto;
 import com.sh.aicommerce.toss.repository.TossPaymentLogRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class TossTransactionService {
+public class PaymentTransactionService {
 
+    private final OrderRepository orderRepository;
     private final PaymentRepository paymentRepository;
     private final TossPaymentLogRepository logRepository;
     private final CardRepository cardRepository;
     private final AuthRepository authRepository;
 
+    @Transactional
+    public Orders validateOrder(String orderNumber) {
+        return orderRepository.findByMemberIdAndOrderNumberWithPayment(orderNumber).orElseThrow(() -> new OrderException("현재 주문번호에 해당되는 주문이 존재하지 않습니다."));
+    }
+
+    @Transactional
+    public void applyConfirmResult(TossPaymentSuccessResponseDto response, TossPaymentRequestDto request) {
+
+        log.info("[토스 페이먼츠] 결제 승인 완료 TossPaymentLog 내역 생성 및 Payment, Orders에 대한 내역 업데이트 시작");
+        Payment payment = paymentRepository.findConfirmingWithOrderByOrderNumberForUpdate(request.getAmount(), request.getOrderId()).orElseThrow(() -> new PaymentException("해당 결제 정보가 존재하지 않습니다."));
+        Orders order = payment.getOrder();
+
+        TossPaymentLog tossPaymentLog = TossPaymentLog.confirmSuccess(payment, response, 200, request.toString(), response.toString());
+        logRepository.save(tossPaymentLog);
+
+        // 카드로 결제한 경우에 -> 결제내역 Payment에 대한 부분 카드 내역으로 update
+        if (response.getCard() != null) {
+            payment.updateCardPayment(request, response);
+        }
+        // 간단결제(카카오페이 , 네이버페이)로 결제 한 경우에 -> 결제내역 Payment에 대한 부분 해당 결제 내역으로 update
+        else if (response.getEasyPay() != null) {
+            payment.updateEasyPayment(request, response);
+        }else{
+            throw new PaymentException("지원하지 않는 토스 결제 응답입니다.");
+        }
+        // Orders.Status = "CREATED" -> "PAID"로 변경
+        order.updateStatus();
+
+        log.info("[토스 페이먼츠] Payment 및 Order 업데이트 완료 업데이트 정보 paymentId : {} , orderId : {}",payment.getId(), order.getId());
+    }
 
     @Transactional
     public void validatePayment(TossPaymentRequestDto paymentDto) {
@@ -56,31 +85,4 @@ public class TossTransactionService {
         payment.setStatusConfirming(paymentDto.getPaymentKey());
         log.info("[토스페이먼츠 결제 검증 통과 및 결제 상태 CONFIRM 변경] : 주문번호(orderId) : {}", paymentDto.getOrderId());
     }
-
-    @Transactional(readOnly = true)
-    public void validateCard(TossPaymentBillingResponseDto response) {
-
-        if (cardRepository.existsByBillingKey(response.getBillingKey())) {
-            throw new CardException("이미 등록된 카드 입니다.");
-        }
-    }
-
-    @Transactional(readOnly = true)
-    public void validateMemberByCustomerKey(String customerKey) {
-
-        if (!authRepository.existsByCustomerKey(customerKey)) {
-            throw new MemberException("존재하지 않는 회원입니다. 로그인을 다시해주세요.");
-        }
-    }
-
-    @Transactional
-    public void saveCard(String customerKey, TossPaymentBillingResponseDto response) {
-        Member member = authRepository.findByCustomerKey(customerKey).orElseThrow(() -> new MemberException("존재하지 않는 회원입니다."));
-        Card card = new Card(member, response);
-
-        cardRepository.save(card);
-        log.info("[토스페이먼츠 자동결제(Billing Key)] 카드 DB 저장 완료 : {}", card.getBillingKey());
-    }
-
-
 }

@@ -67,7 +67,7 @@ public class TossPaymentClient {
     }
 
     public TossPaymentBillingResponseDto getBillingKey(TossPaymentBillingRequestDto request) {
-        log.info("[토스 페이먼츠 자동결제(빌링) 요청] 요청키 :{}", request.getAuthKey());
+        log.info("[토스 페이먼츠 카드 BillingKey 발급 요청] 요청키 :{}", request.getAuthKey());
 
         // Toss Payment 결제 승인 요청
         String encodedSecretKey = Base64.getEncoder()
@@ -99,5 +99,8 @@ public class TossPaymentClient {
 
         // 결제 승인이 성공적으로 완료되었다면 , DB에 저장된 Payment, Order에 대한 값 업데이트
         return response.getBody();
+    }
+
+    public void cardBilling(String billingKey, String customerKey, Integer amount, String orderNumber, String orderName, String customerEmail, String customerEmail1, String customerName, Integer taxFreeAmount) {
     }
 }
