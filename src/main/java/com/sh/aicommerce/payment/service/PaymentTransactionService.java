@@ -7,6 +7,7 @@ import com.sh.aicommerce.common.exception.card.CardException;
 import com.sh.aicommerce.common.exception.member.MemberException;
 import com.sh.aicommerce.common.exception.order.OrderException;
 import com.sh.aicommerce.common.exception.payment.PaymentException;
+import com.sh.aicommerce.common.exception.product.ProductException;
 import com.sh.aicommerce.entity.*;
 import com.sh.aicommerce.enums.payment.PaymentStatus;
 import com.sh.aicommerce.order.orderRepository.OrderRepository;
@@ -109,5 +110,14 @@ public class PaymentTransactionService {
     @Transactional(readOnly = true)
     public Card validateCard(Long savedCardId, Long memberId) {
         return cardRepository.findByIdAndMemberId(savedCardId, memberId).orElseThrow(() -> new CardException("현재 저장되어 있는 카드 정보가 없습니다."));
+    }
+
+    @Transactional(readOnly = true)
+    public boolean isPaidBillingCardPayment(String orderNumber) {
+        return paymentRepository.existsPaidBillingCardPayment(orderNumber);
+    }
+
+    public Payment findPaidBillingCardPayment(String orderNumber) {
+        return paymentRepository.findPaidBillingCardPayment(orderNumber).orElseThrow(() -> new ProductException("이미 결제된 주문정보가 존재하지 않습니다."));
     }
 }

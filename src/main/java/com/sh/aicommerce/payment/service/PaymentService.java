@@ -174,8 +174,15 @@ public class PaymentService {
     }
 
     public TossPaymentSuccessResponseDto payByTossBillingCard(Long memberId, String orderNumber) {
-        log.info("[토스페이먼츠 자동 결제(Billing) 요청] 주문번호 : {}", orderNumber);
 
+        // 해당 주문번호가 이미 결제되어 있는 정보인지 확인
+        if(paymentTransactionService.isPaidBillingCardPayment(orderNumber)) {
+            Payment payment = paymentTransactionService.findPaidBillingCardPayment(orderNumber);
+
+            return new TossPaymentSuccessResponseDto(payment);
+        }
+
+        log.info("[토스페이먼츠 자동 결제(Billing) 요청] 주문번호 : {}", orderNumber);
         Member member = paymentTransactionService.validateMember(memberId);
         Payment payment = paymentTransactionService.validatePaymentByBillingCard(orderNumber, memberId);
         Orders order = payment.getOrder();

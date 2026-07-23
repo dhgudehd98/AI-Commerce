@@ -1,6 +1,7 @@
 package com.sh.aicommerce.toss.dto.response;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.sh.aicommerce.entity.Payment;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -21,4 +22,11 @@ public class CardResponse {
     private String ownerType;
     private String acquireStatus;
     private Integer amount;
+
+    public CardResponse(Payment payment) {
+        this.issuerCode = payment.getCardCode();
+        this.installmentPlanMonths = payment.getInstallmentMonths();
+        this.approveNo = payment.getApprovedNumber();
+        this.amount = payment.getAmount();
+    }
 }

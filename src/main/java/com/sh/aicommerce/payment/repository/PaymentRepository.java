@@ -69,4 +69,31 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     o.member.id = :memberId
     """)
     Optional<Payment> findConfirmingPaymentForUpdatePaymentStatusCardForUpdateInBillingCard(@Param("orderNumber")String orderNumber, @Param("memberId") Long memberId);
+
+
+    @Query("""
+  select count(p) > 0
+  from Payment p
+  join p.order o
+  where
+      o.orderNumber = :orderNumber
+      and p.paymentMethod = 'SAVED_CARD'
+      and p.status = 'PAID'
+      and o.status = 'PAID'
+  """)
+    boolean existsPaidBillingCardPayment(@Param("orderNumber") String orderNumber);
+
+    @Query(
+    """
+    select p
+    from Payment p
+    join fetch p.order o
+    where 
+        o.orderNumber = :orderNumber 
+        and p.paymentMethod = 'SAVED_CARD'
+        and p.status = 'PAID'
+        and o.status = 'PAID'
+    """
+    )
+    Optional<Payment> findPaidBillingCardPayment(@Param("orderNumber")String orderNumber);
 }
