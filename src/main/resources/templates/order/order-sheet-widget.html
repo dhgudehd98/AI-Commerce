@@ -396,11 +396,11 @@
 
 </main>
 
-<script>
+<script th:inline="javascript">
     // ------ 전역 상태 ------
     let widgets;
     let widgetRendered = false;
-    let prepared; // 서버에서 받은 최신 결제 정보(금액, 주문번호 등) - TOSS(일반결제)용
+    let prepared; // 서버에서 받은 최신 결제 정보(금액, 주문번호 등)
 
     let savedCardCache = null;     // 기본 카드 1장 (결제 화면에 표시될 카드) 캐시
     let savedAccountCache = null;  // 등록된 계좌 목록 캐시
@@ -424,6 +424,7 @@
 
     const variantId = [[${orderSheet.orderSheetProductDto.variantId}]];
     const optionId = [[${orderSheet.orderSheetProductDto.optionId}]];
+    const initialPaymentAmount = [[${orderSheet.orderSheetPriceDto.paymentAmount}]];
     const orderNameFromOrderSheet = /*[[${orderSheet.orderSheetProductDto.variantName}]]*/ "상품명";
     const receiverNameFromOrderSheet = /*[[${orderSheet.receiver.name}]]*/ "구매자";
     const receiverPhoneFromOrderSheet = /*[[${orderSheet.receiver.phone}]]*/ "01000000000";
@@ -467,7 +468,7 @@
         if (method === "TOSS") {
             paymentMethodDiv.style.display = "block";
             agreementDiv.style.display = "block";
-            await tossPaymentWidget();
+            await renderTossPaymentWidget(initialPaymentAmount);
         } else if (method === "SAVED_ACCOUNT") {
             savedAccountPanel.style.display = "block";
             await renderSavedAccountPanel();
@@ -649,86 +650,8 @@
         // fetch("/api/card/fallback-setting", { method: "PATCH", ... })
     }
 
-    // ------ TOSS(일반 결제) 위젯 초기화 + 렌더링 ------
-    async function tossPaymentWidget() {
-        const paymentRequestDto = {
-            receiver: {
-                name: /*[[${orderSheet.receiver.name}]]*/ "구매자",
-                phone: /*[[${orderSheet.receiver.phone}]]*/ "01000000000",
-                zipCode: /*[[${orderSheet.receiver.zipCode}]]*/ "00000",
-                address: /*[[${orderSheet.receiver.address}]]*/ "주소",
-                addressDetail: /*[[${orderSheet.receiver.addressDetail}]]*/ "",
-                receiverMethod: /*[[${orderSheet.receiver.receiverMethod}]]*/ "DOOR",
-                deliveryRequestMessage: /*[[${orderSheet.receiver.deliveryRequestMessage}]]*/ null
-            },
-            couponId: null,
-            usedPoint: Number(document.getElementById("pointAmount").value || 0),
-            paymentMethod: "TOSS",
-            savedAccountId: null,
-            savedCardId: null,
-            cardCompany: null,
-            installmentMonths: 0
-        };
-
-        // 서버에서 사용자 정보 및 최종 결제 금액 요청 (선택할 때마다 최신화 - 쿠폰/포인트 반영)
-        const prepareResponse = await fetch(`/api/pay/${variantId}?optionId=${optionId}`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(paymentRequestDto)
-        });
-
-        prepared = await prepareResponse.json();
-
-        // ------ 주문의 결제 금액 설정 (항상 최신화) ------
-        await widgets.setAmount({
-            currency: "KRW",
-            value: prepared.amount
-        });
-
-        // ------ 위젯 렌더링은 최초 1회만 ------
-        if (!widgetRendered) {
-            await Promise.all([
-                widgets.renderPaymentMethods({
-                    selector: "#payment-method",
-                    variantKey: "DEFAULT",
-                }),
-                widgets.renderAgreement({ selector: "#agreement", variantKey: "AGREEMENT" }),
-            ]);
-            widgetRendered = true;
-        }
-    }
-
-    // ------ '결제하기' 버튼 누르면 선택된 결제수단에 맞게 분기 ------
-    async function onPaymentButtonClick() {
-        const method = document.querySelector("input[name='paymentMethod']:checked").value;
-
-        if (method === "TOSS") {
-            await widgets.requestPayment({
-                orderId: prepared.orderNumber,
-                orderName: orderNameFromOrderSheet,
-                successUrl: window.location.origin + "/api/toss/pay/success",
-                failUrl: window.location.origin + "/api/pay/toss/fail",
-                customerName: receiverNameFromOrderSheet,
-                customerMobilePhone: receiverPhoneFromOrderSheet
-            });
-        } else if (method === "SAVED_CARD") {
-            if (!selectedSavedCardId) {
-                alert("결제할 카드를 선택해주세요.");
-                return;
-            }
-            await requestSavedPayment({ paymentMethod: "SAVED_CARD", savedCardId: selectedSavedCardId });
-        } else if (method === "SAVED_ACCOUNT") {
-            if (!selectedSavedAccountId) {
-                alert("결제할 계좌를 선택해주세요.");
-                return;
-            }
-            await requestSavedPayment({ paymentMethod: "SAVED_ACCOUNT", savedAccountId: selectedSavedAccountId });
-        }
-    }
-
-    // ------ 계좌/카드 간편결제 실제 결제 요청 ------
-    async function requestSavedPayment(extra) {
-        const paymentRequestDto = {
+    function buildPaymentRequestDto(extra) {
+        return {
             receiver: {
                 name: /*[[${orderSheet.receiver.name}]]*/ "구매자",
                 phone: /*[[${orderSheet.receiver.phone}]]*/ "01000000000",
@@ -746,25 +669,108 @@
             installmentMonths: 0,
             ...extra
         };
+    }
+
+    async function preparePayment(extra) {
+        const paymentRequestDto = {
+            ...buildPaymentRequestDto(extra)
+        };
+
+        const prepareResponse = await fetch(`/api/pay/${variantId}?optionId=${optionId}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(paymentRequestDto)
+        });
+
+        if (!prepareResponse.ok) {
+            const err = await prepareResponse.json().catch(() => null);
+            throw new Error(err?.message || "결제 준비에 실패했습니다.");
+        }
+
+        prepared = await prepareResponse.json();
+        return prepared;
+    }
+
+    // ------ TOSS(일반 결제) 위젯 초기화 + 렌더링 ------
+    async function renderTossPaymentWidget(amount) {
+        await widgets.setAmount({
+            currency: "KRW",
+            value: amount
+        });
+
+        if (!widgetRendered) {
+            await Promise.all([
+                widgets.renderPaymentMethods({
+                    selector: "#payment-method",
+                    variantKey: "DEFAULT",
+                }),
+                widgets.renderAgreement({ selector: "#agreement", variantKey: "AGREEMENT" }),
+            ]);
+            widgetRendered = true;
+        }
+    }
+
+    async function requestTossWidgetPayment() {
+        const result = await preparePayment({
+            paymentMethod: "TOSS"
+        });
+
+        await renderTossPaymentWidget(result.amount);
+
+        await widgets.requestPayment({
+            orderId: result.orderNumber,
+            orderName: result.productName || orderNameFromOrderSheet,
+            successUrl: window.location.origin + "/api/toss/pay/success",
+            failUrl: window.location.origin + "/api/toss/pay/fail",
+            customerName: receiverNameFromOrderSheet,
+            customerMobilePhone: receiverPhoneFromOrderSheet
+        });
+    }
+
+    async function requestSavedCardBillingPayment() {
+        if (!selectedSavedCardId) {
+            alert("결제할 카드를 선택해주세요.");
+            return;
+        }
+
+        const result = await preparePayment({
+            paymentMethod: "SAVED_CARD",
+            savedCardId: selectedSavedCardId
+        });
+
+        const billingResponse = await fetch("/api/pay/cardBilling", {
+            method: "POST",
+            headers: { "Content-Type": "text/plain;charset=UTF-8" },
+            body: result.orderNumber
+        });
+
+        if (!billingResponse.ok) {
+            const err = await billingResponse.json().catch(() => null);
+            throw new Error(err?.message || "카드 간편결제에 실패했습니다.");
+        }
+
+        window.location.href = `/order/complete?orderNumber=${encodeURIComponent(result.orderNumber)}`;
+    }
+
+    // ------ '결제하기' 버튼 누르면 선택된 결제수단에 맞게 분기 ------
+    async function onPaymentButtonClick() {
+        const method = document.querySelector("input[name='paymentMethod']:checked").value;
+        const paymentButton = document.getElementById("payment-button");
+
+        paymentButton.disabled = true;
 
         try {
-            const res = await fetch(`/api/pay/${variantId}?optionId=${optionId}`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(paymentRequestDto)
-            });
-
-            if (!res.ok) {
-                const err = await res.json().catch(() => null);
-                alert(err?.message || "결제 요청에 실패했습니다.");
-                return;
+            if (method === "TOSS") {
+                await requestTossWidgetPayment();
+            } else if (method === "SAVED_CARD") {
+                await requestSavedCardBillingPayment();
+            } else if (method === "SAVED_ACCOUNT") {
+                alert("계좌 자동결제는 아직 연결된 서버 결제 API가 없습니다.");
             }
-
-            const result = await res.json();
-            // 결제 성공 처리 (예: 결과 페이지로 이동)
-            window.location.href = `/order/complete?orderNumber=${result.orderNumber}`;
         } catch (e) {
-            alert("결제 처리 중 오류가 발생했습니다. 다시 시도해주세요.");
+            alert(e.message || "결제 처리 중 오류가 발생했습니다. 다시 시도해주세요.");
+        } finally {
+            paymentButton.disabled = false;
         }
     }
 </script>

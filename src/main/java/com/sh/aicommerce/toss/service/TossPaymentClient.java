@@ -2,6 +2,7 @@ package com.sh.aicommerce.toss.service;
 
 
 import com.sh.aicommerce.common.exception.payment.PaymentException;
+import com.sh.aicommerce.toss.dto.request.TossBillingPaymentRequestDto;
 import com.sh.aicommerce.toss.dto.request.TossPaymentBillingRequestDto;
 import com.sh.aicommerce.toss.dto.request.TossPaymentRequestDto;
 import com.sh.aicommerce.toss.dto.response.TossPaymentBillingResponseDto;
@@ -101,6 +102,45 @@ public class TossPaymentClient {
         return response.getBody();
     }
 
-    public void cardBilling(String billingKey, String customerKey, Integer amount, String orderNumber, String orderName, String customerEmail, String customerEmail1, String customerName, Integer taxFreeAmount) {
+    public TossPaymentSuccessResponseDto cardBilling(String billingKey, String customerKey, Integer amount, String orderNumber, String orderName, String customerEmail, String customerName, Integer taxFreeAmount) {
+        log.info("[토스페이먼츠 자동결제 승인 요청] 주문번호 : {}", orderNumber);
+
+        String encodedSecretKey = Base64.getEncoder()
+                .encodeToString((tossBillingSecretKey +
+                        ":").getBytes(StandardCharsets.UTF_8));
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("Authorization", "Basic " + encodedSecretKey);
+
+        TossBillingPaymentRequestDto request = new TossBillingPaymentRequestDto(
+                customerKey,
+                amount,
+                orderNumber,
+                orderName,
+                customerEmail,
+                customerName,
+                taxFreeAmount
+        );
+
+        HttpEntity<TossBillingPaymentRequestDto> httpEntity =
+                new HttpEntity<>(request, headers);
+
+        ResponseEntity<TossPaymentSuccessResponseDto> response =
+                tossRestTemplate.exchange(
+                        "https://api.tosspayments.com/v1/billing/" + billingKey,
+                        HttpMethod.POST,
+                        httpEntity,
+                        TossPaymentSuccessResponseDto.class
+                );
+
+        if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null)
+        {
+            throw new PaymentException("토스페이먼츠 자동결제 승인에 실패했습니다.");
+        }
+
+        log.info("[토스페이먼츠 자동결제 승인 완료] 주문번호 : {}", orderNumber);
+
+        return response.getBody();
     }
 }

@@ -1,5 +1,6 @@
 package com.sh.aicommerce.payment.service;
 
+import com.amazonaws.handlers.IRequestHandler2;
 import com.sh.aicommerce.account.repository.AccountRepository;
 import com.sh.aicommerce.auth.repository.AuthRepository;
 import com.sh.aicommerce.card.repository.CardRepository;
@@ -42,7 +43,6 @@ public class PaymentService {
     private final AccountRepository accountRepository;
     private final PaymentTransactionService paymentTransactionService;
 
-    private final TossAPIService tossAPIService;
     private final TossPaymentClient client;
 
     /**
@@ -155,25 +155,40 @@ public class PaymentService {
     }
 
     public TossPaymentSuccessResponseDto payByTossWidget(String orderNumber, String paymentKey, Integer amount) {
-        Orders order = paymentTransactionService.validateOrder(orderNumber);
-
         log.info("[토스 페이먼츠 결제 승인 요청] : 주문번호(orderId) : {}", orderNumber);
 
         // 결제 승인요청 -> 결제가 토스페이먼츠 결제 위젯을 사용하는 경우(일반 결제)
         try {
             TossPaymentRequestDto request = new TossPaymentRequestDto(paymentKey, amount, orderNumber);
             // 토스페이먼츠 결제 승인 요청 전에 Payment에 대한 값 유효성 검사
-            paymentTransactionService.validatePayment(request);
+            paymentTransactionService.validatePaymentByTossWidget(request);
             // 결제 승인 요청 -> 토스 외부 API 연동
             TossPaymentSuccessResponseDto response = client.confirm(request);
             // 결제 승인 완료시 Payment, Order에 대한 값 업데이트 설정
-            paymentTransactionService.applyConfirmResult(response, request);
+            paymentTransactionService.applyPaymentByTossWidget(response, request);
             return response;
         } catch (Exception e) {
             log.error("[토스페이먼츠 결제 위젯] 결제중 에러 발생 에러메세지 : {}",e.getMessage());
             throw e;
         }
+    }
 
+    public TossPaymentSuccessResponseDto payByTossBillingCard(Long memberId, String orderNumber) {
+        log.info("[토스페이먼츠 자동 결제(Billing) 요청] 주문번호 : {}", orderNumber);
+
+        Payment payment = paymentTransactionService.validatePaymentByBillingCard(orderNumber);
+        Orders order = payment.getOrder();
+
+        Member member = paymentTransactionService.validateMember(memberId);
+        Card card = paymentTransactionService.validateCard(payment.getSavedCardId());
+
+        if(!order.getMember().getId().equals(member.getId())) throw new OrderException("주문 하려는 사용자의 정보가 일치하지 않습니다.");
+
+        String orderName = "아이앱 스튜디오 후드 라이트 그레이";
+        TossPaymentSuccessResponseDto response = client.cardBilling(card.getBillingKey(), member.getCustomerKey(), payment.getAmount(), orderNumber, orderName, member.getEmail(), member.getMemberName(), 0);
+        paymentTransactionService.applyPaymentByTossBillingCard(orderNumber, response);
+
+        return response;
     }
 
 

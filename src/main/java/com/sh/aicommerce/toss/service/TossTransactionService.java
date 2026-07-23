@@ -33,28 +33,6 @@ public class TossTransactionService {
 
     @Transactional
     public void validatePayment(TossPaymentRequestDto paymentDto) {
-        /**
-         * 결제 승인을 하기 위한 정합성 검증
-         * Payment
-         * - amount = dto.getAmount(Toss Payment에서 실제 결제 준비된 금액)
-         * - status = 'READY'
-         * - paymentMethod = 'GENERAL'
-         * - general_payment = 'TOSS'
-         * Order
-         * - orderNumber = paymentDto.getOrderId(PK의 orderId에 대한 값이 아닌 주문번호(OrderNumber))
-         * - status = 'CREATED'
-         *
-         */
-        log.info("[토스 페이먼츠 Payment 검증] : 주문번호(orderId) : {}", paymentDto.getOrderId());
-        Integer amount = paymentDto.getAmount(); // Tosss Payment를 통한 결제 금액
-        Payment payment = paymentRepository.findPaymentForUpdatePaymentStatusForUpdate(paymentDto.getAmount(), paymentDto.getOrderId()).orElseThrow(() -> new PaymentException("해당 결제 정보가 존재하지 않습니다."));
-
-        // 금액에 대한 부분 한번 더 검증
-        if(!amount.equals(payment.getAmount())) throw new PaymentException("실제 결제 금액과 저장되어 있는 결제 금액이 일치하지 않습니다.");
-
-        // 검증 통과하면 Status에 대한 부분 중복 방지 및 멱등성 처리를 위해 PaymentStatus를 CONFIRMING으로 변경
-        payment.setStatusConfirming(paymentDto.getPaymentKey());
-        log.info("[토스페이먼츠 결제 검증 통과 및 결제 상태 CONFIRM 변경] : 주문번호(orderId) : {}", paymentDto.getOrderId());
     }
 
     @Transactional(readOnly = true)

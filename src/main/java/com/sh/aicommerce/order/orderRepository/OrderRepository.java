@@ -18,7 +18,8 @@ public interface OrderRepository extends JpaRepository<Orders, Long> {
     from Orders o
     join fetch o.payment p
     where
-        o.orderNumber = :orderNumber
+        o.orderNumber = :orderNumber and
+        o.status = 'CREATED'
     """)
-    Optional<Orders> findByMemberIdAndOrderNumberWithPayment(@Param("orderNumber") String orderNumber);
+    Optional<Orders> findByAndOrderNumberAndStatusWithPayment(@Param("orderNumber") String orderNumber);
 }

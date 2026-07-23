@@ -26,7 +26,7 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     o.orderNumber = :orderNumber and
     o.status = 'CREATED'
     """)
-    public Optional<Payment> findPaymentForUpdatePaymentStatusForUpdate(@Param("amount")Integer amount, @Param("orderNumber") String orderNumber);
+    public Optional<Payment> findPaymentForUpdatePaymentStatusForUpdateInWidget(@Param("amount")Integer amount, @Param("orderNumber") String orderNumber);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
@@ -40,5 +40,31 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     o.orderNumber = :orderNumber and
     o.status = 'CREATED' 
     """)
-    Optional<Payment> findConfirmingWithOrderByOrderNumberForUpdate(@Param("amount") Integer amount, @Param("orderNumber")String orderNumber);
+    Optional<Payment> findConfirmingPaymentWithOrderByOrderNumberForUpdateInWidget(@Param("amount") Integer amount, @Param("orderNumber")String orderNumber);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+    select p
+    from Payment p
+    join fetch p.order o
+    where
+    p.status = 'READY' and
+    p.paymentMethod = 'SAVED_CARD' and
+    o.orderNumber = :orderNumber and
+    o.status = 'CREATED'
+    """)
+    Optional<Payment> findPaymentForUpdatePaymentStatusCardForUpdateInBillingCard(String orderNumber);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+    select p
+    from Payment p
+    join fetch p.order o
+    where
+    p.status = 'CONFIRMING' and
+    p.paymentMethod = 'SAVED_CARD' and
+    o.orderNumber = :orderNumber and
+    o.status = 'CREATED'
+    """)
+    Optional<Payment> findConfirmingPaymentForUpdatePaymentStatusCardForUpdateInBillingCard(String orderNumber);
 }
