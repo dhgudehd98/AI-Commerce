@@ -428,6 +428,8 @@
     const orderNameFromOrderSheet = /*[[${orderSheet.orderSheetProductDto.variantName}]]*/ "상품명";
     const receiverNameFromOrderSheet = /*[[${orderSheet.receiver.name}]]*/ "구매자";
     const receiverPhoneFromOrderSheet = /*[[${orderSheet.receiver.phone}]]*/ "01000000000";
+    const receiverEmailFromOrderSheet = /*[[${orderSheet.receiver.email}]]*/
+        "customer@example.com";
 
     init();
 
@@ -632,8 +634,8 @@
             method: "CARD", // 자동결제(빌링)는 카드만 지원합니다
             successUrl: window.location.origin + `/api/toss/card/set/success?variantId=${variantId}&optionId=${optionId}`,
             failUrl: window.location.origin + "/api/toss/card/set/fail", // 요청이 실패하면 리다이렉트되는 URL
-            customerEmail: "customer123@gmail.com",
-            customerName: "김토스",
+            customerEmail: receiverEmailFromOrderSheet,
+            customerName: receiverNameFromOrderSheet,
         });
     }
     // ------ 대체 결제 수단 사용 토글 ------
@@ -749,7 +751,7 @@
             throw new Error(err?.message || "카드 간편결제에 실패했습니다.");
         }
 
-        window.location.href = `/order/complete?orderNumber=${encodeURIComponent(result.orderNumber)}`;
+        window.location.href = `/api/pay/complete?orderNumber=${encodeURIComponent(result.orderNumber)}`;
     }
 
     // ------ '결제하기' 버튼 누르면 선택된 결제수단에 맞게 분기 ------

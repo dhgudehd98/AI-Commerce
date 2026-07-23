@@ -11,6 +11,7 @@ import lombok.NoArgsConstructor;
 public class Receiver {
 
     private String name;
+    private String email;
     private String phone;
     private String zipCode;
     private String address;
@@ -20,6 +21,7 @@ public class Receiver {
 
     public Receiver(Member member) {
         this.name = member.getMemberName();
+        this.email = member.getEmail();
         this.phone = member.getPhone();
         this.zipCode = member.getZipCode();
         this.address = member.getAddress();
