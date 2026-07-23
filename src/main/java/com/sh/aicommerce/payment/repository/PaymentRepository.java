@@ -96,4 +96,33 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     """
     )
     Optional<Payment> findPaidBillingCardPayment(@Param("orderNumber")String orderNumber);
+
+    @Query("""
+  select count(p) > 0
+  from Payment p
+  join p.order o
+  where
+      p.paymentMethod = 'TOSS'
+      and p.paymentKey = :paymentKey
+      and p.amount = :amount
+      and p.status = 'PAID'
+      and o.orderNumber = :orderNumber
+      and o.status = 'PAID'
+  """)
+    boolean existsPaidTossWidget(@Param("orderNumber") String orderNumber,@Param("paymentKey") String paymentKey, @Param("amount")Integer amount);
+
+    @Query("""
+     select p
+     from Payment p
+     join fetch p.order o
+     where
+         p.paymentMethod = 'TOSS'
+      and p.paymentKey = :paymentKey
+      and p.amount = :amount
+      and p.status = 'PAID'
+      and o.orderNumber = :orderNumber
+      and o.status = 'PAID'
+            """
+    )
+    Optional<Payment> findPaidTossWidgetPayment(@Param("orderNumber")String orderNumber,@Param("paymentKey")String paymentKey,@Param("amount") Integer amount);
 }

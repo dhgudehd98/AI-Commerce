@@ -159,6 +159,12 @@ public class PaymentService {
 
         // 결제 승인요청 -> 결제가 토스페이먼츠 결제 위젯을 사용하는 경우(일반 결제)
         try {
+            // 결제 완료 멱등성 분리 추가
+            if (paymentTransactionService.isPaidTossWidgetPayment(orderNumber, paymentKey, amount)) {
+                Payment payment = paymentTransactionService.findPaidTossWidgetPayment(orderNumber, paymentKey, amount);
+
+                return new TossPaymentSuccessResponseDto(payment);
+            }
             TossPaymentRequestDto request = new TossPaymentRequestDto(paymentKey, amount, orderNumber);
             // 토스페이먼츠 결제 승인 요청 전에 Payment에 대한 값 유효성 검사
             paymentTransactionService.validatePaymentByTossWidget(request);

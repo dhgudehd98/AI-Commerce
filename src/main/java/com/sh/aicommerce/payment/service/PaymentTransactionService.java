@@ -117,7 +117,17 @@ public class PaymentTransactionService {
         return paymentRepository.existsPaidBillingCardPayment(orderNumber);
     }
 
+    @Transactional(readOnly = true)
     public Payment findPaidBillingCardPayment(String orderNumber) {
-        return paymentRepository.findPaidBillingCardPayment(orderNumber).orElseThrow(() -> new ProductException("이미 결제된 주문정보가 존재하지 않습니다."));
+        return paymentRepository.findPaidBillingCardPayment(orderNumber).orElseThrow(() -> new PaymentException("이미 결제된 주문정보가 존재하지 않습니다."));
+    }
+
+    @Transactional(readOnly = true)
+    public boolean isPaidTossWidgetPayment(String orderNumber, String paymentKey, Integer amount) {
+        return paymentRepository.existsPaidTossWidget(orderNumber, paymentKey, amount);
+    }
+
+    public Payment findPaidTossWidgetPayment(String orderNumber, String paymentKey, Integer amount) {
+        return paymentRepository.findPaidTossWidgetPayment(orderNumber, paymentKey, amount).orElseThrow(() -> new PaymentException("이미 결제된 주문정보가 존재하지 않습니다."));
     }
 }
