@@ -51,9 +51,10 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     p.status = 'READY' and
     p.paymentMethod = 'SAVED_CARD' and
     o.orderNumber = :orderNumber and
-    o.status = 'CREATED'
+    o.status = 'CREATED' and
+    o.member.id = :memberId
     """)
-    Optional<Payment> findPaymentForUpdatePaymentStatusCardForUpdateInBillingCard(String orderNumber);
+    Optional<Payment> findPaymentForUpdatePaymentStatusCardForUpdateInBillingCard(@Param("orderNumber")String orderNumber, @Param("memberId") Long memberId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
@@ -64,7 +65,8 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     p.status = 'CONFIRMING' and
     p.paymentMethod = 'SAVED_CARD' and
     o.orderNumber = :orderNumber and
-    o.status = 'CREATED'
+    o.status = 'CREATED' and
+    o.member.id = :memberId
     """)
-    Optional<Payment> findConfirmingPaymentForUpdatePaymentStatusCardForUpdateInBillingCard(String orderNumber);
+    Optional<Payment> findConfirmingPaymentForUpdatePaymentStatusCardForUpdateInBillingCard(@Param("orderNumber")String orderNumber, @Param("memberId") Long memberId);
 }

@@ -176,17 +176,17 @@ public class PaymentService {
     public TossPaymentSuccessResponseDto payByTossBillingCard(Long memberId, String orderNumber) {
         log.info("[토스페이먼츠 자동 결제(Billing) 요청] 주문번호 : {}", orderNumber);
 
-        Payment payment = paymentTransactionService.validatePaymentByBillingCard(orderNumber);
+        Member member = paymentTransactionService.validateMember(memberId);
+        Payment payment = paymentTransactionService.validatePaymentByBillingCard(orderNumber, memberId);
         Orders order = payment.getOrder();
 
-        Member member = paymentTransactionService.validateMember(memberId);
-        Card card = paymentTransactionService.validateCard(payment.getSavedCardId());
+        Card card = paymentTransactionService.validateCard(payment.getSavedCardId(), memberId);
 
         if(!order.getMember().getId().equals(member.getId())) throw new OrderException("주문 하려는 사용자의 정보가 일치하지 않습니다.");
 
         String orderName = "아이앱 스튜디오 후드 라이트 그레이";
         TossPaymentSuccessResponseDto response = client.cardBilling(card.getBillingKey(), member.getCustomerKey(), payment.getAmount(), orderNumber, orderName, member.getEmail(), member.getMemberName(), 0);
-        paymentTransactionService.applyPaymentByTossBillingCard(orderNumber, response);
+        paymentTransactionService.applyPaymentByTossBillingCard(memberId, orderNumber, response);
 
         return response;
     }

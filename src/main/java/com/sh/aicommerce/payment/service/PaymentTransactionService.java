@@ -82,16 +82,16 @@ public class PaymentTransactionService {
     }
 
     @Transactional
-    public Payment validatePaymentByBillingCard(String orderNumber) {
-        Payment payment = paymentRepository.findPaymentForUpdatePaymentStatusCardForUpdateInBillingCard(orderNumber).orElseThrow(() -> new PaymentException("해당 결제 정보가 존재하지 않습니다."));
+    public Payment validatePaymentByBillingCard(String orderNumber, Long memberId) {
+        Payment payment = paymentRepository.findPaymentForUpdatePaymentStatusCardForUpdateInBillingCard(orderNumber, memberId).orElseThrow(() -> new PaymentException("해당 결제 정보가 존재하지 않습니다."));
         payment.setStatusConfirmingInBillingCard();
 
         return payment;
     }
 
     @Transactional
-    public void applyPaymentByTossBillingCard(String orderNumber,TossPaymentSuccessResponseDto response) {
-        Payment payment = paymentRepository.findConfirmingPaymentForUpdatePaymentStatusCardForUpdateInBillingCard(orderNumber).orElseThrow(() -> new PaymentException("해당 결제 정보가 존재하지 않습니다."));
+    public void applyPaymentByTossBillingCard(Long memberId, String orderNumber,TossPaymentSuccessResponseDto response) {
+        Payment payment = paymentRepository.findConfirmingPaymentForUpdatePaymentStatusCardForUpdateInBillingCard(orderNumber, memberId).orElseThrow(() -> new PaymentException("해당 결제 정보가 존재하지 않습니다."));
         Orders order = payment.getOrder();
         payment.updateCardByBillingCard(response);
 
@@ -107,7 +107,7 @@ public class PaymentTransactionService {
     }
 
     @Transactional(readOnly = true)
-    public Card validateCard(Long savedCardId) {
-        return cardRepository.findById(savedCardId).orElseThrow(() -> new CardException("현재 저장되어 있는 카드 정보가 없습니다."));
+    public Card validateCard(Long savedCardId, Long memberId) {
+        return cardRepository.findByIdAndMemberId(savedCardId, memberId).orElseThrow(() -> new CardException("현재 저장되어 있는 카드 정보가 없습니다."));
     }
 }
