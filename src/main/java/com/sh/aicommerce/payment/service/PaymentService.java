@@ -1,6 +1,7 @@
 package com.sh.aicommerce.payment.service;
 
 import com.amazonaws.handlers.IRequestHandler2;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.sh.aicommerce.account.repository.AccountRepository;
 import com.sh.aicommerce.auth.repository.AuthRepository;
 import com.sh.aicommerce.card.repository.CardRepository;
@@ -154,7 +155,7 @@ public class PaymentService {
 
     }
 
-    public TossPaymentSuccessResponseDto payByTossWidget(String orderNumber, String paymentKey, Integer amount) {
+    public TossPaymentSuccessResponseDto payByTossWidget(String orderNumber, String paymentKey, Integer amount) throws JsonProcessingException {
         log.info("[토스 페이먼츠 결제 승인 요청] : 주문번호(orderId) : {}", orderNumber);
 
         // 결제 승인요청 -> 결제가 토스페이먼츠 결제 위젯을 사용하는 경우(일반 결제)
@@ -179,7 +180,7 @@ public class PaymentService {
         }
     }
 
-    public TossPaymentSuccessResponseDto payByTossBillingCard(Long memberId, String orderNumber) {
+    public TossPaymentSuccessResponseDto payByTossBillingCard(Long memberId, String orderNumber) throws JsonProcessingException {
 
         // 해당 주문번호가 이미 결제되어 있는 정보인지 확인
         if(paymentTransactionService.isPaidBillingCardPayment(orderNumber)) {

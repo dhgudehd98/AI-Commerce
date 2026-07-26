@@ -125,4 +125,17 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
             """
     )
     Optional<Payment> findPaidTossWidgetPayment(@Param("orderNumber")String orderNumber,@Param("paymentKey")String paymentKey,@Param("amount") Integer amount);
+
+    @Query(
+    """
+    select p
+    from Payment p
+    join fetch p.order o
+    where
+    (p.status = 'READY' or p.status = 'CONFIRMING')
+    and o.status = 'CREATED'
+    and o.orderNumber = :orderNumber
+    """
+    )
+    Optional<Payment> findPaymentWithOrderByOrderNumber(String orderNumber);
 }

@@ -1,5 +1,6 @@
 package com.sh.aicommerce.payment.controller;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.sh.aicommerce.payment.dto.request.PaymentRequestDto;
 import com.sh.aicommerce.payment.service.PaymentPrepareService;
 import com.sh.aicommerce.payment.service.PaymentService;
@@ -33,7 +34,7 @@ public class PaymentController {
     public ResponseEntity<?> payByCardBilling(
 //            Authentication authentication
             @RequestBody String orderNumber
-    ) {
+    ) throws JsonProcessingException {
         Long memberId = 1L;
         return ResponseEntity.ok(paymentService.payByTossBillingCard(memberId, orderNumber));
     }

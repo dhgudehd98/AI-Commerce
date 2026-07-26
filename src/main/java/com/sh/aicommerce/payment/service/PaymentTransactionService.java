@@ -15,6 +15,7 @@ import com.sh.aicommerce.payment.repository.PaymentRepository;
 import com.sh.aicommerce.toss.dto.request.TossPaymentRequestDto;
 import com.sh.aicommerce.toss.dto.response.TossPaymentSuccessResponseDto;
 import com.sh.aicommerce.toss.repository.TossPaymentLogRepository;
+import com.sh.aicommerce.wms.inventory.repository.ProductInventoryRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -26,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class PaymentTransactionService {
 
     private final PaymentRepository paymentRepository;
+    private final ProductInventoryRepository inventoryRepository;
     private final TossPaymentLogRepository logRepository;
     private final CardRepository cardRepository;
     private final AuthRepository authRepository;
@@ -127,7 +129,29 @@ public class PaymentTransactionService {
         return paymentRepository.existsPaidTossWidget(orderNumber, paymentKey, amount);
     }
 
+    @Transactional(readOnly = true)
     public Payment findPaidTossWidgetPayment(String orderNumber, String paymentKey, Integer amount) {
         return paymentRepository.findPaidTossWidgetPayment(orderNumber, paymentKey, amount).orElseThrow(() -> new PaymentException("이미 결제된 주문정보가 존재하지 않습니다."));
+    }
+
+    @Transactional
+    public void payFailTossPayment(String orderNumber) {
+
+        Payment payment = paymentRepository.findPaymentWithOrderByOrderNumber(orderNumber).orElseThrow(() -> new PaymentException("주문 번호에 해당하는 정보를 찾을 수 없습니다."));
+        Orders order = payment.getOrder();
+
+        payment.updateFailPaymentTossWidget();
+
+        for (OrderItem item : order.getOrderItems()) {
+            Long optionId = item.getProductOption().getId();
+
+            // 현재 예약 수량이 0보다 큰 값으로 존재하는지 확인
+            ProductInventory inventory = inventoryRepository.findReservedProductInventoryForUpdate(optionId).orElseThrow(() -> new ProductException("해당 ID에 일치하는 상품 재고가 존재하지 않습니다."));
+            Integer quantity = 1;
+            inventory.releasedReserved(quantity);
+        }
+
+        if(payment.getStatus().equals(PaymentStatus.FAILED)) order.updateStatusFail();
+
     }
 }

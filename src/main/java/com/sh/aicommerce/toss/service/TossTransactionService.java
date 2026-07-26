@@ -30,11 +30,6 @@ public class TossTransactionService {
     private final CardRepository cardRepository;
     private final AuthRepository authRepository;
 
-
-    @Transactional
-    public void validatePayment(TossPaymentRequestDto paymentDto) {
-    }
-
     @Transactional(readOnly = true)
     public void validateCard(TossPaymentBillingResponseDto response) {
 

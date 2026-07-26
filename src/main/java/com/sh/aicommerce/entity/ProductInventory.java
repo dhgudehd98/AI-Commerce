@@ -100,4 +100,8 @@ public class ProductInventory {
         this.reservedQuantity += 1;
     }
 
+    public void releasedReserved(Integer quantity) {
+        // 예약 수량은 -quantity , 가지고 있는 수량은 +quantity
+        this.reservedQuantity -= quantity;
+    }
 }

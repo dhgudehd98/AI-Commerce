@@ -1,6 +1,7 @@
 package com.sh.aicommerce.toss;
 
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.sh.aicommerce.payment.service.PaymentService;
 import com.sh.aicommerce.toss.dto.request.TossPaymentRequestDto;
 import com.sh.aicommerce.toss.dto.response.TossPaymentSuccessResponseDto;
@@ -29,7 +30,7 @@ public class TossAPIController {
             @RequestParam("paymentKey") String paymentKey,
             @RequestParam("amount") Integer amount,
             Model model
-    ) {
+    ) throws JsonProcessingException {
         log.info("[토스 페이먼츠 응답 데이터] OrderNumber : {}, PaymentKey : {}. Amount : {}", orderNumber, paymentKey, amount);
 
         TossPaymentSuccessResponseDto tossPaymentSuccessResponseDto = paymentService.payByTossWidget(orderNumber, paymentKey, amount);
@@ -41,11 +42,12 @@ public class TossAPIController {
     @GetMapping("/pay/fail")
     public String payFail(
             @RequestParam("orderId") String orderNumber,
-            @RequestParam("paymentKey") String paymentKey,
-            @RequestParam("amount") Integer amount
+            @RequestParam("code") String errorCode,
+            @RequestParam("message") String errorMessage
     ) {
         log.info("[토스 페이먼츠 결제 실패]");
-        log.info("[토스 페이먼츠 응답 데이터] OrderNumber : {}, PaymentKey : {}. Amount : {}", orderNumber, paymentKey, amount);
+
+        tossAPIService.payFail(orderNumber, errorCode, errorMessage);
 
         return "toss/pay-fail";
     }

@@ -162,4 +162,8 @@ public class Payment {
     public void setOrder(Orders orders) {
         this.order = orders;
     }
+
+    public void updateFailPaymentTossWidget() {
+        this.status = PaymentStatus.FAILED;
+    }
 }

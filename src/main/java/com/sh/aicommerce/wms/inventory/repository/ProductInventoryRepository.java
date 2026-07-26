@@ -36,4 +36,16 @@ public interface ProductInventoryRepository extends JpaRepository<ProductInvento
     """
     )
     Optional<ProductInventory> findByProductOptionIdForUpdate(@Param("optionId") Long optionId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query(
+    """
+    select pi 
+    from ProductInventory pi 
+    where 
+        pi.productOption.id = :optionId
+        and pi.reservedQuantity >= 1 
+    """
+    )
+    Optional<ProductInventory> findReservedProductInventoryForUpdate(@Param("optionId")Long optionId);
 }

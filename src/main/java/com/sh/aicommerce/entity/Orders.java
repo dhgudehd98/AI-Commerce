@@ -92,4 +92,8 @@ public class Orders {
     }
 
 
+    public void updateStatusFail() {
+        this.status = OrderStatus.CANCELED; // 일단 실패로 설정
+//        this.status = OrderStatus.FAILED;
+    }
 }
