@@ -59,6 +59,7 @@ public class Payment {
     private String approvedNumber; // 승인번호
 
     private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
     private LocalDateTime paidAt;
 
     public static Payment createPayment(PaymentRequestDto dto, Integer totalPrice) {
@@ -67,6 +68,7 @@ public class Payment {
         payment.status = PaymentStatus.READY;
         payment.amount = totalPrice;
         payment.createdAt = LocalDateTime.now();
+        payment.updatedAt = LocalDateTime.now();
 
         if (dto.getPaymentMethod() == PaymentMethod.SAVED_CARD) {
             payment.savedCardId = dto.getSavedCardId();
@@ -98,6 +100,7 @@ public class Payment {
             throw new PaymentException("결제 승인 가능한 상태가 아닙니다.");
         }
         this.paymentKey = paymentKey;
+        this.updatedAt = LocalDateTime.now();
         this.status = PaymentStatus.CONFIRMING;
     }
 
@@ -106,6 +109,7 @@ public class Payment {
             throw new PaymentException("결제 승인 가능한 상태가 아닙니다.");
         }
         this.status = PaymentStatus.CONFIRMING;
+        this.updatedAt = LocalDateTime.now();
     }
 
     public void updateCardPaymentByTossWidget(TossPaymentRequestDto request, TossPaymentSuccessResponseDto response) {
@@ -122,6 +126,7 @@ public class Payment {
         }
 
         this.paidAt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now();
         this.provider = response.getMethod();
         this.approvedNumber = response.getCard().getApproveNo();
         this.paymentKey = request.getPaymentKey();
@@ -135,6 +140,7 @@ public class Payment {
 
     public void updateEasyPaymentByTossWidget(TossPaymentRequestDto request, TossPaymentSuccessResponseDto response) {
         this.paidAt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now();
         this.paymentKey = request.getPaymentKey();
         this.provider = response.getEasyPay().getProvider();
         this.status = PaymentStatus.PAID;
@@ -156,6 +162,7 @@ public class Payment {
         this.cardCode = response.getCard().getIssuerCode();
         this.cardCompany = CardCompany.fromCode(response.getCard().getIssuerCode());
         this.installmentMonths = response.getCard().getInstallmentPlanMonths();
+        this.updatedAt = LocalDateTime.now();
         this.status = PaymentStatus.PAID;
     }
 
@@ -165,5 +172,6 @@ public class Payment {
 
     public void updateFailPaymentTossWidget() {
         this.status = PaymentStatus.FAILED;
+        this.updatedAt = LocalDateTime.now();
     }
 }

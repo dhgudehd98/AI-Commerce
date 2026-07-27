@@ -8,6 +8,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 
@@ -138,4 +140,20 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     """
     )
     Optional<Payment> findPaymentWithOrderByOrderNumber(String orderNumber);
+
+
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query(
+            """
+            select p
+            from Payment p
+            join fetch p.order o
+            where p.id =:paymentId
+            and p.status = 'CONFIRMING'
+            and p.updatedAt <= :expiredAt
+            and o.status = 'CREATED'
+            """
+    )
+    Optional<Payment> findExpiredPaymentForUpdate(@Param("paymentId")Long paymentId,@Param("expiredAt") LocalDateTime expiredAt);
 }

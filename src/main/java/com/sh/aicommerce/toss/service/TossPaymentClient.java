@@ -82,6 +82,7 @@ public class TossPaymentClient {
             throw new PaymentException("토스페이먼츠 결제가 실패하였습니다. 실패 사유 : " + errorResponse.getMessage());
         } catch (Exception e) {
             log.warn("[토스페이먼츠 결제 승인 실패] 에러 메세지 : " + e.getMessage());
+            paymentTransactionService.payFailTossPayment(request.getOrderId());
 
             throw e;
         }
@@ -172,6 +173,7 @@ public class TossPaymentClient {
             throw new PaymentException("자동 결제 승인에 실패 했습니다. 실패 사유 : " + errorResponse.getMessage());
         } catch (Exception e) {
             log.warn("[토스페이먼츠 자동결제 승인 에러] 에러 메세지 : {}", e.getMessage());
+            paymentTransactionService.payFailTossPayment(orderNumber);
             throw e;
         }
     }
