@@ -21,6 +21,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -135,9 +137,26 @@ public class PaymentTransactionService {
     }
 
     @Transactional
-    public void payFailTossPayment(String orderNumber) {
+    public void payFailOrExpiredPayment(Long paymentId, LocalDateTime expiredAt) {
+        Payment payment = paymentRepository
+                .findExpiredPaymentForUpdate(paymentId, expiredAt)
+                .orElse(null);
 
+        if(payment == null) return ;
+
+        failOrExpiredPaymentAndReleaseReservation(payment);
+    }
+
+
+    @Transactional
+    public void payFailTossPayment(String orderNumber) {
         Payment payment = paymentRepository.findPaymentWithOrderByOrderNumber(orderNumber).orElseThrow(() -> new PaymentException("주문 번호에 해당하는 정보를 찾을 수 없습니다."));
+
+        // 토스페이먼츠 결제 실패 + Payment 만료된 데이터 실패 공통 로직으로 묶어서 분리
+        failOrExpiredPaymentAndReleaseReservation(payment);
+    }
+
+    private void failOrExpiredPaymentAndReleaseReservation(Payment payment) {
         Orders order = payment.getOrder();
 
         payment.updateFailPaymentTossWidget();
@@ -152,6 +171,5 @@ public class PaymentTransactionService {
         }
 
         if(payment.getStatus().equals(PaymentStatus.FAILED)) order.updateStatusFail();
-
     }
 }
