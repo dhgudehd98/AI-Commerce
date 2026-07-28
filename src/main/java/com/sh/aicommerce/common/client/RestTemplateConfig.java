@@ -17,4 +17,12 @@ public class RestTemplateConfig {
                 .setReadTimeout(Duration.ofSeconds(5))
                 .build();
     }
+
+    @Bean
+    public RestTemplate tossRestTemplate(RestTemplateBuilder restTemplateBuilder) {
+        return restTemplateBuilder
+                .setConnectTimeout(Duration.ofSeconds(3))
+                .setReadTimeout(Duration.ofSeconds(10))
+                .build();
+    }
 }

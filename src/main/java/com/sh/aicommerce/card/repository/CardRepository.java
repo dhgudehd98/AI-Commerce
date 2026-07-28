@@ -1,0 +1,22 @@
+package com.sh.aicommerce.card.repository;
+
+
+import com.sh.aicommerce.entity.Card;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import java.util.List;
+import java.util.Optional;
+
+@Repository
+public interface CardRepository extends JpaRepository<Card, Long> {
+    Optional<Card> findByIdAndMemberId(Long cardId, Long memberId);
+
+    Optional<Card> findByMemberIdAndActiveTrueAndDefaultCardTrue(Long memberId);
+
+    List<Card> findByMemberIdAndActiveTrue(Long memberId);
+
+    boolean existsByBillingKey(String billingKey);
+
+    Optional<Card> findByIdAndActiveTrueAndDefaultCardTrue(Long savedCardId);
+}

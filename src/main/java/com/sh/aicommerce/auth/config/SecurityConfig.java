@@ -42,7 +42,14 @@ public class SecurityConfig {
                                 // 나중에 관리자만 접근 할 수 있도록 수정
                                 "/api/admin/product",
                                 "/api/admin/inBound",// 나중에 관리자만 접근할 수 있도록 수정
-                                "/api/search/**"
+                                "/api/search/**",
+                                "/api/product",
+                                "/api/order/**",
+                                "/api/pay/**",
+                                "api/**",
+                                "/mypage/**",
+
+                                "/api/toss/**"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )

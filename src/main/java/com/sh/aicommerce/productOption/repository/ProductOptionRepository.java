@@ -32,6 +32,8 @@ public interface ProductOptionRepository extends JpaRepository<ProductOption, Lo
     select distinct o
     from ProductOption o
     join fetch o.productVariant v
+    join fetch v.product p
+    join fetch p.brand b
     left join fetch o.inventories i
     where v.id = :variantId and 
           o.id = :optionId and 

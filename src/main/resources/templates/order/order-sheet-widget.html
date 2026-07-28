@@ -1,0 +1,780 @@
+<!doctype html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <script src="https://js.tosspayments.com/v2/standard"></script>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>배송/결제</title>
+
+    <style>
+        /* ------ 카드 간편결제: 선택된 카드 표시 행 ------ */
+        .card-select-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            padding: 16px;
+            border: 1px solid #e5e5e5;
+            border-radius: 12px;
+            background: #fff;
+            cursor: pointer;
+            text-align: left;
+        }
+        .card-select-row:hover {
+            border-color: #b3b3b3;
+        }
+        .card-select-row .card-select-info strong {
+            display: block;
+            font-size: 14px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+        .card-select-row .card-select-info span {
+            font-size: 14px;
+            color: #333;
+            letter-spacing: 1px;
+        }
+        .card-select-row .chevron {
+            font-size: 18px;
+            color: #999;
+        }
+
+        /* ------ 카드 관리 모달 ------ */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.45);
+            z-index: 1000;
+            align-items: flex-end;
+            justify-content: center;
+        }
+        .modal-overlay.open {
+            display: flex;
+        }
+        .modal-panel {
+            width: 100%;
+            max-width: 520px;
+            max-height: 90vh;
+            overflow-y: auto;
+            background: #fff;
+            border-radius: 20px 20px 0 0;
+            padding: 24px 20px 32px;
+            box-sizing: border-box;
+        }
+        @media (min-width: 560px) {
+            .modal-overlay {
+                align-items: center;
+            }
+            .modal-panel {
+                border-radius: 20px;
+            }
+        }
+        .modal-close-btn {
+            border: none;
+            background: none;
+            font-size: 20px;
+            line-height: 1;
+            cursor: pointer;
+            padding: 4px;
+            margin-bottom: 12px;
+        }
+        .modal-title {
+            font-size: 20px;
+            font-weight: 700;
+            margin: 0 0 12px;
+        }
+        .modal-desc {
+            font-size: 13px;
+            color: #767676;
+            line-height: 1.5;
+            margin: 0 0 20px;
+        }
+        .add-card-btn {
+            width: 100%;
+            padding: 14px;
+            border: 1px solid #e5e5e5;
+            border-radius: 12px;
+            background: #fff;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-bottom: 16px;
+        }
+        .add-card-btn:hover {
+            border-color: #b3b3b3;
+        }
+        .toggle-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 16px;
+            background: #f5f5f5;
+            border-radius: 12px;
+            margin-bottom: 12px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        .toggle-switch {
+            position: relative;
+            width: 44px;
+            height: 26px;
+            border-radius: 999px;
+            background: #e0e0e0;
+            border: none;
+            cursor: pointer;
+            transition: background 0.2s;
+            flex-shrink: 0;
+        }
+        .toggle-switch.on {
+            background: #111;
+        }
+        .toggle-switch::after {
+            content: "";
+            position: absolute;
+            top: 3px;
+            left: 3px;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #fff;
+            transition: transform 0.2s;
+        }
+        .toggle-switch.on::after {
+            transform: translateX(18px);
+        }
+        .card-list-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 4px;
+            border-bottom: 1px solid #f0f0f0;
+            cursor: pointer;
+            background: none;
+            border-left: none;
+            border-right: none;
+            border-top: none;
+            width: 100%;
+            text-align: left;
+        }
+        .card-list-item:last-child {
+            border-bottom: none;
+        }
+        .card-badge {
+            flex-shrink: 0;
+            width: 48px;
+            height: 32px;
+            border-radius: 6px;
+            background: #111;
+            color: #fff;
+            font-size: 12px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .card-list-item-info strong {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 14px;
+            font-weight: 700;
+        }
+        .default-tag {
+            font-size: 11px;
+            font-weight: 600;
+            color: #767676;
+            border: 1px solid #ddd;
+            border-radius: 999px;
+            padding: 2px 8px;
+        }
+        .card-list-item-info span {
+            display: block;
+            margin-top: 4px;
+            font-size: 13px;
+            color: #767676;
+            letter-spacing: 1px;
+        }
+        .panel-loading, .panel-error {
+            font-size: 13px;
+            color: #767676;
+            padding: 8px 0;
+        }
+    </style>
+</head>
+<body>
+<header class="top-bar">
+    <div class="top-bar__inner">
+        <a class="back-button" href="#" aria-label="이전 화면으로 이동">‹</a>
+        <h1>배송/결제</h1>
+        <span class="top-bar__spacer" aria-hidden="true"></span>
+    </div>
+</header>
+
+<main class="page" th:object="${orderSheet}">
+    <section class="section" aria-labelledby="address-title">
+        <div class="section-heading">
+            <h2 id="address-title">배송 주소</h2>
+            <button class="outline-button" type="button">주소 변경</button>
+        </div>
+
+        <div class="card address-card">
+            <dl class="address-list">
+                <div>
+                    <dt>받는 분</dt>
+                    <dd th:text="*{receiver.name}">홍길동</dd>
+                </div>
+                <div>
+                    <dt>연락처</dt>
+                    <dd th:text="*{receiver.phone}">01012345678</dd>
+                </div>
+                <div>
+                    <dt>주소</dt>
+                    <dd>
+                        <span th:text="|[${orderSheet.receiver.zipCode}] ${orderSheet.receiver.address} ${orderSheet.receiver.addressDetail}|">[01234] 서울 압구정구 211 123-1234</span>
+                    </dd>
+                </div>
+            </dl>
+
+            <button class="request-row" type="button" aria-label="배송 요청사항 변경">
+                <span th:text="*{receiver.deliveryRequestMessage != null and !receiver.deliveryRequestMessage.isBlank()
+                    ? receiver.deliveryRequestMessage
+                    : (receiver.receiverMethod == 'DOOR' ? '문 앞에 놓아주세요' : '배송 요청사항 없음')}">문 앞에 놓아주세요</span>
+                <span class="chevron" aria-hidden="true">›</span>
+            </button>
+        </div>
+    </section>
+
+    <section class="section" aria-labelledby="product-title">
+        <div class="section-heading">
+            <h2 id="product-title">주문 상품</h2>
+            <strong class="item-count">총 1건</strong>
+        </div>
+
+        <article class="card product-card">
+            <div class="product-summary">
+                <div class="product-image" role="img" aria-label="상품 이미지 영역"></div>
+                <div class="product-info">
+                    <p class="product-name" th:text="*{orderSheetProductDto.variantName}">아이앱 스튜디오 후드 라이트 그레이</p>
+                    <p class="product-meta">
+                        <span th:text="|상품 번호 ${orderSheet.orderSheetProductDto.productId}|">상품 번호 1</span>
+                        <span class="divider" aria-hidden="true"></span>
+                        <span th:text="|옵션 번호 ${orderSheet.orderSheetProductDto.optionId}|">옵션 번호 1</span>
+                    </p>
+                    <p class="product-option" th:text="|${orderSheet.orderSheetProductDto.size} 사이즈|">M 사이즈</p>
+                </div>
+                <strong class="product-price" th:text="|${#numbers.formatInteger(orderSheet.orderSheetProductDto.productPrice, 0, 'COMMA')}원|">110,000원</strong>
+            </div>
+        </article>
+    </section>
+
+    <section class="section" aria-labelledby="discount-title">
+        <div class="section-heading">
+            <h2 id="discount-title">할인 및 포인트</h2>
+        </div>
+
+        <div class="card discount-card">
+            <div class="field-group">
+                <label for="coupon">쿠폰</label>
+                <div class="field-row">
+                    <div class="input-like input-like--disabled" id="coupon" aria-disabled="true">사용 가능한 쿠폰이 없습니다.</div>
+                    <button class="small-button" type="button" disabled>쿠폰 선택</button>
+                </div>
+            </div>
+
+            <div class="field-group">
+                <label for="pointAmount">포인트</label>
+                <div class="field-row">
+                    <input id="pointAmount" type="number" min="0" value="0" inputmode="numeric" aria-describedby="point-help">
+                    <button class="small-button" type="button" disabled>최대 사용</button>
+                </div>
+                <p class="field-help" id="point-help">보유 포인트 <strong>0P</strong></p>
+            </div>
+        </div>
+    </section>
+
+    <section class="section" aria-labelledby="payment-title">
+        <div class="section-heading">
+            <h2 id="payment-title">결제 방법</h2>
+        </div>
+
+        <fieldset class="card payment-card">
+            <legend class="sr-only">결제 방법을 선택하세요</legend>
+
+            <div class="payment-option-wrapper">
+                <label class="payment-option">
+                    <input type="radio" name="paymentMethod" value="SAVED_ACCOUNT" checked>
+                    <span class="radio-mark" aria-hidden="true"></span>
+                    <span><strong>계좌 간편결제</strong></span>
+                </label>
+                <!-- 계좌 간편결제 전용 패널 (비동기 렌더링) -->
+                <div id="saved-account-panel" class="payment-sub-panel" style="display:none"></div>
+            </div>
+
+            <div class="payment-option-wrapper">
+                <label class="payment-option">
+                    <input type="radio" name="paymentMethod" value="SAVED_CARD">
+                    <span class="radio-mark" aria-hidden="true"></span>
+                    <span><strong>카드 간편결제</strong></span>
+                </label>
+                <!-- 카드 간편결제 전용 패널 (비동기 렌더링) -->
+                <div id="saved-card-panel" class="payment-sub-panel" style="display:none"></div>
+            </div>
+
+            <div class="payment-option-wrapper">
+                <label class="payment-option">
+                    <input type="radio" name="paymentMethod" value="TOSS">
+                    <span class="radio-mark" aria-hidden="true"></span>
+                    <span>
+                        <strong>일반 결제(일시불·할부)</strong>
+                    </span>
+                </label>
+            </div>
+
+            <!-- 일반 결제(TOSS) 위젯 UI -->
+            <div id="payment-method" style="display:none"></div>
+            <!-- 이용약관 UI -->
+            <div id="agreement" style="display:none"></div>
+
+            <!-- 결제하기 버튼 -->
+            <button class="button" id="payment-button" style="margin-top: 30px">결제하기</button>
+        </fieldset>
+    </section>
+
+    <!-- ------ 간편결제 카드 관리 모달 ------ -->
+    <div class="modal-overlay" id="card-manage-overlay">
+        <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="card-manage-title">
+            <button type="button" class="modal-close-btn" id="card-manage-close" aria-label="닫기">✕</button>
+            <h2 class="modal-title" id="card-manage-title">간편결제 카드 관리</h2>
+            <p class="modal-desc">
+                수수료(페널티, 착불배송비 등)가 정산되지 않을 경우, 별도 고지 없이 해당 금액을 결제 시도할 수 있습니다.<br>
+                대체 결제 수단 설정시 등록하신 순서대로 시도됩니다.
+            </p>
+
+            <button type="button" class="add-card-btn" id="add-card-btn" onClick="requestBillingAuth()">+ 새 카드 추가하기</button>
+
+            <div class="toggle-row">
+                <span id="toggle-label">대체 결제 수단 사용 설정됨</span>
+                <button type="button" class="toggle-switch on" id="fallback-toggle" role="switch" aria-checked="true"></button>
+            </div>
+
+            <div id="card-manage-list"></div>
+        </div>
+    </div>
+
+    <section class="section final-section" aria-labelledby="summary-title">
+        <div class="section-heading">
+            <h2 id="summary-title">최종 주문정보</h2>
+        </div>
+
+        <div class="card summary-card">
+            <dl class="price-list">
+                <div>
+                    <dt>상품 금액</dt>
+                    <dd th:text="|${#numbers.formatInteger(orderSheet.orderSheetPriceDto.productTotalPrice, 0, 'COMMA')}원|">110,000원</dd>
+                </div>
+                <div>
+                    <dt>배송비</dt>
+                    <dd th:text="|${#numbers.formatInteger(orderSheet.orderSheetPriceDto.deliveryPrice, 0, 'COMMA')}원|">5,000원</dd>
+                </div>
+                <div>
+                    <dt>쿠폰 할인</dt>
+                    <dd th:text="|-${#numbers.formatInteger(orderSheet.orderSheetPriceDto.couponAmount, 0, 'COMMA')}원|">-0원</dd>
+                </div>
+                <div>
+                    <dt>포인트 사용</dt>
+                    <dd th:text="|-${#numbers.formatInteger(orderSheet.orderSheetPriceDto.pointAmount, 0, 'COMMA')}원|">-0원</dd>
+                </div>
+            </dl>
+            <div class="total-price">
+                <strong>총 결제금액</strong>
+                <strong th:text="|${#numbers.formatInteger(orderSheet.orderSheetPriceDto.paymentAmount, 0, 'COMMA')}원|">115,000원</strong>
+            </div>
+        </div>
+    </section>
+
+</main>
+
+<script th:inline="javascript">
+    // ------ 전역 상태 ------
+    let widgets;
+    let widgetRendered = false;
+    let prepared; // 서버에서 받은 최신 결제 정보(금액, 주문번호 등)
+
+    let savedCardCache = null;     // 기본 카드 1장 (결제 화면에 표시될 카드) 캐시
+    let savedAccountCache = null;  // 등록된 계좌 목록 캐시
+    let cardListCache = null;      // 카드 관리 모달용 - 등록된 카드 전체 목록 캐시
+    let selectedSavedCardId = null;
+    let selectedSavedAccountId = null;
+    let fallbackEnabled = true;    // 대체 결제 수단 사용 여부 (토글 상태)
+
+    // 토스페이먼츠 - 위젯 관련 SDK 초기화
+    const widgetClientKey = "test_gck_docs_Ovk5rk1EwkEbP0W43n07xlzm";
+    const widgetTossPayments = TossPayments(widgetClientKey);
+    widgets = widgetTossPayments.widgets({ customerKey: TossPayments.ANONYMOUS });
+
+    // 토스페이먼츠 - 자동결제(빌링) 관련 SDK 초기화
+    const billingClientKey = "test_ck_D5GePWvyJnrK0W0k6q8gLzN97Eoq";
+    const customerKey = /*[[${orderSheet.customerKey}]]*/ "Cus_9f3B2d6e-9c1A-4a7e-8c1F-16b5f6c12a31";
+    console.log("customerKey : " + customerKey);
+    const billingTossPayments = TossPayments(billingClientKey);
+    const payment = billingTossPayments.payment({ customerKey });
+
+
+    const variantId = [[${orderSheet.orderSheetProductDto.variantId}]];
+    const optionId = [[${orderSheet.orderSheetProductDto.optionId}]];
+    const initialPaymentAmount = [[${orderSheet.orderSheetPriceDto.paymentAmount}]];
+    const orderNameFromOrderSheet = /*[[${orderSheet.orderSheetProductDto.variantName}]]*/ "상품명";
+    const receiverNameFromOrderSheet = /*[[${orderSheet.receiver.name}]]*/ "구매자";
+    const receiverPhoneFromOrderSheet = /*[[${orderSheet.receiver.phone}]]*/ "01000000000";
+    const receiverEmailFromOrderSheet = /*[[${orderSheet.receiver.email}]]*/
+        "customer@example.com";
+
+    init();
+
+    function init() {
+        // 라디오 변경 이벤트 등록
+        document.querySelectorAll("input[name='paymentMethod']").forEach(radio => {
+            radio.addEventListener("change", (e) => handlePaymentMethodChange(e.target.value));
+        });
+
+        // 버튼 클릭 리스너는 여기서 딱 한 번만 등록
+        document.getElementById("payment-button").addEventListener("click", onPaymentButtonClick);
+
+        // ------ 카드 관리 모달 관련 리스너 (한 번만 등록) ------
+        document.getElementById("card-manage-close").addEventListener("click", closeCardManageModal);
+        document.getElementById("card-manage-overlay").addEventListener("click", (e) => {
+            if (e.target.id === "card-manage-overlay") closeCardManageModal(); // 오버레이 바깥 클릭 시 닫기
+        });
+        document.getElementById("fallback-toggle").addEventListener("click", onFallbackToggleClick);
+
+        // 최초 로드 시 기본 선택값 반영
+        const initialChecked = document.querySelector("input[name='paymentMethod']:checked").value;
+        handlePaymentMethodChange(initialChecked);
+    }
+
+    // ------ 라디오 선택에 따른 패널 토글 ------
+    async function handlePaymentMethodChange(method) {
+        const paymentMethodDiv = document.getElementById("payment-method");
+        const agreementDiv = document.getElementById("agreement");
+        const savedAccountPanel = document.getElementById("saved-account-panel");
+        const savedCardPanel = document.getElementById("saved-card-panel");
+
+        // 매번 전부 숨긴 뒤, 선택된 패널만 다시 보여줌
+        paymentMethodDiv.style.display = "none";
+        agreementDiv.style.display = "none";
+        savedAccountPanel.style.display = "none";
+        savedCardPanel.style.display = "none";
+
+        if (method === "TOSS") {
+            paymentMethodDiv.style.display = "block";
+            agreementDiv.style.display = "block";
+            await renderTossPaymentWidget(initialPaymentAmount);
+        } else if (method === "SAVED_ACCOUNT") {
+            savedAccountPanel.style.display = "block";
+            await renderSavedAccountPanel();
+        } else if (method === "SAVED_CARD") {
+            savedCardPanel.style.display = "block";
+            await renderSavedCardPanel();
+        }
+    }
+
+    // ------ 계좌 간편결제 패널 (비동기: 등록된 계좌 조회 후 목록/등록CTA 분기) ------
+    async function renderSavedAccountPanel() {
+        const panel = document.getElementById("saved-account-panel");
+        panel.innerHTML = `<p class="panel-loading">불러오는 중...</p>`;
+
+        if (savedAccountCache === null) {
+            try {
+                const res = await fetch("/api/pay/saved-accounts");
+                if (!res.ok) throw new Error("요청 실패");
+                savedAccountCache = await res.json(); // 예: { accounts: [{ id, bankName, accountNumberMasked }, ...] }
+            } catch (e) {
+                panel.innerHTML = `<p class="panel-error">계좌 정보를 불러오지 못했습니다.</p>`;
+                return;
+            }
+        }
+
+        if (!savedAccountCache.accounts || savedAccountCache.accounts.length === 0) {
+            panel.innerHTML = `
+                <button type="button" class="register-cta" id="register-account-btn">
+                    계좌 등록하고 빠르게 결제하기 <span aria-hidden="true">›</span>
+                </button>
+            `;
+            document.getElementById("register-account-btn")
+                .addEventListener("click", () => {
+                    window.location.href = "/mypage/accounts/register";
+                });
+            return;
+        }
+
+        panel.innerHTML = savedAccountCache.accounts.map(acc => `
+            <label class="saved-method-option">
+                <input type="radio" name="savedAccount" value="${acc.id}">
+                <span>${acc.bankName} ${acc.accountNumberMasked}</span>
+            </label>
+        `).join("");
+
+        panel.querySelectorAll("input[name='savedAccount']").forEach(radio => {
+            radio.addEventListener("change", (e) => {
+                selectedSavedAccountId = e.target.value;
+            });
+        });
+    }
+
+    // ------ 카드 간편결제 패널: 기본 카드 조회 → 행 클릭 시 관리 모달 오픈 ------
+    async function renderSavedCardPanel() {
+        const panel = document.getElementById("saved-card-panel");
+        panel.innerHTML = `<p class="panel-loading">불러오는 중...</p>`;
+
+        if (savedCardCache === null) {
+            try {
+                const res = await fetch("/api/card");
+                if (!res.ok) throw new Error("요청 실패");
+                const data = await res.json(); // { card: { cardId, cardName, maskedCardNumber, billingKey } }
+                savedCardCache = data.card;
+            } catch (e) {
+                panel.innerHTML = `<p class="panel-error">카드 정보를 불러오지 못했습니다.</p>`;
+                return;
+            }
+        }
+
+        // 등록된 카드가 없을 때
+        if (!savedCardCache || !savedCardCache.cardId) {
+            panel.innerHTML = `
+                <button type="button" class="register-cta" id="register-card-btn">
+                    카드 등록하고 빠르게 결제하기 <span aria-hidden="true">›</span>
+                </button>
+            `;
+            document.getElementById("register-card-btn")
+                .addEventListener("click", requestBillingAuth);
+            return;
+        }
+
+        // 등록된 카드가 있을 때 - 기본 카드를 행으로 표시, 클릭 시 관리 모달 오픈
+        selectedSavedCardId = savedCardCache.cardId; // 기본 카드로 자동 선택
+
+        panel.innerHTML = `
+            <button type="button" class="card-select-row" id="card-select-row">
+                <span class="card-select-info">
+                    <strong>${savedCardCache.cardName}</strong>
+                    <span>${savedCardCache.maskedCardNumber}</span>
+                </span>
+                <span class="chevron" aria-hidden="true">›</span>
+            </button>
+        `;
+
+        document.getElementById("card-select-row")
+            .addEventListener("click", openCardManageModal);
+    }
+
+    // ------ 카드 관리 모달 열기 ------
+    async function openCardManageModal() {
+        document.getElementById("card-manage-overlay").classList.add("open");
+        await renderCardManageList();
+    }
+
+    function closeCardManageModal() {
+        document.getElementById("card-manage-overlay").classList.remove("open");
+    }
+
+    // ------ 모달 내부 카드 전체 목록 렌더링 (비동기 조회) ------
+    async function renderCardManageList() {
+        const listEl = document.getElementById("card-manage-list");
+        listEl.innerHTML = `<p class="panel-loading">불러오는 중...</p>`;
+
+        if (cardListCache === null) {
+            try {
+                const res = await fetch("/api/card/list");
+                if (!res.ok) throw new Error("요청 실패");
+                cardListCache = await res.json(); // [{ cardId, cardName, maskedCardNumber, defaultCard }, ...]
+            } catch (e) {
+                listEl.innerHTML = `<p class="panel-error">카드 목록을 불러오지 못했습니다.</p>`;
+                return;
+            }
+        }
+
+        if (!cardListCache || cardListCache.length === 0) {
+            listEl.innerHTML = `<p class="panel-error">등록된 카드가 없습니다.</p>`;
+            return;
+        }
+
+        listEl.innerHTML = cardListCache.map(card => `
+            <button type="button" class="card-list-item" data-card-id="${card.cardId}">
+                <span class="card-badge">${card.cardName.slice(0, 2)}</span>
+                <span class="card-list-item-info">
+                    <strong>
+                        ${card.cardName}
+                        ${card.defaultCard ? '<span class="default-tag">기본 결제</span>' : ""}
+                    </strong>
+                    <span>${card.maskedCardNumber}</span>
+                </span>
+            </button>
+        `).join("");
+
+        listEl.querySelectorAll(".card-list-item").forEach(item => {
+            item.addEventListener("click", () => {
+                const cardId = item.dataset.cardId;
+                const selected = cardListCache.find(c => String(c.cardId) === String(cardId));
+                if (!selected) return;
+
+                // 선택한 카드를 결제 화면의 기본 표시 카드로 반영
+                selectedSavedCardId = selected.cardId;
+                savedCardCache = selected;
+
+                closeCardManageModal();
+                renderSavedCardPanel(); // 결제 화면의 카드 행을 갱신된 선택값으로 다시 그림
+            });
+        });
+    }
+
+    async function requestBillingAuth() {
+        await payment.requestBillingAuth({
+            method: "CARD", // 자동결제(빌링)는 카드만 지원합니다
+            successUrl: window.location.origin + `/api/toss/card/set/success?variantId=${variantId}&optionId=${optionId}`,
+            failUrl: window.location.origin + "/api/toss/card/set/fail", // 요청이 실패하면 리다이렉트되는 URL
+            customerEmail: receiverEmailFromOrderSheet,
+            customerName: receiverNameFromOrderSheet,
+        });
+    }
+    // ------ 대체 결제 수단 사용 토글 ------
+    function onFallbackToggleClick() {
+        fallbackEnabled = !fallbackEnabled;
+        const toggle = document.getElementById("fallback-toggle");
+        const label = document.getElementById("toggle-label");
+
+        toggle.classList.toggle("on", fallbackEnabled);
+        toggle.setAttribute("aria-checked", String(fallbackEnabled));
+        label.textContent = fallbackEnabled ? "대체 결제 수단 사용 설정됨" : "대체 결제 수단 사용 안 함";
+
+        // TODO: 서버에 토글 상태 저장이 필요하면 여기서 PATCH 요청
+        // fetch("/api/card/fallback-setting", { method: "PATCH", ... })
+    }
+
+    function buildPaymentRequestDto(extra) {
+        return {
+            receiver: {
+                name: /*[[${orderSheet.receiver.name}]]*/ "구매자",
+                phone: /*[[${orderSheet.receiver.phone}]]*/ "01000000000",
+                zipCode: /*[[${orderSheet.receiver.zipCode}]]*/ "00000",
+                address: /*[[${orderSheet.receiver.address}]]*/ "주소",
+                addressDetail: /*[[${orderSheet.receiver.addressDetail}]]*/ "",
+                receiverMethod: /*[[${orderSheet.receiver.receiverMethod}]]*/ "DOOR",
+                deliveryRequestMessage: /*[[${orderSheet.receiver.deliveryRequestMessage}]]*/ null
+            },
+            couponId: null,
+            usedPoint: Number(document.getElementById("pointAmount").value || 0),
+            savedAccountId: null,
+            savedCardId: null,
+            cardCompany: null,
+            installmentMonths: 0,
+            ...extra
+        };
+    }
+
+    async function preparePayment(extra) {
+        const paymentRequestDto = {
+            ...buildPaymentRequestDto(extra)
+        };
+
+        const prepareResponse = await fetch(`/api/pay/${variantId}?optionId=${optionId}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(paymentRequestDto)
+        });
+
+        if (!prepareResponse.ok) {
+            const err = await prepareResponse.json().catch(() => null);
+            throw new Error(err?.message || "결제 준비에 실패했습니다.");
+        }
+
+        prepared = await prepareResponse.json();
+        return prepared;
+    }
+
+    // ------ TOSS(일반 결제) 위젯 초기화 + 렌더링 ------
+    async function renderTossPaymentWidget(amount) {
+        await widgets.setAmount({
+            currency: "KRW",
+            value: amount
+        });
+
+        if (!widgetRendered) {
+            await Promise.all([
+                widgets.renderPaymentMethods({
+                    selector: "#payment-method",
+                    variantKey: "DEFAULT",
+                }),
+                widgets.renderAgreement({ selector: "#agreement", variantKey: "AGREEMENT" }),
+            ]);
+            widgetRendered = true;
+        }
+    }
+
+    async function requestTossWidgetPayment() {
+        const result = await preparePayment({
+            paymentMethod: "TOSS"
+        });
+
+        await renderTossPaymentWidget(result.amount);
+
+        await widgets.requestPayment({
+            orderId: result.orderNumber,
+            orderName: result.productName || orderNameFromOrderSheet,
+            successUrl: window.location.origin + "/api/toss/pay/success",
+            failUrl: window.location.origin + "/api/toss/pay/fail",
+            customerName: receiverNameFromOrderSheet,
+            customerMobilePhone: receiverPhoneFromOrderSheet
+        });
+    }
+
+    async function requestSavedCardBillingPayment() {
+        if (!selectedSavedCardId) {
+            alert("결제할 카드를 선택해주세요.");
+            return;
+        }
+
+        const result = await preparePayment({
+            paymentMethod: "SAVED_CARD",
+            savedCardId: selectedSavedCardId
+        });
+
+        const billingResponse = await fetch("/api/pay/cardBilling", {
+            method: "POST",
+            headers: { "Content-Type": "text/plain;charset=UTF-8" },
+            body: result.orderNumber
+        });
+
+        if (!billingResponse.ok) {
+            const err = await billingResponse.json().catch(() => null);
+            throw new Error(err?.message || "카드 간편결제에 실패했습니다.");
+        }
+
+        window.location.href = `/api/pay/complete?orderNumber=${encodeURIComponent(result.orderNumber)}`;
+    }
+
+    // ------ '결제하기' 버튼 누르면 선택된 결제수단에 맞게 분기 ------
+    async function onPaymentButtonClick() {
+        const method = document.querySelector("input[name='paymentMethod']:checked").value;
+        const paymentButton = document.getElementById("payment-button");
+
+        paymentButton.disabled = true;
+
+        try {
+            if (method === "TOSS") {
+                await requestTossWidgetPayment();
+            } else if (method === "SAVED_CARD") {
+                await requestSavedCardBillingPayment();
+            } else if (method === "SAVED_ACCOUNT") {
+                alert("계좌 자동결제는 아직 연결된 서버 결제 API가 없습니다.");
+            }
+        } catch (e) {
+            alert(e.message || "결제 처리 중 오류가 발생했습니다. 다시 시도해주세요.");
+        } finally {
+            paymentButton.disabled = false;
+        }
+    }
+</script>
+</body>
+</html>

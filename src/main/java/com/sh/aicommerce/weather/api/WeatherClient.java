@@ -5,6 +5,7 @@ import com.sh.aicommerce.common.exception.search.WeatherException;
 import com.sh.aicommerce.weather.dto.WeatherApiResponseDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
@@ -23,6 +24,8 @@ public class WeatherClient {
     private String weatherAPIKey;
 
     private static final int MAX_RETRY_COUNT = 3;
+
+    @Qualifier("weatherRestTemplate")
     private final RestTemplate weatherRestTemplate;
 
     public String createWeatherInfoNLP() {

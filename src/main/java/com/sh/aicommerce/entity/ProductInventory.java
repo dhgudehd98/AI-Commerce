@@ -89,4 +89,19 @@ public class ProductInventory {
         if(quantity <= 0) throw new InventoryException("출고 수량은 1개 이상이여야합니다.");
     }
 
+    // 상품 결제시 수량 변경 설정
+    // onHandQuantity -= 1, reservedQuantity += 1
+
+    public void reserve() {
+        if (getAvailableQuantity() <= 0) {
+            throw new InventoryException("상품 재고가 부족합니다.");
+        }
+
+        this.reservedQuantity += 1;
+    }
+
+    public void releasedReserved(Integer quantity) {
+        // 예약 수량은 -quantity , 가지고 있는 수량은 +quantity
+        this.reservedQuantity -= quantity;
+    }
 }

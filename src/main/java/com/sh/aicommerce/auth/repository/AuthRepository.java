@@ -9,4 +9,8 @@ import java.util.Optional;
 @Repository
 public interface AuthRepository extends JpaRepository<Member, Long> {
     Optional<Member> findByEmail(String email);
+
+    boolean existsByCustomerKey(String customerKey);
+
+    Optional<Member> findByCustomerKey(String customerKey);
 }

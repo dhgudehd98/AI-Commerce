@@ -1,0 +1,77 @@
+package com.sh.aicommerce.toss;
+
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.sh.aicommerce.payment.service.PaymentService;
+import com.sh.aicommerce.toss.dto.request.TossPaymentRequestDto;
+import com.sh.aicommerce.toss.dto.response.TossPaymentSuccessResponseDto;
+import com.sh.aicommerce.toss.service.TossAPIService;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+
+@Controller
+@RequestMapping("/api/toss")
+@RequiredArgsConstructor
+@Slf4j
+public class TossAPIController {
+
+    private final TossAPIService tossAPIService;
+    private final PaymentService paymentService;
+
+
+    @GetMapping("/pay/success")
+    public String payByTossWidget(
+            @RequestParam("orderId") String orderNumber,
+            @RequestParam("paymentKey") String paymentKey,
+            @RequestParam("amount") Integer amount,
+            Model model
+    ) throws JsonProcessingException {
+        log.info("[토스 페이먼츠 응답 데이터] OrderNumber : {}, PaymentKey : {}. Amount : {}", orderNumber, paymentKey, amount);
+
+        TossPaymentSuccessResponseDto tossPaymentSuccessResponseDto = paymentService.payByTossWidget(orderNumber, paymentKey, amount);
+        model.addAttribute("payment", tossPaymentSuccessResponseDto);
+
+        return "toss/pay-success";
+    }
+
+    @GetMapping("/pay/fail")
+    public String payFail(
+            @RequestParam("orderId") String orderNumber,
+            @RequestParam("code") String errorCode,
+            @RequestParam("message") String errorMessage
+    ) {
+        log.info("[토스 페이먼츠 결제 실패]");
+
+        tossAPIService.payFail(orderNumber, errorCode, errorMessage);
+
+        return "toss/pay-fail";
+    }
+
+    @GetMapping("/card/set/success")
+    public String cardSetSuccess(
+            @RequestParam("variantId") Long variantId,
+            @RequestParam("optionId") Long optionId,
+            @RequestParam("customerKey") String customerKey,
+            @RequestParam("authKey") String authKey
+    ) {
+        log.info("[토스 페이먼츠] 카드 등록 성공 응답 데이터 : customerKey : {}, authKey : {}", customerKey, authKey);
+        tossAPIService.getBillingKey(customerKey, authKey);
+
+        return "redirect:/api/order/sheet/" + variantId
+                + "?optionId=" + optionId;
+    }
+
+    @GetMapping("/card/set/fail")
+    public void cardSetFail(
+            @RequestParam("code") String errorCode,
+            @RequestParam("message") String errorMessage
+    ) {
+        log.info("[토스 페이먼츠] 카드 등록 실패 에러코드 : {} , 에러 메세지 : {)", errorCode, errorMessage);
+    }
+
+}

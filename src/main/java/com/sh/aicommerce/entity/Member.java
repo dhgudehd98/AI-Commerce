@@ -27,6 +27,9 @@ public class Member {
     @OneToMany(mappedBy = "member")
     private List<Orders> orders = new ArrayList<>();
 
+    @Column(nullable = false, unique = true)
+    private String customerKey;
+
     @Column(nullable = false)
     private String memberName;
 
@@ -46,8 +49,9 @@ public class Member {
     private String address;
     private String addressDetail;
 
-    public Member(AuthJoinRequestDto authJoinRequestDto) {
+    public Member(AuthJoinRequestDto authJoinRequestDto, String customerKey) {
         this.memberName = authJoinRequestDto.getMemberName();
+        this.customerKey = customerKey;
         this.phone = authJoinRequestDto.getPhone();
         this.email = authJoinRequestDto.getEmail();
         this.passwd = authJoinRequestDto.getPasswd();

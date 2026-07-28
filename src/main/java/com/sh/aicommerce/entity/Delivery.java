@@ -1,6 +1,9 @@
 package com.sh.aicommerce.entity;
 
+import com.sh.aicommerce.enums.delivery.DeliveryCompany;
 import com.sh.aicommerce.enums.delivery.DeliveryStatus;
+import com.sh.aicommerce.order.dto.Receiver;
+import com.sh.aicommerce.payment.dto.request.PaymentRequestDto;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -41,11 +44,34 @@ public class Delivery {
     @Column(nullable = false)
     private String addressDetail;
 
-    private String deliveryCompany;
+    private DeliveryCompany deliveryCompany;
 
     private String trackingNumber;
+
+    private LocalDateTime createdAt;
 
     private LocalDateTime shippedAt;
 
     private LocalDateTime deliveredAt;
+
+    public void setOrder(Orders order) {
+        this.order = order;
+    }
+
+    public static Delivery createDelivery(Receiver receiver) {
+        Delivery delivery = new Delivery();
+        delivery.deliveryStatus = DeliveryStatus.CREATE;
+        delivery.recipientName = receiver.getName();
+        delivery.recipientPhone = receiver.getPhone();
+        delivery.zipCode = receiver.getZipCode();
+        delivery.address = receiver.getAddress();
+        delivery.addressDetail = receiver.getAddressDetail();
+        delivery.createdAt = LocalDateTime.now();
+
+        return delivery;
+    }
+
+    public void paymentFailUpdateStatus() {
+        this.deliveryStatus = DeliveryStatus.PAYMENT_FAIL;
+    }
 }

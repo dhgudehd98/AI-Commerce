@@ -3,7 +3,11 @@ package com.sh.aicommerce.common.exception;
 
 import com.sh.aicommerce.common.exception.auth.AuthException;
 import com.sh.aicommerce.common.exception.brand.BrandException;
+import com.sh.aicommerce.common.exception.card.CardException;
+import com.sh.aicommerce.common.exception.delivery.DeliveryException;
 import com.sh.aicommerce.common.exception.member.MemberException;
+import com.sh.aicommerce.common.exception.order.OrderException;
+import com.sh.aicommerce.common.exception.payment.PaymentException;
 import com.sh.aicommerce.common.exception.product.ProductException;
 import com.sh.aicommerce.common.exception.search.SearchException;
 import com.sh.aicommerce.common.exception.search.WeatherException;
@@ -14,6 +18,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+
+import javax.security.auth.login.AccountException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -21,6 +27,32 @@ import java.util.Map;
 @Slf4j
 public class GlobalExceptionHandler {
 
+
+    @ExceptionHandler(DeliveryException.class)
+    public ResponseEntity<?> handleDeliveryException(DeliveryException e) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("result", "N", "message", e.getMessage()));
+    }
+    @ExceptionHandler(OrderException.class)
+    public ResponseEntity<?> handleOrderException(OrderException e) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("result", "N", "message", e.getMessage()));
+    }
+    @ExceptionHandler(PaymentException.class)
+    public ResponseEntity<?> handlePaymentException(PaymentException e) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("result", "N", "message", e.getMessage()));
+    }
+    @ExceptionHandler(AccountException.class)
+    public ResponseEntity<?> handleAccountException(AccountException e) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("result", "N", "message", e.getMessage()));
+    }
+    @ExceptionHandler(CardException.class)
+    public ResponseEntity<?> handleCardException(CardException e) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("result", "N", "message", e.getMessage()));
+    }
     @ExceptionHandler(WeatherException.class)
     public ResponseEntity<?> handleWeatherException(WeatherException e) {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
