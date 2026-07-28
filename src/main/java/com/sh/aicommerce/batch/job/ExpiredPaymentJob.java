@@ -22,7 +22,7 @@ import java.time.LocalDateTime;
 public class ExpiredPaymentJob {
 
     private final JobLauncher launcher;
-    private final Job expiredPaymentJob;
+    private final Job expiredPaymentBatchJob;
 
 //    @Scheduled(cron = "0 0 * * * *")
     public void setExpiredPaymentJob() throws JobInstanceAlreadyCompleteException, JobExecutionAlreadyRunningException, JobParametersInvalidException, JobRestartException {
@@ -32,8 +32,8 @@ public class ExpiredPaymentJob {
                 .addLocalDateTime("expiredAt", expiredAt)
                 .toJobParameters();
 
-        log.info("Job Instance : {} ", expiredPaymentJob);
+        log.info("Job Instance : {} ", expiredPaymentBatchJob);
 
-        launcher.run(expiredPaymentJob, jobParameters);
+        launcher.run(expiredPaymentBatchJob, jobParameters);
     }
 }
