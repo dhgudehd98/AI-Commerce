@@ -70,4 +70,8 @@ public class Delivery {
 
         return delivery;
     }
+
+    public void paymentFailUpdateStatus() {
+        this.deliveryStatus = DeliveryStatus.PAYMENT_FAIL;
+    }
 }

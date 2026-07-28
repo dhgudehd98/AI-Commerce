@@ -171,5 +171,9 @@ public class PaymentTransactionService {
         }
 
         if(payment.getStatus().equals(PaymentStatus.FAILED)) order.updateStatusFail();
+
+        // 결제 실패 || 만료가 진행된 경우에는 Delivery Status의 상태 값을 실패로 설정
+        if(order.getDelivery() != null) order.getDelivery().paymentFailUpdateStatus();
+
     }
 }
