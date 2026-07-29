@@ -37,4 +37,13 @@ public class ReviewController {
         Long memberId = 1L;
         return ResponseEntity.ok(reviewService.deleteReview(memberId, orderItemId));
     }
+
+    @PostMapping("reWrite/{orderItemId}")
+    public ResponseEntity<?> reWriteReview(
+            @PathVariable("orderItemId") Long orderItemId,
+            @RequestBody ReviewRequestDto request
+    ) {
+        Long memberId = 1L;
+        return ResponseEntity.ok(reviewService.reWriteReview(memberId, orderItemId, request));
+    }
 }

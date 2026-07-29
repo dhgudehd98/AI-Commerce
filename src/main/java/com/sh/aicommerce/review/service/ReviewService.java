@@ -30,7 +30,6 @@ public class ReviewService {
     @Transactional
     public Map<String,String> createReview(Long memberId, Long orderItemId, ReviewRequestDto request) {
         log.info("[리뷰 생성 요청] : orderItemId : {}", orderItemId);
-        log.info(request.toString());
 
         // 주문 상품에 대해서 여러개의 리뷰 작성했는지 중복 검사
         if(reviewRepository.existsByOrderItemId(orderItemId))
@@ -98,10 +97,34 @@ public class ReviewService {
 
         review.delete();
 
-        log.info("[리뷰 수정 요청 완료] orderItemId : {}", orderItemId);
+        log.info("[리뷰 삭제 요청 완료] orderItemId : {}", orderItemId);
 
         return Map.of(
                 "result", "Y",
-                "message", "리뷰가 성공적으로 수정되었습니다.");
+                "message", "리뷰가 성공적으로 삭제되었습니다.");
+    }
+
+    @Transactional
+    public Map<String,String> reWriteReview(Long memberId, Long orderItemId, ReviewRequestDto request) {
+        log.info("[리뷰 재작성 요청] orderItemId : {}", orderItemId);
+        Member member = authRepository.findById(memberId).orElseThrow(() -> new MemberException("등록되지 않은 회원입니다. 다시 로그인해주세요."));
+
+        // 리뷰 중복 수정 가능 여부 파악
+        Review review = reviewRepository.reviewReWriteForUpdate(orderItemId).orElseThrow(() -> new ReviewException("재작성 가능한 리뷰가 존재하지 않습니다."));
+
+        review.rewrite(
+                request.getRating(),
+                request.getContent(),
+                request.getHeightCm(),
+                request.getWeightKg(),
+                request.getFitEvaluation(),
+                request.getFitPreference()
+        );
+
+        log.info("[리뷰 재작성 요청 완료] orderItemId : {}", orderItemId);
+
+        return Map.of(
+                "result", "Y",
+                "message", "리뷰가 성공적으로 작성되었습니다..");
     }
 }

@@ -33,4 +33,13 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
     """)
     Optional<Review> reviewDeleteForUpdate(@Param("orderItemId")Long orderItemId);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+    select r
+    from Review r
+    where r.orderItem.id = :orderItemId
+      and r.rewriteUsed = false
+      and r.status = 'DELETED'
+    """)
+    Optional<Review> reviewReWriteForUpdate(@Param("orderItemId")Long orderItemId);
 }
