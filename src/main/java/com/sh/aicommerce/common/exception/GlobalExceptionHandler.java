@@ -7,8 +7,10 @@ import com.sh.aicommerce.common.exception.card.CardException;
 import com.sh.aicommerce.common.exception.delivery.DeliveryException;
 import com.sh.aicommerce.common.exception.member.MemberException;
 import com.sh.aicommerce.common.exception.order.OrderException;
+import com.sh.aicommerce.common.exception.orderItem.OrderItemException;
 import com.sh.aicommerce.common.exception.payment.PaymentException;
 import com.sh.aicommerce.common.exception.product.ProductException;
+import com.sh.aicommerce.common.exception.review.ReviewException;
 import com.sh.aicommerce.common.exception.search.SearchException;
 import com.sh.aicommerce.common.exception.search.WeatherException;
 import com.sh.aicommerce.common.exception.wms.InventoryException;
@@ -27,7 +29,16 @@ import java.util.Map;
 @Slf4j
 public class GlobalExceptionHandler {
 
-
+    @ExceptionHandler(ReviewException.class)
+    public ResponseEntity<?> handleReviewException(ReviewException e) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("result", "N", "message", e.getMessage()));
+    }
+    @ExceptionHandler(OrderItemException.class)
+    public ResponseEntity<?> handleOrderItemException(OrderItemException e) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("result", "N", "message", e.getMessage()));
+    }
     @ExceptionHandler(DeliveryException.class)
     public ResponseEntity<?> handleDeliveryException(DeliveryException e) {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
