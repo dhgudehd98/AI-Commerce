@@ -22,6 +22,15 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
       and r.editUsed = false
       and r.status = 'ACTIVE'
     """)
-    Optional<Review> findForUpdate(@Param("orderItemId")Long orderItemId);
+    Optional<Review> reviewUpdateForUpdate(@Param("orderItemId")Long orderItemId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+    select r
+    from Review r
+    where r.orderItem.id = :orderItemId
+      and r.status = 'ACTIVE'
+    """)
+    Optional<Review> reviewDeleteForUpdate(@Param("orderItemId")Long orderItemId);
 
 }

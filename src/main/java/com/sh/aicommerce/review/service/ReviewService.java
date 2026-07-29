@@ -69,7 +69,7 @@ public class ReviewService {
         Member member = authRepository.findById(memberId).orElseThrow(() -> new MemberException("등록되지 않은 회원입니다. 다시 로그인해주세요."));
 
         // 리뷰 중복 수정 가능 여부 파악
-        Review review = reviewRepository.findForUpdate(orderItemId).orElseThrow(() -> new ReviewException("이미 작성된 리뷰는 한번만 수정할 수 있습니다."));
+        Review review = reviewRepository.reviewUpdateForUpdate(orderItemId).orElseThrow(() -> new ReviewException("이미 작성된 리뷰는 한번만 수정할 수 있습니다."));
 
         review.update(
                 request.getRating(),
@@ -85,5 +85,23 @@ public class ReviewService {
         return Map.of(
                 "result", "Y",
                 "message", "리뷰가 성공적으로 수정되었습니다..");
+    }
+
+    @Transactional
+    public Map<String,String> deleteReview(Long memberId, Long orderItemId) {
+        log.info("[리뷰 삭제 요청] orderItemId : {}", orderItemId);
+
+        Member member = authRepository.findById(memberId).orElseThrow(() -> new MemberException("등록되지 않은 회원입니다. 다시 로그인해주세요."));
+
+        // 리뷰 중복 수정 가능 여부 파악
+        Review review = reviewRepository.reviewDeleteForUpdate(orderItemId).orElseThrow(() -> new ReviewException("삭제 가능한 리뷰가 존재하지 않습니다."));
+
+        review.delete();
+
+        log.info("[리뷰 수정 요청 완료] orderItemId : {}", orderItemId);
+
+        return Map.of(
+                "result", "Y",
+                "message", "리뷰가 성공적으로 수정되었습니다.");
     }
 }
