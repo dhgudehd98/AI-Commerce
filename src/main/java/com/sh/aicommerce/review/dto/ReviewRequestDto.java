@@ -16,4 +16,16 @@ public class ReviewRequestDto {
     Integer weightKg;
     FitEvaluation fitEvaluation;
     FitPreference fitPreference;
+
+    @Override
+    public String toString() {
+        return "리뷰 요청 정보{" +
+                "rating=" + rating +
+                ", content='" + content + '\'' +
+                ", heightCm=" + heightCm +
+                ", weightKg=" + weightKg +
+                ", fitEvaluation=" + fitEvaluation +
+                ", fitPreference=" + fitPreference +
+                '}';
+    }
 }

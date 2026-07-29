@@ -6,6 +6,8 @@ import com.sh.aicommerce.common.exception.review.ReviewException;
 import com.sh.aicommerce.entity.Member;
 import com.sh.aicommerce.entity.OrderItem;
 import com.sh.aicommerce.entity.Review;
+import com.sh.aicommerce.enums.review.FitEvaluation;
+import com.sh.aicommerce.enums.review.FitPreference;
 import com.sh.aicommerce.orderItem.service.OrderItemService;
 import com.sh.aicommerce.review.dto.ReviewRequestDto;
 import com.sh.aicommerce.review.repository.ReviewRepository;
@@ -27,6 +29,8 @@ public class ReviewService {
 
     @Transactional
     public Map<String,String> createReview(Long memberId, Long orderItemId, ReviewRequestDto request) {
+        log.info("[리뷰 생성 요청] : orderItemId : {}", orderItemId);
+        log.info(request.toString());
 
         // 주문 상품에 대해서 여러개의 리뷰 작성했는지 중복 검사
         if(reviewRepository.existsByOrderItemId(orderItemId))
@@ -56,5 +60,30 @@ public class ReviewService {
         return Map.of(
                 "result", "Y",
                 "message", "리뷰가 성공적으로 등록되었습니다.");
+    }
+
+    @Transactional
+    public Map<String, String> updateReview(Long memberId, Long orderItemId, ReviewRequestDto request) {
+        log.info("[리뷰 수정 요청] orderItemId : {}", orderItemId);
+
+        Member member = authRepository.findById(memberId).orElseThrow(() -> new MemberException("등록되지 않은 회원입니다. 다시 로그인해주세요."));
+
+        // 리뷰 중복 수정 가능 여부 파악
+        Review review = reviewRepository.findForUpdate(orderItemId).orElseThrow(() -> new ReviewException("이미 작성된 리뷰는 한번만 수정할 수 있습니다."));
+
+        review.update(
+                request.getRating(),
+                request.getContent(),
+                request.getHeightCm(),
+                request.getWeightKg(),
+                request.getFitEvaluation(),
+                request.getFitPreference()
+                );
+
+        log.info("[리뷰 수정 요청 완료] orderItemId : {}", orderItemId);
+
+        return Map.of(
+                "result", "Y",
+                "message", "리뷰가 성공적으로 수정되었습니다..");
     }
 }

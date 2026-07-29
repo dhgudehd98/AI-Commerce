@@ -133,6 +133,12 @@ public class AuthService {
     }
 
     private String createCustomerKey() {
+        /**
+         * customerKey에 대한 값 양식
+         * 2~300자 길이
+         * 영문 대소문자, 숫자, 특수문자(-, _, =, ., @) 사용 가능12
+         * 특수문자를 최소 1개 이상 포함
+         */
         return "Cus_" + UUID.randomUUID();
     }
 }

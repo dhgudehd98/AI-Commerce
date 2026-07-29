@@ -19,4 +19,13 @@ public class ReviewController {
         Long memberId = 1L;
         return ResponseEntity.ok(reviewService.createReview(memberId, orderItemId,request));
     }
+
+    @PostMapping("update/{orderItemId}")
+    public ResponseEntity<?> updateReview(
+            @PathVariable("orderItemId") Long orderItemId,
+            @RequestBody ReviewRequestDto request
+    ) {
+        Long memberId = 1L;
+        return ResponseEntity.ok(reviewService.updateReview(memberId, orderItemId, request));
+    }
 }
