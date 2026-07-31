@@ -4,8 +4,8 @@ import com.sh.aicommerce.common.exception.review.ReviewException;
 import com.sh.aicommerce.entity.Member;
 import com.sh.aicommerce.entity.OrderItem;
 import com.sh.aicommerce.entity.Orders;
-import com.sh.aicommerce.entity.Product;
 import com.sh.aicommerce.entity.ProductOption;
+import com.sh.aicommerce.entity.ProductVariant;
 import com.sh.aicommerce.entity.Review;
 import com.sh.aicommerce.enums.review.FitEvaluation;
 import com.sh.aicommerce.enums.review.FitPreference;
@@ -26,12 +26,12 @@ class ReviewTest {
     void setUp() {
         Member member = mock(Member.class);
         Orders order = mock(Orders.class);
-        Product product = mock(Product.class);
+        ProductVariant productVariant = mock(ProductVariant.class);
         ProductOption productOption = mock(ProductOption.class);
         orderItem = mock(OrderItem.class);
 
         when(order.getMember()).thenReturn(member);
-        when(productOption.getProduct()).thenReturn(product);
+        when(productOption.getProductVariant()).thenReturn(productVariant);
         when(orderItem.getOrder()).thenReturn(order);
         when(orderItem.getProductOption()).thenReturn(productOption);
     }
@@ -41,6 +41,9 @@ class ReviewTest {
         Review review = createReview();
 
         assertThat(review.getStatus()).isEqualTo(ReviewStatus.ACTIVE);
+        assertThat(review.getProductVariant()).isSameAs(
+                orderItem.getProductOption().getProductVariant()
+        );
         assertThat(review.isEditUsed()).isFalse();
         assertThat(review.isRewriteUsed()).isFalse();
         assertThat(review.getCreatedAt()).isNotNull();

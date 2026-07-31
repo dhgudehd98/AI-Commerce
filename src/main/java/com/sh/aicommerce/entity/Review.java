@@ -20,8 +20,8 @@ import java.time.LocalDateTime;
         },
         indexes = {
                 @Index(
-                        name = "idx_review_product_status_created",
-                        columnList = "product_id,status,created_at"
+                        name = "idx_review_variant_status_created",
+                        columnList = "product_variant_id,status,created_at"
                 ),
                 @Index(
                         name = "idx_review_member_status_created",
@@ -49,8 +49,8 @@ public class Review {
     private OrderItem orderItem;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "product_id", nullable = false)
-    private Product product;
+    @JoinColumn(name = "product_variant_id", nullable = false)
+    private ProductVariant productVariant;
 
     @Column(nullable = false)
     private Integer rating; // 평점
@@ -103,7 +103,7 @@ public class Review {
         Review review = new Review();
         review.orderItem = orderItem;
         review.member = orderItem.getOrder().getMember();
-        review.product = orderItem.getProductOption().getProduct();
+        review.productVariant = orderItem.getProductOption().getProductVariant();
         review.applyReviewValues(
                 rating,
                 content,
@@ -218,7 +218,7 @@ public class Review {
                 || orderItem.getOrder() == null
                 || orderItem.getOrder().getMember() == null
                 || orderItem.getProductOption() == null
-                || orderItem.getProductOption().getProduct() == null) {
+                || orderItem.getProductOption().getProductVariant() == null) {
             throw new ReviewException("구매 정보가 유효하지 않습니다.");
         }
     }
