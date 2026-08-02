@@ -1,5 +1,6 @@
 package com.sh.aicommerce.outboxEvent.redis;
 
+import com.sh.aicommerce.outboxEvent.review.service.ReviewOutboxPublishService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -20,6 +21,7 @@ import org.springframework.stereotype.Repository;
 public class ReviewOutboxIndexConsumer implements ApplicationRunner {
 
     private final ReviewEmbeddingProcessor processor;
+    private final ReviewOutboxPublishService outboxPublishService;
     private final StreamMessageListenerContainer<String, MapRecord<String, String, String>> container;
     private final StringRedisTemplate redisTemplate;
     private static final String STREAM_NAME = "review:embedding:stream";
@@ -72,9 +74,9 @@ public class ReviewOutboxIndexConsumer implements ApplicationRunner {
 
     public void handleReview(MapRecord<String, String, String> message) {
         String messageId = message.getId().getValue();
+        Long reviewId = Long.parseLong(message.getValue().get("reviewId"));
 
         try {
-            Long reviewId = Long.parseLong(message.getValue().get("reviewId"));
             processor.processEmbedding(reviewId);
 
             redisTemplate.opsForStream()
@@ -85,6 +87,7 @@ public class ReviewOutboxIndexConsumer implements ApplicationRunner {
             log.error(
                     "[리뷰 Embedding 실패] : messageId = {}", messageId
             );
+            outboxPublishService.markRetry(reviewId);
         }
     }
 }
