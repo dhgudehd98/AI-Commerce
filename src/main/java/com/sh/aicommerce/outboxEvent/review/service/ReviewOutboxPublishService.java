@@ -25,7 +25,7 @@ public class ReviewOutboxPublishService {
         // ReviewOutboxEvent에 저장된 임베딩 할 데이터 조회
         List<ReviewOutboxEvent> events = eventRepository.findPublishingTargets();
 
-        events.forEach(ReviewOutboxEvent::processing);
+        events.forEach(ReviewOutboxEvent::publishing);
 
         return events.stream()
                 .map(ReviewOutboxEvent::getId)
@@ -42,12 +42,5 @@ public class ReviewOutboxPublishService {
     public void markFailed(Long outboxId, String failureCode) {
         ReviewOutboxEvent event = eventRepository.findById(outboxId).orElseThrow(() -> new OutboxException("ReviewOutboxEvent가 존재하지 않습니다."));
         event.markFailed(failureCode);
-    }
-
-    @Transactional
-    public void markRetry(Long reviewId) {
-        // 여기에서는 PUBLISHED인 상태만 조회 하기 -> 실패하면 Pending Message로 떨어질테니 PendingMessage 처리 로직에서 처리
-        ReviewOutboxEvent event = eventRepository.findByReviewIdStatusRetry(reviewId).orElseThrow(() -> new OutboxException("ReviewId에 해당하는 ReviewOutbox에 대한 정보가 존재하지 않습니다."));
-        event.markRetry();
     }
 }

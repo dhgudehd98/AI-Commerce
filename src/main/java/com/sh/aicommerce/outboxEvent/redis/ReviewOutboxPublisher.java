@@ -26,8 +26,12 @@ public class ReviewOutboxPublisher {
     public void publish() {
         List<Long> outboxes = publishService.publishReviewEvents();
 
+        // publishing 할 데이터가 존재하지 않으면 스케줄러 종료
+        if(outboxes.size() <= 0) return;
+
         // OutboxId 발행하여 해당 리뷰의 리뷰의 정보를 Redis에 저장
         for (Long outboxIds : outboxes) {
+            log.info("[Review Outbox] Publishing ReviewOutboxId : {}", outboxIds);
             publishOne(outboxIds);
         }
     }
@@ -49,11 +53,11 @@ public class ReviewOutboxPublisher {
 
             // ReveiwOutbox Status -> PUBLISHED로 변경
             publishService.markPublished(outboxId);
+            log.info("[ReviewOutbox Published] Publish outboxId : {}", outboxId);
         } catch (Exception e) {
-            log.error("[ReviewOutbox Publisher] : OutboxEvent 발행 실패");
-
+            log.error("[Review Outbox FAILED] FAIL outboxId : {}", outboxId);
             // ReveiwOutbox Status -> FAILED로 변경
-            publishService.markFailed(outboxId,"REDIS_STREM_WRITE_FAILED");
+            publishService.markFailed(outboxId,"REVIEW_OUTBOX_PUBLISHED_FAIL");
         }
     }
 }

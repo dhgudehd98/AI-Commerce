@@ -2,7 +2,7 @@ package com.sh.aicommerce.enums.review.reviewEvent;
 
 public enum OutboxPublishStatus {
     PENDING,
-    PROCESSING,
+    PUBLISHING,
     PUBLISHED,
     RETRY_WAIT,
     FAILED

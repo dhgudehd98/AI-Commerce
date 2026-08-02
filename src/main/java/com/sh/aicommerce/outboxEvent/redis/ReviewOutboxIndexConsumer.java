@@ -87,7 +87,6 @@ public class ReviewOutboxIndexConsumer implements ApplicationRunner {
             log.error(
                     "[리뷰 Embedding 실패] : messageId = {}", messageId
             );
-            outboxPublishService.markRetry(reviewId);
         }
     }
 }

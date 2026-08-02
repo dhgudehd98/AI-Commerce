@@ -36,6 +36,7 @@ public class ReviewEmbeddingProcessor {
         }
 
         ReviewDocumentDto reviewDocumentDto = optionalReviewDto.get();
+        log.info("[Review ES 적재 요청] reviewId : {}", reviewDocumentDto.getReviewId());
 
         if (!reviewDocumentDto.getStatus().equals(ReviewStatus.ACTIVE)) {
             reviewDocumentRepository.deleteById(reviewId);
@@ -43,6 +44,8 @@ public class ReviewEmbeddingProcessor {
         }
 
         float[] contentEmbedding = embeddingModel.embed(reviewDocumentDto.getContent());
+
+        log.info("[Review ES 적재] reviewId : {}", reviewId);
         ReviewDocument document = ReviewDocument.createDocument(reviewDocumentDto, contentEmbedding);
 
         reviewDocumentRepository.save(document);
