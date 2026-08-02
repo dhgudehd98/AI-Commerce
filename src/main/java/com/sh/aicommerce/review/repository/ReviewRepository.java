@@ -42,4 +42,15 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
       and r.status = 'DELETED'
     """)
     Optional<Review> reviewReWriteForUpdate(@Param("orderItemId")Long orderItemId);
+
+    @Query("""
+    select r
+    from Review r
+    join fetch r.orderItem oi
+    join fetch oi.productOption po
+    join fetch po.productVariant pv
+    where
+     r.id = :reviewId
+    """)
+    Optional<Review> findByIdWithProductOption(@Param("reviewId")Long reviewId);
 }

@@ -8,6 +8,7 @@ import com.sh.aicommerce.common.exception.delivery.DeliveryException;
 import com.sh.aicommerce.common.exception.member.MemberException;
 import com.sh.aicommerce.common.exception.order.OrderException;
 import com.sh.aicommerce.common.exception.orderItem.OrderItemException;
+import com.sh.aicommerce.common.exception.outbox.OutboxException;
 import com.sh.aicommerce.common.exception.payment.PaymentException;
 import com.sh.aicommerce.common.exception.product.ProductException;
 import com.sh.aicommerce.common.exception.review.ReviewException;
@@ -29,6 +30,11 @@ import java.util.Map;
 @Slf4j
 public class GlobalExceptionHandler {
 
+    @ExceptionHandler(OutboxException.class)
+    public ResponseEntity<?> handleOutboxException(OutboxException e) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("result", "N", "message", e.getMessage()));
+    }
     @ExceptionHandler(ReviewException.class)
     public ResponseEntity<?> handleReviewException(ReviewException e) {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)

@@ -3,29 +3,34 @@ package com.sh.aicommerce.review.service;
 import com.sh.aicommerce.auth.repository.AuthRepository;
 import com.sh.aicommerce.common.exception.member.MemberException;
 import com.sh.aicommerce.common.exception.review.ReviewException;
-import com.sh.aicommerce.entity.Member;
-import com.sh.aicommerce.entity.OrderItem;
-import com.sh.aicommerce.entity.Review;
+import com.sh.aicommerce.entity.*;
 import com.sh.aicommerce.enums.review.FitEvaluation;
 import com.sh.aicommerce.enums.review.FitPreference;
+import com.sh.aicommerce.enums.review.dto.ReviewDocumentDto;
 import com.sh.aicommerce.orderItem.service.OrderItemService;
+import com.sh.aicommerce.outboxEvent.review.repository.ReviewOutBoxEventRepository;
 import com.sh.aicommerce.review.dto.ReviewRequestDto;
 import com.sh.aicommerce.review.repository.ReviewRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Map;
+import java.util.Optional;
 
 @Service
 @Slf4j
 @RequiredArgsConstructor
 public class ReviewService {
+
     private final AuthRepository authRepository;
     private final OrderItemService itemService;
     private final ReviewRepository reviewRepository;
+    private final ReviewOutBoxEventRepository eventRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public Map<String,String> createReview(Long memberId, Long orderItemId, ReviewRequestDto request) {
@@ -54,6 +59,10 @@ public class ReviewService {
         } catch (DataIntegrityViolationException e) {
             throw new ReviewException("해당 주문 상품에는 이미 리뷰가 작성되어 있습니다.");
         }
+
+        //색인 과정을 비동기 처리 하기 위한 outBox 패턴 적용
+        ReviewOutboxEvent event = ReviewOutboxEvent.createEvent(review, orderItem.getProductOption().getId());
+        eventRepository.save(event);
 
 
         return Map.of(
@@ -126,5 +135,11 @@ public class ReviewService {
         return Map.of(
                 "result", "Y",
                 "message", "리뷰가 성공적으로 작성되었습니다..");
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<ReviewDocumentDto> getReviewIndexSource(Long reviewId) {
+        return reviewRepository.findByIdWithProductOption(reviewId)
+                .map(review -> ReviewDocumentDto.create(review));
     }
 }

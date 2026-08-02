@@ -1,6 +1,7 @@
 package com.sh.aicommerce.entity;
 
 
+import com.sh.aicommerce.enums.review.reviewEvent.OutboxPublishStatus;
 import com.sh.aicommerce.enums.review.reviewEvent.ReviewEventType;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -8,6 +9,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
+import java.util.function.Consumer;
 
 @Entity
 @Table(
@@ -29,6 +32,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ReviewOutboxEvent {
 
+    private static final Integer MAX_RETRY_COUNT = 3;
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "outbox_id")
@@ -47,6 +51,10 @@ public class ReviewOutboxEvent {
     @Column(name = "product_option_id", nullable = false)
     private Long productOptionId;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "publish_status", nullable = false, length = 20)
+    private OutboxPublishStatus publishStatus;
+
     @Column(name = "occurred_at", nullable = false)
     private LocalDateTime occurredAt; // 이벤트 발생 시각
 
@@ -58,4 +66,37 @@ public class ReviewOutboxEvent {
 
     @Column(name = "last_failure_code", length = 100)
     private String lastFailureCode; // 마지막 발행 실패 원인
+
+    public static ReviewOutboxEvent createEvent(Review review, Long productOptionId) {
+        ReviewOutboxEvent event = new ReviewOutboxEvent();
+
+        event.eventId = UUID.randomUUID().toString();
+        event.review_id = review.getId();
+        event.productOptionId = productOptionId;
+        event.publishStatus = OutboxPublishStatus.PENDING;
+        event.eventType = ReviewEventType.CREATED;
+        event.occurredAt = LocalDateTime.now();
+        event.publishAttemptCount = 0;
+
+        return event;
+    }
+
+
+    public void processing() {
+        this.publishStatus = OutboxPublishStatus.PROCESSING;
+        this.publishAttemptCount++;
+    }
+
+    public void markPublished() {
+        this.publishStatus = OutboxPublishStatus.PUBLISHED;
+        this.publishedAt = LocalDateTime.now();
+        this.lastFailureCode = null;
+    }
+
+    public void markFailed(String lastFailureCode) {
+        this.publishStatus = publishAttemptCount >= MAX_RETRY_COUNT
+                ? OutboxPublishStatus.FAILED
+                : OutboxPublishStatus.RETRY_WAIT;
+        this.lastFailureCode = lastFailureCode;
+    }
 }
