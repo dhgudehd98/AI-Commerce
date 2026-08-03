@@ -25,7 +25,7 @@ public class ReviewOutboxFailLog {
     @Column(name = "review_index_fail_log_id")
     private Long id;
 
-    private Long reviewOutboxId;
+    private Long reviewId;
 
     @Column(nullable = false)
     private String messageId;
@@ -39,8 +39,8 @@ public class ReviewOutboxFailLog {
     private String failReason;
     private String action;
 
-    public ReviewOutboxFailLog(Long reviewOutboxId, String messageId, String failReason, String action) {
-        this.reviewOutboxId = reviewOutboxId;
+    public ReviewOutboxFailLog(Long reviewId, String messageId, String failReason, String action) {
+        this.reviewId = reviewId;
         this.messageId = messageId;
         this.failReason = failReason;
         this.action = action;

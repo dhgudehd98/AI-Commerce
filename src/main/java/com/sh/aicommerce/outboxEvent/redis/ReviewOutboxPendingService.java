@@ -15,6 +15,7 @@ import org.springframework.data.redis.connection.stream.PendingMessages;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.util.List;
@@ -82,11 +83,24 @@ public class ReviewOutboxPendingService {
             boolean isAck = saveReviewOutboxIndexFailLog(new ReviewOutboxFailLog(messageId, "Pending 메세지 원본 데이터 조회 실패"));
             // 해당 문제를 방지하기 위해서 ACK 설정
             if(isAck) ackPendingMessage(messageId);
+
+            return;
         }
+
+        // 원본 데이터가 존재하고, 재시도 횟수가 3회 초과인 상태면 강제 ACK 처리
+        MapRecord<String, String, String> message = records.get(0);
+        Long reviewId = Long.parseLong(message.getValue().get("reviewId"));
+        String action = message.getValue().get("type");
+
+        log.info("[Review 색인 과정 실패] 실패 사유 : 재시도 횟수초과 reivewId : {}", reviewId);
+        boolean isAck = saveReviewOutboxIndexFailLog(new ReviewOutboxFailLog( reviewId,messageId, "재시도 횟수 초과 ", action));
+        if (isAck) ackPendingMessage(messageId);
     }
 
-    private boolean saveReviewOutboxIndexFailLog(ReviewOutboxFailLog reviewOutboxFailLog) {
+    @Transactional
+    public boolean saveReviewOutboxIndexFailLog(ReviewOutboxFailLog reviewOutboxFailLog) {
         try{
+            log.info("[Pending Message 재시도 횟수 초과] FailLog 저장 messageId : {}", reviewOutboxFailLog.getMessageId());
             failLogRepository.save(reviewOutboxFailLog);
             return true;
         } catch (DataIntegrityViolationException dataException) {
@@ -100,6 +114,7 @@ public class ReviewOutboxPendingService {
 
     private void ackPendingMessage(String messageId) {
         try {
+            log.info("[Pending Message 재시도 횟수 초과 강제 ACK] MessageId : {}", messageId);
             stringRedisTemplate.opsForStream()
                     .acknowledge(STREAM_NAME, GROUP_NAME, messageId);
         } catch (Exception e) {
