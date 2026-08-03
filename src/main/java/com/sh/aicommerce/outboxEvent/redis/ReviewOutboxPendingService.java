@@ -60,7 +60,7 @@ public class ReviewOutboxPendingService {
                     .claim(STREAM_NAME, GROUP_NAME, CONSUMER_NAME, MIN_IDLE_TIME, message.getId());
 
             for (MapRecord<String, String, String> claimMessage : claimMessages) {
-                log.info("[상품 Pending Message 처리] : messageId : {}, 상품 ID :{}, Action : {}", claimMessage.getId(), claimMessage.getValue().get("productId"), claimMessage.getValue().get("action"));
+                log.info("[Review Pending Data Index 재처리 요청] Review MessageId : {}, reviewId : {}", claimMessage.getId().getValue(), claimMessage.getValue().get("reviewId"));
                 reviewOutboxIndexConsumer.handleReview(claimMessage);
             }
         }
