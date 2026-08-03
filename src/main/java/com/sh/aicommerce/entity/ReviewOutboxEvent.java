@@ -70,7 +70,7 @@ public class ReviewOutboxEvent {
     @Column(name = "last_failure_code", length = 100)
     private String lastFailureCode; // 마지막 발행 실패 원인
 
-    public static ReviewOutboxEvent createEvent(Review review, Long productOptionId) {
+    public static ReviewOutboxEvent createEvent(Review review, Long productOptionId, ReviewEventType type) {
         ReviewOutboxEvent event = new ReviewOutboxEvent();
 
         event.eventId = UUID.randomUUID().toString();
@@ -79,6 +79,7 @@ public class ReviewOutboxEvent {
         event.publishStatus = OutboxPublishStatus.PENDING;
         event.eventType = ReviewEventType.CREATED;
         event.occurredAt = LocalDateTime.now();
+        event.eventType = type;
         event.publishAttemptCount = 0;
 
         return event;

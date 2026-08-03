@@ -7,6 +7,7 @@ import com.sh.aicommerce.entity.*;
 import com.sh.aicommerce.enums.review.FitEvaluation;
 import com.sh.aicommerce.enums.review.FitPreference;
 import com.sh.aicommerce.enums.review.dto.ReviewDocumentDto;
+import com.sh.aicommerce.enums.review.reviewEvent.ReviewEventType;
 import com.sh.aicommerce.orderItem.service.OrderItemService;
 import com.sh.aicommerce.outboxEvent.review.repository.ReviewOutBoxEventRepository;
 import com.sh.aicommerce.review.dto.ReviewRequestDto;
@@ -30,7 +31,6 @@ public class ReviewService {
     private final OrderItemService itemService;
     private final ReviewRepository reviewRepository;
     private final ReviewOutBoxEventRepository eventRepository;
-    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public Map<String,String> createReview(Long memberId, Long orderItemId, ReviewRequestDto request) {
@@ -61,7 +61,7 @@ public class ReviewService {
         }
 
         //색인 과정을 비동기 처리 하기 위한 outBox 패턴 적용
-        ReviewOutboxEvent event = ReviewOutboxEvent.createEvent(review, orderItem.getProductOption().getId());
+        ReviewOutboxEvent event = ReviewOutboxEvent.createEvent(review, orderItem.getProductOption().getId(), ReviewEventType.CREATED);
         eventRepository.save(event);
 
 
@@ -75,6 +75,7 @@ public class ReviewService {
         log.info("[리뷰 수정 요청] orderItemId : {}", orderItemId);
 
         Member member = authRepository.findById(memberId).orElseThrow(() -> new MemberException("등록되지 않은 회원입니다. 다시 로그인해주세요."));
+        OrderItem orderItem = itemService.validateOrderItemPaidOrder(memberId, orderItemId);
 
         // 리뷰 중복 수정 가능 여부 파악
         Review review = reviewRepository.reviewUpdateForUpdate(orderItemId).orElseThrow(() -> new ReviewException("이미 작성된 리뷰는 한번만 수정할 수 있습니다."));
@@ -90,6 +91,9 @@ public class ReviewService {
 
         log.info("[리뷰 수정 요청 완료] orderItemId : {}", orderItemId);
 
+        ReviewOutboxEvent event = ReviewOutboxEvent.createEvent(review, orderItem.getProductOption().getId(), ReviewEventType.UPDATED);
+        eventRepository.save(event);
+
         return Map.of(
                 "result", "Y",
                 "message", "리뷰가 성공적으로 수정되었습니다..");
@@ -100,13 +104,16 @@ public class ReviewService {
         log.info("[리뷰 삭제 요청] orderItemId : {}", orderItemId);
 
         Member member = authRepository.findById(memberId).orElseThrow(() -> new MemberException("등록되지 않은 회원입니다. 다시 로그인해주세요."));
+        OrderItem orderItem = itemService.validateOrderItemPaidOrder(memberId, orderItemId);
 
         // 리뷰 중복 수정 가능 여부 파악
         Review review = reviewRepository.reviewDeleteForUpdate(orderItemId).orElseThrow(() -> new ReviewException("삭제 가능한 리뷰가 존재하지 않습니다."));
 
+        ReviewOutboxEvent event = ReviewOutboxEvent.createEvent(review, orderItem.getProductOption().getId(), ReviewEventType.DELETED);
+        eventRepository.save(event);
         review.delete();
 
-        log.info("[리뷰 삭제 요청 완료] orderItemId : {}", orderItemId);
+        log.info("[리뷰 삭제 요청 완료] reviewId : {}, orderItemId : {}", review.getId(), orderItemId);
 
         return Map.of(
                 "result", "Y",
@@ -117,6 +124,7 @@ public class ReviewService {
     public Map<String,String> reWriteReview(Long memberId, Long orderItemId, ReviewRequestDto request) {
         log.info("[리뷰 재작성 요청] orderItemId : {}", orderItemId);
         Member member = authRepository.findById(memberId).orElseThrow(() -> new MemberException("등록되지 않은 회원입니다. 다시 로그인해주세요."));
+        OrderItem orderItem = itemService.validateOrderItemPaidOrder(memberId, orderItemId);
 
         // 리뷰 중복 수정 가능 여부 파악
         Review review = reviewRepository.reviewReWriteForUpdate(orderItemId).orElseThrow(() -> new ReviewException("재작성 가능한 리뷰가 존재하지 않습니다."));
@@ -131,6 +139,9 @@ public class ReviewService {
         );
 
         log.info("[리뷰 재작성 요청 완료] orderItemId : {}", orderItemId);
+
+        ReviewOutboxEvent event = ReviewOutboxEvent.createEvent(review, orderItem.getProductOption().getId(), ReviewEventType.REWRITTEN);
+        eventRepository.save(event);
 
         return Map.of(
                 "result", "Y",

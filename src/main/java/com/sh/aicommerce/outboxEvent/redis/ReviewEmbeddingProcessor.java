@@ -31,11 +31,16 @@ public class ReviewEmbeddingProcessor {
 
         if (optionalReviewDto.isEmpty()) {
             // DB에 해당 Review에 대한 데이터가 존재하지 않으면 ES에도 해당 ReviewId로 존재하는 document 삭제
-            reviewDocumentRepository.deleteById(reviewId);
+            deleteDocument(reviewId);
             return;
         }
 
         ReviewDocumentDto reviewDocumentDto = optionalReviewDto.get();
+
+        if (reviewDocumentDto.getStatus().equals(ReviewStatus.DELETED) || reviewDocumentDto.getStatus().equals(ReviewStatus.EXCLUDED)) {
+            deleteDocument(reviewId);
+            return;
+        }
         log.info("[Review ES 적재 요청] reviewId : {}", reviewDocumentDto.getReviewId());
 
         if (!reviewDocumentDto.getStatus().equals(ReviewStatus.ACTIVE)) {
@@ -46,9 +51,15 @@ public class ReviewEmbeddingProcessor {
         float[] contentEmbedding = embeddingModel.embed(reviewDocumentDto.getContent());
 
         log.info("[Review ES 적재] reviewId : {}", reviewId);
-        ReviewDocument document = ReviewDocument.createDocument(reviewDocumentDto, contentEmbedding);
 
+        ReviewDocument document = ReviewDocument.createDocument(reviewDocumentDto, contentEmbedding);
         reviewDocumentRepository.save(document);
+    }
+
+    private void deleteDocument(Long reviewId) {
+        log.info("[리뷰 ES 문서 삭제 요청] reviewId : {}", reviewId);
+        reviewDocumentRepository.deleteById(reviewId);
+        log.info("[리뷰 ES 문서 삭제 완료] reviewId : {}", reviewId);
     }
 
 }
