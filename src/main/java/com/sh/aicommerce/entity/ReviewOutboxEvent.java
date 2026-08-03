@@ -55,6 +55,9 @@ public class ReviewOutboxEvent {
     @Column(name = "publish_status", nullable = false, length = 20)
     private OutboxPublishStatus publishStatus;
 
+    @Column(name = "processing_started_at")
+    private LocalDateTime processingStartedAt;
+
     @Column(name = "occurred_at", nullable = false)
     private LocalDateTime occurredAt; // 이벤트 발생 시각
 
@@ -82,21 +85,22 @@ public class ReviewOutboxEvent {
     }
 
 
-    public void processing() {
-        this.publishStatus = OutboxPublishStatus.PROCESSING;
-        this.publishAttemptCount++;
-    }
-
     public void markPublished() {
         this.publishStatus = OutboxPublishStatus.PUBLISHED;
         this.publishedAt = LocalDateTime.now();
         this.lastFailureCode = null;
     }
 
+    public void publishing() {
+        this.publishStatus = OutboxPublishStatus.PUBLISHING;
+        this.processingStartedAt = LocalDateTime.now();
+        this.publishAttemptCount++;
+    }
+
     public void markFailed(String lastFailureCode) {
         this.publishStatus = publishAttemptCount >= MAX_RETRY_COUNT
                 ? OutboxPublishStatus.FAILED
-                : OutboxPublishStatus.RETRY_WAIT;
+                : OutboxPublishStatus.PENDING;
         this.lastFailureCode = lastFailureCode;
     }
 }
