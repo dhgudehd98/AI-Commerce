@@ -77,7 +77,6 @@ public class ReviewOutboxEvent {
         event.review_id = review.getId();
         event.productOptionId = productOptionId;
         event.publishStatus = OutboxPublishStatus.PENDING;
-        event.eventType = ReviewEventType.CREATED;
         event.occurredAt = LocalDateTime.now();
         event.eventType = type;
         event.publishAttemptCount = 0;
