@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -25,4 +26,14 @@ public interface ReviewOutBoxEventRepository extends JpaRepository<ReviewOutboxE
     )
     List<ReviewOutboxEvent> findPublishingTargets();
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query(
+            """
+            select e
+            from ReviewOutboxEvent e
+            where e.publishStatus = 'PUBLISHING'
+            and e.processingStartedAt < :expiredAt
+            """
+    )
+    List<ReviewOutboxEvent> findExpiredPublishingReviewEvents(@Param("expiredAt") LocalDateTime expiredAt);
 }

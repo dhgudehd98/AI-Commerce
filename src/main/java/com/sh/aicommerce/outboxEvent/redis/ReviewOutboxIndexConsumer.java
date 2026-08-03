@@ -1,6 +1,6 @@
 package com.sh.aicommerce.outboxEvent.redis;
 
-import com.sh.aicommerce.outboxEvent.review.service.ReviewOutboxPublishService;
+import com.sh.aicommerce.outboxEvent.review.service.ReviewOutboxService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -13,7 +13,6 @@ import org.springframework.data.redis.connection.stream.StreamOffset;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.stream.StreamMessageListenerContainer;
 import org.springframework.stereotype.Component;
-import org.springframework.stereotype.Repository;
 
 @Component
 @RequiredArgsConstructor
@@ -21,7 +20,6 @@ import org.springframework.stereotype.Repository;
 public class ReviewOutboxIndexConsumer implements ApplicationRunner {
 
     private final ReviewEmbeddingProcessor processor;
-    private final ReviewOutboxPublishService outboxPublishService;
     private final StreamMessageListenerContainer<String, MapRecord<String, String, String>> container;
     private final StringRedisTemplate redisTemplate;
     private static final String STREAM_NAME = "review:embedding:stream";

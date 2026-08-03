@@ -84,6 +84,10 @@ public class ReviewOutboxEvent {
         return event;
     }
 
+    public void recoverPending() {
+        this.publishStatus = OutboxPublishStatus.PENDING;
+        this.processingStartedAt = null;
+    }
 
     public void markPublished() {
         this.publishStatus = OutboxPublishStatus.PUBLISHED;
@@ -102,5 +106,6 @@ public class ReviewOutboxEvent {
                 ? OutboxPublishStatus.FAILED
                 : OutboxPublishStatus.PENDING;
         this.lastFailureCode = lastFailureCode;
+        this.processingStartedAt = null;
     }
 }
