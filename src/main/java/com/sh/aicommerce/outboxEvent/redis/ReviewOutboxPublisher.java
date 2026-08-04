@@ -12,12 +12,13 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 import java.util.Map;
 
+import static com.sh.aicommerce.outboxEvent.review.config.ReviewStreamConstants.STREAM_NAME;
+
 @Component
 @RequiredArgsConstructor
 @Slf4j
 public class ReviewOutboxPublisher {
 
-    private static final String STREAM_KEY = "review:embedding:stream";
     private final StringRedisTemplate stringRedisTemplate;
     private final ReviewOutboxService outboxService;
     private final ReviewOutBoxEventRepository outBoxEventRepository;
@@ -42,7 +43,7 @@ public class ReviewOutboxPublisher {
 
         try {
             stringRedisTemplate.opsForStream().add(
-                    STREAM_KEY,
+                    STREAM_NAME,
                     Map.of(
                             "eventId", event.getEventId(),
                             "type", event.getEventType().name(),

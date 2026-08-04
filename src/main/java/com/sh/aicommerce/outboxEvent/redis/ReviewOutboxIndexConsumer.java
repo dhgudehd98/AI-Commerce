@@ -14,6 +14,9 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.stream.StreamMessageListenerContainer;
 import org.springframework.stereotype.Component;
 
+import static com.sh.aicommerce.outboxEvent.review.config.ReviewStreamConstants.GROUP_NAME;
+import static com.sh.aicommerce.outboxEvent.review.config.ReviewStreamConstants.STREAM_NAME;
+
 @Component
 @RequiredArgsConstructor
 @Slf4j
@@ -22,17 +25,14 @@ public class ReviewOutboxIndexConsumer implements ApplicationRunner {
     private final ReviewEmbeddingProcessor processor;
     private final StreamMessageListenerContainer<String, MapRecord<String, String, String>> container;
     private final StringRedisTemplate redisTemplate;
-    private static final String STREAM_NAME = "review:embedding:stream";
-    private static final String GROUP_NAME = "reviewEvent-group";
-
-    @Value("${redis.stream.review.consumer}")
-    private String CONSUMER_NAME;
+    @Value("${redis.stream.review.consumer-name}")
+    private String consumerName;
 
     @Override
     public void run(ApplicationArguments args) throws Exception {
         initStream();
         container.receive(
-                Consumer.from(GROUP_NAME, CONSUMER_NAME),
+                Consumer.from(GROUP_NAME, consumerName),
                 StreamOffset.create(STREAM_NAME, ReadOffset.lastConsumed()),
                 this::handleReview
         );

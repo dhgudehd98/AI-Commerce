@@ -21,15 +21,15 @@ import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import static com.sh.aicommerce.outboxEvent.review.config.ReviewStreamConstants.GROUP_NAME;
+import static com.sh.aicommerce.outboxEvent.review.config.ReviewStreamConstants.STREAM_NAME;
+
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class ReviewOutboxPendingService {
-    private static final String STREAM_NAME = "review:embedding:stream";
-    private static final String GROUP_NAME = "reviewEvent-group";
-
-    @Value("${redis.stream.review.consumer}")
-    private String CONSUMER_NAME;
+    @Value("${redis.stream.review.consumer-name}")
+    private String consumerName;
     private static final Duration MIN_IDLE_TIME = Duration.ofSeconds(30);
 
     private final ReviewOutboxFailLogRepository failLogRepository;
@@ -57,7 +57,7 @@ public class ReviewOutboxPendingService {
 
             // Pending 메시지 처리 재시도 횟수가 3회 이하인 경우 재시도 -> XCLAIM 으로
             List<MapRecord<String, String, String>> claimMessages = (List<MapRecord<String, String, String>>) (List<?>) stringRedisTemplate.opsForStream()
-                    .claim(STREAM_NAME, GROUP_NAME, CONSUMER_NAME, MIN_IDLE_TIME, message.getId());
+                    .claim(STREAM_NAME, GROUP_NAME, consumerName, MIN_IDLE_TIME, message.getId());
 
             for (MapRecord<String, String, String> claimMessage : claimMessages) {
                 log.info("[Review Pending Data Index 재처리 요청] Review MessageId : {}, reviewId : {}", claimMessage.getId().getValue(), claimMessage.getValue().get("reviewId"));
