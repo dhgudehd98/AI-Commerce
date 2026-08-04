@@ -21,13 +21,13 @@ import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import static com.sh.aicommerce.outboxEvent.review.config.ReviewStreamConstants.GROUP_NAME;
-import static com.sh.aicommerce.outboxEvent.review.config.ReviewStreamConstants.STREAM_NAME;
-
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class ReviewOutboxPendingService {
+    private static final String STREAM_NAME = "review:embedding:stream";
+    private static final String GROUP_NAME = "reviewEvent-group";
+
     @Value("${redis.stream.review.consumer-name}")
     private String consumerName;
     private static final Duration MIN_IDLE_TIME = Duration.ofSeconds(30);
