@@ -25,7 +25,7 @@ public class ReviewOutboxIndexConsumer implements ApplicationRunner {
     private static final String STREAM_NAME = "review:embedding:stream";
     private static final String GROUP_NAME = "reviewEvent-group";
 
-    @Value("${redis.stream.review.consumer.group}")
+    @Value("${redis.stream.review.consumer}")
     private String CONSUMER_NAME;
 
     @Override

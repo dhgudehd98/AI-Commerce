@@ -29,7 +29,7 @@ public class ProductIndexConsumer implements ApplicationRunner {
     private static final String STREAM_NAME = "product:index:stream";
     private static final String GROUP_NAME = "product-group";
 
-    @Value("${redis.stream.consumer.group}")
+    @Value("${redis.stream.product.consumer}")
     private String CONSUMER_NAME;
 
     //DB 관련
