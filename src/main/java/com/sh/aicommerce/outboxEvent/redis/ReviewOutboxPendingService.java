@@ -30,7 +30,7 @@ public class ReviewOutboxPendingService {
 
     @Value("${redis.stream.review.consumer-name}")
     private String consumerName;
-    private static final Duration MIN_IDLE_TIME = Duration.ofSeconds(30);
+    private static final Duration MIN_IDLE_TIME = Duration.ofMinutes(30);
 
     private final ReviewOutboxFailLogRepository failLogRepository;
     private final StringRedisTemplate stringRedisTemplate;

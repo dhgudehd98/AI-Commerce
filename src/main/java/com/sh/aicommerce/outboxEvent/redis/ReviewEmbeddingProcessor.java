@@ -45,6 +45,22 @@ public class ReviewEmbeddingProcessor {
             return;
         }
 
+        Optional<ReviewDocument> existingDocument = reviewDocumentRepository.findById(initSourceReview.getReviewId());
+
+        // 동일한 Review를 중복으로 Embedding 하는 과정을 방지하기 위해서 해당 로직 추가
+        if (existingDocument.isPresent() &&
+                Objects.equals(
+                        existingDocument.get().getSourceUpdatedAt(),
+                        initSourceReview.getSourceUpdatedAt()
+                )) {
+            log.info(
+                    "[Review Embedding 생략] 최신 ES 문서가 이미 존재 reviewId: {}",
+                    reviewId
+            );
+
+            return;
+        }
+
         // 리뷰 내용 임베딩
         float[] contentEmbedding = createReviewEmbedding(initSourceReview.getReviewId(),initSourceReview.getContent());
 
