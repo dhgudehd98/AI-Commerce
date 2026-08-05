@@ -1,7 +1,8 @@
 package com.sh.aicommerce.outboxEvent.redis;
 
-import com.sh.aicommerce.entity.ProductIndexFailLog;
 import com.sh.aicommerce.entity.ReviewOutboxFailLog;
+import com.sh.aicommerce.enums.review.reviewEvent.ReviewEmbeddingFailureCode;
+import com.sh.aicommerce.enums.review.reviewEvent.ReviewEventType;
 import com.sh.aicommerce.outboxEvent.review.repository.ReviewOutBoxEventRepository;
 import com.sh.aicommerce.outboxEvent.review.repository.ReviewOutboxFailLogRepository;
 import lombok.RequiredArgsConstructor;
@@ -13,18 +14,17 @@ import org.springframework.data.redis.connection.stream.MapRecord;
 import org.springframework.data.redis.connection.stream.PendingMessage;
 import org.springframework.data.redis.connection.stream.PendingMessages;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class ReviewOutboxPendingService {
+    private static final String FAILURE_KEY_PREFIX = "review:embedding:failure:";
     private static final String STREAM_NAME = "review:embedding:stream";
     private static final String GROUP_NAME = "reviewEvent-group";
 
@@ -79,22 +79,32 @@ public class ReviewOutboxPendingService {
         if (records == null || records.isEmpty()) {
             log.error("[Pending 원본 메시지 조회 실패] messageId :{}", messageId);
 
-            // 색인 실패 로그 저장
-            boolean isAck = saveReviewOutboxIndexFailLog(new ReviewOutboxFailLog(messageId, "Pending 메세지 원본 데이터 조회 실패"));
+            ReviewEmbeddingFailureCode failureCode = ReviewEmbeddingFailureCode.STREAM_MESSAGE_NOTFOUND;
+            // 원본 데이터가 없는 경우 색인 실패 로그 저장
+            ReviewOutboxFailLog failLog = ReviewOutboxFailLog.createMissingMessage(messageId, failureCode);
+            boolean saved = saveReviewOutboxIndexFailLog(failLog);
             // 해당 문제를 방지하기 위해서 ACK 설정
-            if(isAck) ackPendingMessage(messageId);
+            if(saved && ackPendingMessage(messageId)) deleteFailureCode(messageId);
 
             return;
         }
 
         // 원본 데이터가 존재하고, 재시도 횟수가 3회 초과인 상태면 강제 ACK 처리
         MapRecord<String, String, String> message = records.get(0);
+
+        String eventId = message.getValue().get("eventId");
         Long reviewId = Long.parseLong(message.getValue().get("reviewId"));
-        String action = message.getValue().get("type");
+        ReviewEventType type = ReviewEventType.valueOf(message.getValue().get("type"));
+        ReviewEmbeddingFailureCode failCode = getFailureCodeByMessageId(messageId);
+
 
         log.info("[Review 색인 과정 실패] 실패 사유 : 재시도 횟수초과 reivewId : {}", reviewId);
-        boolean isAck = saveReviewOutboxIndexFailLog(new ReviewOutboxFailLog( reviewId,messageId, "재시도 횟수 초과 ", action));
-        if (isAck) ackPendingMessage(messageId);
+
+        // 색인 실패(재시도 횟수 초과)시 FailLog DB에 저장
+        ReviewOutboxFailLog reviewOutboxFailLog = ReviewOutboxFailLog.create(eventId, reviewId, messageId, type, failCode);
+        boolean saved = saveReviewOutboxIndexFailLog(reviewOutboxFailLog);
+
+        if(saved && ackPendingMessage(messageId)) deleteFailureCode(messageId);
     }
 
     @Transactional
@@ -112,13 +122,37 @@ public class ReviewOutboxPendingService {
         }
     }
 
-    private void ackPendingMessage(String messageId) {
+    private boolean ackPendingMessage(String messageId) {
         try {
             log.info("[Pending Message 재시도 횟수 초과 강제 ACK] MessageId : {}", messageId);
             stringRedisTemplate.opsForStream()
                     .acknowledge(STREAM_NAME, GROUP_NAME, messageId);
+
+            return true;
         } catch (Exception e) {
             log.error("[Pending 메시지 ACK 실패] messageId : {}", messageId);
+            return false;
         }
+    }
+
+    private ReviewEmbeddingFailureCode getFailureCodeByMessageId(String messageId) {
+        String failureCodeValue =
+                stringRedisTemplate.opsForValue().get(
+                        FAILURE_KEY_PREFIX + messageId
+                );
+
+        if(failureCodeValue == null) return ReviewEmbeddingFailureCode.UNKNOWN_ERROR;
+
+        try{
+            return ReviewEmbeddingFailureCode.valueOf(failureCodeValue);
+        }catch (IllegalArgumentException exception) {
+            return ReviewEmbeddingFailureCode.UNKNOWN_ERROR;
+        }
+    }
+
+    private void deleteFailureCode(String messageId) {
+        stringRedisTemplate.delete(
+                FAILURE_KEY_PREFIX + messageId
+        );
     }
 }
