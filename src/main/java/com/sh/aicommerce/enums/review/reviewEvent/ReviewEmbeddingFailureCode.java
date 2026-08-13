@@ -3,6 +3,8 @@ package com.sh.aicommerce.enums.review.reviewEvent;
 public enum ReviewEmbeddingFailureCode {
     REVIEW_SOURCE_READ_FAILED,
     INVALID_STREAM_MESSAGE,
+    INVALID_EMBEDDING_CONTENT,
+    BODY_INFO_SANITIZATION_FAILED,
     EMBEDDING_API_FAILED,
     ELASTICSEARCH_SAVE_FAILED,
     ELASTICSEARCH_DELETE_FAILED,

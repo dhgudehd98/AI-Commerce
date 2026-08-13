@@ -60,6 +60,7 @@ public class ReviewDocument {
 
     public static ReviewDocument createDocument(
             ReviewDocumentDto dto,
+            String sanitizedContent,
             float[] reviewEmbedding
     ) {
         ReviewDocument document = new ReviewDocument();
@@ -67,7 +68,7 @@ public class ReviewDocument {
         document.productVariantId = dto.getProductVariantId();
         document.productOptionId = dto.getProductOptionId();
         document.purchasedSize = dto.getPurchasedSize();
-        document.content = dto.getContent();
+        document.content = sanitizedContent;
         document.contentEmbedding = reviewEmbedding;
         document.heightCm = dto.getHeightCm();
         document.weightKg = dto.getWeightKg();

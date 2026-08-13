@@ -7,6 +7,7 @@ import com.sh.aicommerce.enums.review.dto.ReviewDocumentDto;
 import com.sh.aicommerce.enums.review.es.ReviewDocument;
 import com.sh.aicommerce.enums.review.redis.repository.ReviewDocumentRepository;
 import com.sh.aicommerce.enums.review.reviewEvent.ReviewEmbeddingFailureCode;
+import com.sh.aicommerce.review.embedding.ReviewEmbeddingContentSanitizer;
 import com.sh.aicommerce.review.service.ReviewService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,6 +25,7 @@ public class ReviewEmbeddingProcessor {
     private final ReviewDocumentRepository reviewDocumentRepository;
     private final ReviewService reviewService;
     private final EmbeddingModel embeddingModel;
+    private final ReviewEmbeddingContentSanitizer contentSanitizer;
 
 
     public void processEmbedding(Long reviewId) {
@@ -61,8 +63,12 @@ public class ReviewEmbeddingProcessor {
             return;
         }
 
-        // 리뷰 내용 임베딩
-        float[] contentEmbedding = createReviewEmbedding(initSourceReview.getReviewId(),initSourceReview.getContent());
+        // 키와 몸무게 표현을 제거한 검색용 리뷰 내용만 임베딩
+        String sanitizedContent = contentSanitizer.sanitize(initSourceReview.getContent());
+        float[] contentEmbedding = createReviewEmbedding(
+                initSourceReview.getReviewId(),
+                sanitizedContent
+        );
 
         // 임베딩을 한 후에, Review에 대한 값 다시 조회하기 해당 Review에 대한 값이 변경되었으면 ES에 저장을 하면 안되기 떄문에
         /**
@@ -100,7 +106,11 @@ public class ReviewEmbeddingProcessor {
         }
 
         // Review ES에 저장
-        ReviewDocument document = ReviewDocument.createDocument(latestSource, contentEmbedding);
+        ReviewDocument document = ReviewDocument.createDocument(
+                latestSource,
+                sanitizedContent,
+                contentEmbedding
+        );
         saveDocument(document);
     }
 
