@@ -29,8 +29,8 @@ public class ProductIndexConsumer implements ApplicationRunner {
     private static final String STREAM_NAME = "product:index:stream";
     private static final String GROUP_NAME = "product-group";
 
-    @Value("${redis.stream.consumer.group}")
-    private String CONSUMER_NAME;
+    @Value("${redis.stream.product.consumer-name}")
+    private String consumerName;
 
     //DB 관련
     private final ProductRepository productRepository;
@@ -43,7 +43,7 @@ public class ProductIndexConsumer implements ApplicationRunner {
     public void run(ApplicationArguments args) throws Exception {
         initStream(); // Stream / Consumer / Consumer-group 생성
         container.receive(
-                Consumer.from(GROUP_NAME, CONSUMER_NAME),
+                Consumer.from(GROUP_NAME, consumerName),
                 StreamOffset.create(STREAM_NAME, ReadOffset.lastConsumed()),
                 this::handleProduct
         );

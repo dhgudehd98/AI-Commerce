@@ -30,8 +30,8 @@ public class ProductPendingService {
     private final StringRedisTemplate redisTemplate;
     private static final String STREAM_NAME = "product:index:stream";
     private static final String GROUP_NAME = "product-group";
-    @Value("${redis.stream.consumer.group}")
-    private String CONSUMER_NAME;
+    @Value("${redis.stream.product.consumer-name}")
+    private String consumerName;
 
     private static final int MAX_DELIVERY_COUNT = 3;
     private static final Duration MIN_IDLE_TIME = Duration.ofSeconds(30);
@@ -57,7 +57,7 @@ public class ProductPendingService {
 
             // Pending 메시지 처리 재시도 횟수가 3회 이하인 경우 재시도 -> XCLAIM 으로
             List<MapRecord<String, String, String>> claimMessages = (List<MapRecord<String, String, String>>) (List<?>) redisTemplate.opsForStream()
-                    .claim(STREAM_NAME, GROUP_NAME, CONSUMER_NAME, MIN_IDLE_TIME, message.getId());
+                    .claim(STREAM_NAME, GROUP_NAME, consumerName, MIN_IDLE_TIME, message.getId());
 
             for (MapRecord<String, String, String> claimMessage : claimMessages) {
                 log.info("[상품 Pending Message 처리] : messageId : {}, 상품 ID :{}, Action : {}", claimMessage.getId(), claimMessage.getValue().get("productId"), claimMessage.getValue().get("action"));

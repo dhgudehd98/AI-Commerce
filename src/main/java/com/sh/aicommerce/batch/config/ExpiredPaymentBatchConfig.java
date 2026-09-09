@@ -39,7 +39,7 @@ public class ExpiredPaymentBatchConfig {
     private final JobRepository jobRepository;
 
     @Bean
-    public Job expiredPaymentJob(Step paymentStep) {
+    public Job expiredPaymentBatchJob(Step paymentStep) {
         return new JobBuilder("expiredPaymentJob", jobRepository)
                 .incrementer(new RunIdIncrementer())
                 .listener(jobListener)
