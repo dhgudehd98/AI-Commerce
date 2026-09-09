@@ -30,7 +30,4 @@ public class OutboundItem {
 
     @Column(nullable = false)
     private Integer quantity; // 출고 수
-
-    @Column(nullable = false)
-    private LocalDateTime outboundTime;
 }

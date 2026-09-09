@@ -1,9 +1,13 @@
 package com.sh.aicommerce.wms.outbound.enums;
 
 public enum OutboundStatus {
-    PENDING, // 출고 요청 -> 실재 재고 / 차감 / 출고 전
-    COMPLETED, // 출고 처리 완료(재고 차감 및 StockMovement 저장까지 완료된 상태)
-    FAILED, // 출고 처리 실패
-    CANCELED // 출고 요청 취소
+    PENDING, // 출고대기
+    ON_HOLD, // 출고 보류
+    PICKING, // 피킹
+    PACKING, // 포장
+    DELIVERY_REQUEST, // 인계요청
+    COMPLETED, //완료
+    CANCELED, // 주문취소
+    FAILED
 
 }

@@ -37,8 +37,8 @@ public class Outbound {
     @Column(nullable = false)
     private OutboundStatus outBoundStatus;
 
-    @ManyToOne(fetch =  FetchType.LAZY)
-    @JoinColumn(name = "order_id")
+    @OneToOne(fetch =  FetchType.LAZY)
+    @JoinColumn(name = "order_id", nullable = false, unique = true)
     private Orders order;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -49,9 +49,13 @@ public class Outbound {
     private List<OutboundItem> outBoundItems = new ArrayList<>();
 
     @Column(nullable = false)
-    private LocalDateTime createdAt;
+    private LocalDateTime createdAt; // 출고 요청 생성 시간
 
-    private LocalDateTime completedAt;
+    private LocalDateTime updatedAt;
 
-    private String createdBy;
+    private LocalDateTime deliveryRequestedAt; // 택배 인계 요청 시간 -> PACKING까지 완료하면 자동으로 택배 인계 요청하기
+
+    private LocalDateTime completedAt; // 출고 완료 시간 -> 실제로 택배 인계 완료까지에 대한 시간
+
+
 }

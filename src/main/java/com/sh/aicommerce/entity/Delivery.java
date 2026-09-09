@@ -44,6 +44,8 @@ public class Delivery {
     @Column(nullable = false)
     private String addressDetail;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
     private DeliveryCompany deliveryCompany;
 
     private String trackingNumber;
