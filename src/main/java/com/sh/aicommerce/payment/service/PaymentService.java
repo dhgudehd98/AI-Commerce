@@ -200,6 +200,8 @@ public class PaymentService {
 
         String orderName = "아이앱 스튜디오 후드 라이트 그레이";
         TossPaymentSuccessResponseDto response = client.cardBilling(card.getBillingKey(), member.getCustomerKey(), payment.getAmount(), orderNumber, orderName, member.getEmail(), member.getMemberName(), 0);
+
+        // 결제 완료시 Payment 및 Order 내역 업데이트
         paymentTransactionService.applyPaymentByTossBillingCard(memberId, orderNumber, response);
 
         return response;

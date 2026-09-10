@@ -16,6 +16,7 @@ import com.sh.aicommerce.toss.dto.request.TossPaymentRequestDto;
 import com.sh.aicommerce.toss.dto.response.TossPaymentSuccessResponseDto;
 import com.sh.aicommerce.toss.repository.TossPaymentLogRepository;
 import com.sh.aicommerce.wms.inventory.repository.ProductInventoryRepository;
+import com.sh.aicommerce.wms.outbound.service.OutboundService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -31,6 +32,8 @@ public class PaymentTransactionService {
     private final PaymentRepository paymentRepository;
     private final ProductInventoryRepository inventoryRepository;
     private final TossPaymentLogRepository logRepository;
+
+    private final OutboundService outboundService;
     private final CardRepository cardRepository;
     private final AuthRepository authRepository;
 
@@ -101,6 +104,9 @@ public class PaymentTransactionService {
         payment.updateCardByBillingCard(response);
 
         if(payment.getStatus().equals(PaymentStatus.PAID)) order.updateStatus();
+
+        // 결제 완료 시, 출고 요청 처리
+        outboundService.createOutbound(order);
 
     }
 

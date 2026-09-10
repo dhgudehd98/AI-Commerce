@@ -5,6 +5,7 @@ import com.sh.aicommerce.wms.outbound.enums.OutboundType;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.query.Order;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -58,4 +59,20 @@ public class Outbound {
     private LocalDateTime completedAt; // 출고 완료 시간 -> 실제로 택배 인계 완료까지에 대한 시간
 
 
+    public static Outbound createOutboundByOrder(String outboundNumber, Orders order, Warehouse warehouse) {
+        Outbound outbound = new Outbound();
+        outbound.outboundNumber = outboundNumber;
+        outbound.outBoundType = OutboundType.ORDER;
+        outbound.outBoundStatus = OutboundStatus.PENDING;
+        outbound.createdAt = LocalDateTime.now();
+        outbound.warehouse = warehouse;
+        outbound.order = order;
+
+        for (OrderItem orderItem : order.getOrderItems()) {
+            OutboundItem outboundItem = OutboundItem.create(orderItem, outbound);
+            outbound.outBoundItems.add(outboundItem);
+        }
+
+        return outbound;
+    }
 }
