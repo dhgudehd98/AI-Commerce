@@ -62,6 +62,7 @@ public class Delivery {
 
     public static Delivery createDelivery(Receiver receiver) {
         Delivery delivery = new Delivery();
+        delivery.deliveryCompany = DeliveryCompany.CJ;
         delivery.deliveryStatus = DeliveryStatus.CREATE;
         delivery.recipientName = receiver.getName();
         delivery.recipientPhone = receiver.getPhone();
