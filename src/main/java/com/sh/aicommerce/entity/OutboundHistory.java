@@ -47,7 +47,7 @@ public class OutboundHistory {
     @NotNull
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, updatable = false)
-    private OutboundStatus nextStatus;
+    private OutboundStatus currentStatus;
 
     // 개인정보나 예외 전문이 아닌 업무 사유 및 정제된 실패 원인을 저장한다.
     @Lob
@@ -76,10 +76,23 @@ public class OutboundHistory {
         this.outbound = outbound;
         this.eventType = eventType;
         this.previousStatus = previousStatus;
-        this.nextStatus = nextStatus;
+        this.currentStatus = nextStatus;
         this.reason = reason;
         this.actorType = actorType;
         this.actor = actor;
         this.createdAt = createdAt;
+    }
+
+    public static OutboundHistory createOutboundHistoryByStatusChange(Member member, Outbound outbound, OutboundStatus previousStatus) {
+        OutboundHistory history = new OutboundHistory();
+        history.outbound = outbound;
+        history.eventType = OutboundHistoryEventType.STATUS_CHANGED;
+        history.previousStatus = previousStatus;
+        history.currentStatus = outbound.getOutBoundStatus();
+        history.actorType = OutboundHistoryActorType.ADMIN;
+        history.actor = member.getMemberName();
+        history.createdAt = LocalDateTime.now();
+
+        return history;
     }
 }

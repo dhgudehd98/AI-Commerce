@@ -29,8 +29,12 @@
         .detail-row td { background: #f8f9fb; white-space: normal; }
         .detail-row h2 { margin: 0 0 16px; font-size: 16px; }
         .detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 18px; margin: 0; }
+        [hidden] { display: none !important; }
         .detail-grid dt { margin-bottom: 6px; font-size: 13px; color: #667085; }
         .detail-grid dd { margin: 0; overflow-wrap: anywhere; }
+        .outbound-actions { margin-top: 24px; padding-top: 18px; border-top: 1px solid #e1e5eb; }
+        .outbound-actions p { margin: 10px 0 0; color: #667085; font-size: 13px; }
+        button:disabled { cursor: not-allowed; color: #667085; background: #edf0f4; }
         @media (max-width: 600px) { main { margin: 24px auto; } .toolbar, .pagination { padding: 16px; } }
     </style>
 </head>
@@ -76,6 +80,7 @@
                         th:classappend="${outbound.cancellationRequested ? 'requested' : ''}">-</td>
                     <td>
                         <button type="button" class="detail-toggle" aria-expanded="false"
+                                th:data-detail-url="@{/api/admin/outbounds/{id}(id=${outbound.outboundId})}"
                                 th:attr="aria-controls=|outbound-detail-${row.index}|,aria-label=|출고 ${outbound.outboundNumber} 상세보기|">상세보기</button>
                     </td>
                 </tr>
@@ -90,6 +95,41 @@
                             <div><dt>총 출고 수량</dt><dd th:text="|${outbound.totalQuantity}개|">-</dd></div>
                             <div><dt>등록일</dt><dd th:text="${outbound.createdAt != null ? #temporals.format(outbound.createdAt, 'yyyy-MM-dd HH:mm:ss') : '-'}">-</dd></div>
                             <div><dt>취소 요청</dt><dd th:text="${outbound.cancellationRequested ? '요청됨' : '없음'}">-</dd></div>
+                        </dl>
+                        <div class="outbound-actions" th:data-status-url="@{/api/admin/outbounds/{id}/status(id=${outbound.outboundId})}">
+                            <h2>출고 작업</h2>
+                            <p th:if="${outbound.cancellationRequested}">취소 요청된 출고입니다. 작업을 진행할 수 없습니다.</p>
+                            <th:block th:unless="${outbound.cancellationRequested}">
+                                <div th:switch="${outbound.outboundStatus}">
+                                    <button th:case="'출고요청'" type="button" class="status-action" data-status="PICKING">피킹 시작</button>
+                                    <button th:case="'피킹시작'" type="button" class="status-action" data-status="PICKED">피킹 완료</button>
+                                    <button th:case="'피킹완료'" type="button" class="status-action" data-status="PACKING">포장 시작</button>
+                                    <button th:case="'포장시작'" type="button" class="status-action" data-status="PACKED">포장 완료</button>
+                                    <button th:case="'포장완료'" type="button" class="status-action" data-status="DELIVERY_REQUEST">인계 요청</button>
+                                    <p th:case="'인계요청'">인계 요청 상태입니다.</p>
+                                    <p th:case="'출고보류'">보류 중인 출고입니다.</p>
+                                    <p th:case="'출고완료'">출고가 완료되었습니다.</p>
+                                    <p th:case="'출고취소'">취소된 출고입니다.</p>
+                                    <p th:case="'출고실패'">출고 실패 내역을 확인해주세요.</p>
+                                    <p th:case="*">현재 상태에서 진행할 수 있는 작업이 없습니다.</p>
+                                </div>
+                            </th:block>
+                            <p class="status-message" role="status" aria-live="polite"></p>
+                        </div>
+                        <h2 style="margin-top: 24px">수령인 및 배송 정보</h2>
+                        <p class="detail-message" role="status" aria-live="polite"></p>
+                        <button type="button" class="detail-retry" hidden>다시 조회</button>
+                        <dl class="detail-grid delivery-detail" hidden>
+                            <div><dt>수령인</dt><dd data-field="recipientName">-</dd></div>
+                            <div><dt>연락처</dt><dd data-field="recipientPhone">-</dd></div>
+                            <div><dt>우편번호</dt><dd data-field="zipCode">-</dd></div>
+                            <div><dt>배송지</dt><dd data-field="address">-</dd></div>
+                            <div><dt>상세 주소</dt><dd data-field="addressDetail">-</dd></div>
+                            <div><dt>택배사</dt><dd data-field="deliveryCompany">-</dd></div>
+                            <div><dt>운송장 번호</dt><dd data-field="trackingNumber">-</dd></div>
+                            <div><dt>인계 요청일</dt><dd data-field="deliveryRequestedAt">-</dd></div>
+                            <div><dt>출고 완료일</dt><dd data-field="completedAt">-</dd></div>
+                            <div><dt>보류 사유</dt><dd data-field="holdReason">-</dd></div>
                         </dl>
                     </td>
                 </tr>
@@ -113,15 +153,114 @@
     </section>
 </main>
 <script>
+    document.querySelectorAll('.status-action').forEach(button => {
+        button.addEventListener('click', async () => {
+            if (button.disabled) return;
+            const actions = button.closest('.outbound-actions');
+            const message = actions.querySelector('.status-message');
+            const label = button.textContent;
+            button.disabled = true;
+            button.textContent = '처리 중…';
+            message.textContent = '';
+            let succeeded = false;
+            try {
+                const response = await fetch(actions.dataset.statusUrl, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json', Accept: 'application/json'},
+                    credentials: 'same-origin',
+                    body: JSON.stringify({status: button.dataset.status})
+                });
+                if (response.status === 401 || response.status === 403 || response.redirected) {
+                    throw new Error('로그인 상태와 관리자 권한을 확인해주세요.');
+                }
+                const isJson = (response.headers.get('content-type') || '').includes('application/json');
+                const data = isJson ? await response.json() : null;
+                if (!response.ok || data?.result === 'N') {
+                    throw new Error(data?.message || '상태 변경에 실패했습니다. 현재 상태를 확인해주세요.');
+                }
+                if (!data || data.outboundId == null || typeof data.outboundStatus !== 'string') {
+                    throw new Error('처리 결과를 확인할 수 없습니다. 목록을 새로고침해 상태를 확인해주세요.');
+                }
+                succeeded = true;
+                message.textContent = '상태가 변경되었습니다. 목록을 갱신합니다.';
+                window.location.reload();
+            } catch (error) {
+                message.textContent = error instanceof TypeError
+                    ? '연결이 끊어져 처리 결과를 확인할 수 없습니다. 목록을 새로고침해 상태를 확인해주세요.'
+                    : error.message;
+            } finally {
+                if (!succeeded) {
+                    button.disabled = false;
+                    button.textContent = label;
+                }
+            }
+        });
+    });
+
     document.querySelectorAll('.detail-toggle').forEach(button => {
+        const detail = document.getElementById(button.getAttribute('aria-controls'));
+        if (!detail) return;
+        const message = detail.querySelector('.detail-message');
+        const content = detail.querySelector('.delivery-detail');
+        const retry = detail.querySelector('.detail-retry');
+        let loading = false;
+
+        async function loadDetail() {
+            if (loading) return;
+            loading = true;
+            content.hidden = true;
+            retry.hidden = true;
+            message.textContent = '상세정보를 불러오는 중입니다.';
+            detail.setAttribute('aria-busy', 'true');
+            try {
+                const response = await fetch(button.dataset.detailUrl, {
+                    headers: {Accept: 'application/json'},
+                    credentials: 'same-origin',
+                    cache: 'no-store'
+                });
+                if (response.status === 401 || response.status === 403 || response.redirected) {
+                    throw new Error('로그인 상태와 관리자 권한을 확인해주세요.');
+                }
+                if (!response.ok) {
+                    throw new Error(response.status === 404
+                        ? '출고 상세정보를 찾을 수 없습니다.'
+                        : '상세정보를 불러오지 못했습니다. 다시 시도해주세요.');
+                }
+                if (!(response.headers.get('content-type') || '').includes('application/json')) {
+                    throw new Error('상세정보를 확인할 수 없습니다. 로그인 상태를 확인해주세요.');
+                }
+                const data = await response.json();
+                if (!data || typeof data !== 'object' || !('recipientName' in data)) {
+                    throw new Error('상세정보 응답을 확인할 수 없습니다.');
+                }
+                content.querySelectorAll('[data-field]').forEach(element => {
+                    const field = element.dataset.field;
+                    const value = data[field];
+                    element.textContent = value == null || value === '' ? '-'
+                        : field.endsWith('At') ? String(value).replace('T', ' ')
+                        : field === 'deliveryCompany' && value === 'CJ' ? 'CJ대한통운'
+                        : String(value);
+                });
+                message.textContent = '';
+                content.hidden = false;
+            } catch (error) {
+                message.textContent = error instanceof TypeError
+                    ? '서버에 연결하지 못했습니다. 다시 시도해주세요.' : error.message;
+                retry.hidden = false;
+            } finally {
+                loading = false;
+                detail.setAttribute('aria-busy', 'false');
+            }
+        }
+
         button.addEventListener('click', () => {
-            const detail = document.getElementById(button.getAttribute('aria-controls'));
-            if (!detail) return;
             const expanded = button.getAttribute('aria-expanded') === 'true';
             detail.hidden = expanded;
             button.setAttribute('aria-expanded', String(!expanded));
             button.textContent = expanded ? '상세보기' : '상세닫기';
+            if (!expanded) loadDetail();
         });
+        retry.addEventListener('click', loadDetail);
     });
 </script>
 </body>

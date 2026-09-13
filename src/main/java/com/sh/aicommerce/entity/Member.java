@@ -2,6 +2,7 @@ package com.sh.aicommerce.entity;
 
 
 import com.sh.aicommerce.auth.dto.request.AuthJoinRequestDto;
+import com.sh.aicommerce.enums.member.MemberType;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -26,6 +27,9 @@ public class Member {
 
     @OneToMany(mappedBy = "member")
     private List<Orders> orders = new ArrayList<>();
+
+    @Enumerated(EnumType.STRING)
+    private MemberType memberType;
 
     @Column(nullable = false, unique = true)
     private String customerKey;

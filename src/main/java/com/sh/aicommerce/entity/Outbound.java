@@ -61,6 +61,8 @@ public class Outbound {
     @Column(nullable = false)
     private boolean cancellationRequest;
 
+    private String outboundHoldReason;
+
 
     public static Outbound createOutboundByOrder(String outboundNumber, Orders order, Warehouse warehouse) {
         Outbound outbound = new Outbound();
@@ -78,5 +80,9 @@ public class Outbound {
         }
 
         return outbound;
+    }
+
+    public void changeOutboundStatus(OutboundStatus outBoundStatus) {
+        this.outBoundStatus = outBoundStatus;
     }
 }
