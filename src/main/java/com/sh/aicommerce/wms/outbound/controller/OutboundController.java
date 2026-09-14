@@ -49,7 +49,16 @@ public class OutboundController {
     ) {
         Long memberId = 1L; // 관리자 ID -> 지금은 하드코딩으로 설정
         return ResponseEntity.ok(outboundService.changeOutboundStatus(memberId, requestDto.getStatus(), outboundId));
+    }
 
+    @GetMapping("{outboundId}/histories")
+    public ResponseEntity<?> getOutboundHistories(
+            @PathVariable Long outboundId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
+    ) {
+        Long memberId = 1L;
+        return ResponseEntity.ok(outboundService.getOutboundHistories(memberId, outboundId, page, size));
     }
 
 

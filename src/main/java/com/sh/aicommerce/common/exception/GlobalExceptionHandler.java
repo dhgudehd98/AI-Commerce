@@ -16,6 +16,7 @@ import com.sh.aicommerce.common.exception.search.SearchException;
 import com.sh.aicommerce.common.exception.search.WeatherException;
 import com.sh.aicommerce.common.exception.wms.InventoryException;
 import com.sh.aicommerce.common.exception.wms.OutboundException;
+import com.sh.aicommerce.common.exception.wms.OutboundNotFoundException;
 import com.sh.aicommerce.common.exception.wms.WarehouseException;
 import com.sh.aicommerce.entity.Outbound;
 import lombok.extern.slf4j.Slf4j;
@@ -32,6 +33,11 @@ import java.util.Map;
 @Slf4j
 public class GlobalExceptionHandler {
 
+    @ExceptionHandler(OutboundNotFoundException.class)
+    public ResponseEntity<?> handleOutboundNotFoundException(OutboundNotFoundException e) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(Map.of("result", "N", "message", e.getMessage()));
+    }
     @ExceptionHandler(OutboundException.class)
     public ResponseEntity<?> handleOutboundException(OutboundException e) {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)

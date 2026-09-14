@@ -9,6 +9,7 @@ import com.sh.aicommerce.entity.*;
 import com.sh.aicommerce.enums.order.OrderStatus;
 import com.sh.aicommerce.wms.outbound.dto.request.OutboundStatusRequestDto;
 import com.sh.aicommerce.wms.outbound.dto.response.OutboundDetailResponseDto;
+import com.sh.aicommerce.wms.outbound.dto.response.OutboundHistoryResponseDto;
 import com.sh.aicommerce.wms.outbound.dto.response.OutboundStatusResponseDto;
 import com.sh.aicommerce.wms.outbound.dto.response.OutboundSummaryResponseDto;
 import com.sh.aicommerce.wms.outbound.enums.OutboundStatus;
@@ -38,7 +39,7 @@ public class OutboundService {
     private final AuthRepository authRepository;
     @Transactional
     public void createOutbound(Orders order) {
-        String outboundNumber = "outbound-1234";
+        String outboundNumber = "outbound-" + order.getId();
 
         // 일단 임시로 설정
         Warehouse warehouse = warehouseRepository.findById(1L).get();
@@ -83,7 +84,7 @@ public class OutboundService {
         log.info("[출고 상태 변경] 처리 관리자 memberId : {}", memberId);
         log.info("[NextRequestStatus] status : {}", nextRequestStatus);
 
-        Member admin = authRepository.findAdminById(memberId).orElseThrow(() -> new AuthException("해당 ID에 일치하는 관리자 정보가 존재하지 않습니다."));
+        Member admin = validateAdminMemberByMemberId(memberId);
         Outbound outbound = outboundRepository
                 .findByIdForUpdate(outboundId)
                 .orElseThrow(() -> new OutboundException("해당 ID에 일치하는 출고 정보가 존재하지 않습니다."));
@@ -139,5 +140,30 @@ public class OutboundService {
 
         return new OutboundStatusResponseDto(history);
 
+    }
+
+    public Page<OutboundHistoryResponseDto> getOutboundHistories(Long memberId, Long outboundId, int page, int size) {
+        Member admin = validateAdminMemberByMemberId(memberId);
+
+        Pageable pageable = PageRequest.of(
+                page,
+                size,
+                Sort.by(Sort.Direction.DESC, "id")
+        );
+
+        if(!existsOutbound(outboundId)) throw new OutboundException("해당 ID의 출고정보가 존재하지 않습니다.");
+
+        return historyRepository.findByOutboundId(outboundId, pageable)
+                .map(OutboundHistoryResponseDto::new);
+    }
+
+
+    private Member validateAdminMemberByMemberId(Long memberId) {
+        return authRepository.findAdminById(memberId)
+                .orElseThrow(() -> new AuthException("해당 ID에 일치하는 관리자 정보가 존재하지 않습니다."));
+    }
+
+    private boolean existsOutbound(Long outboundId) {
+        return outboundRepository.existsById(outboundId);
     }
 }

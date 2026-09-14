@@ -30,6 +30,8 @@
         .detail-row h2 { margin: 0 0 16px; font-size: 16px; }
         .detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 18px; margin: 0; }
         [hidden] { display: none !important; }
+        .detail-tabs { display: flex; gap: 8px; margin-bottom: 20px; }
+        .detail-tabs button[aria-pressed="true"] { background: #253041; color: white; }
         .detail-grid dt { margin-bottom: 6px; font-size: 13px; color: #667085; }
         .detail-grid dd { margin: 0; overflow-wrap: anywhere; }
         .outbound-actions { margin-top: 24px; padding-top: 18px; border-top: 1px solid #e1e5eb; }
@@ -86,6 +88,11 @@
                 </tr>
                 <tr class="detail-row" th:id="|outbound-detail-${row.index}|" hidden>
                     <td colspan="8">
+                        <div class="detail-tabs" role="group" aria-label="출고 상세 조회 항목">
+                            <button type="button" data-panel="summary" aria-pressed="true">상세정보</button>
+                            <button type="button" data-panel="history" aria-pressed="false">작업 이력</button>
+                        </div>
+                        <section class="summary-panel" aria-label="상세정보">
                         <h2>출고 상세정보</h2>
                         <dl class="detail-grid">
                             <div><dt>출고 ID</dt><dd th:text="${outbound.outboundId}">-</dd></div>
@@ -131,6 +138,30 @@
                             <div><dt>출고 완료일</dt><dd data-field="completedAt">-</dd></div>
                             <div><dt>보류 사유</dt><dd data-field="holdReason">-</dd></div>
                         </dl>
+                        </section>
+                        <section class="history-panel" aria-label="작업 이력" hidden
+                                 th:data-history-url="@{/api/admin/outbounds/{id}/histories(id=${outbound.outboundId})}">
+                            <h2>작업 이력</h2>
+                            <p class="history-message" role="status" aria-live="polite"></p>
+                            <button type="button" class="history-retry" hidden>다시 조회</button>
+                            <div class="table-wrap">
+                                <table>
+                                    <thead><tr>
+                                        <th scope="col">처리 시간</th><th scope="col">작업 종류</th>
+                                        <th scope="col">이전 상태</th><th scope="col">변경 상태</th>
+                                        <th scope="col">처리자 유형</th><th scope="col">처리자</th><th scope="col">사유</th>
+                                    </tr></thead>
+                                    <tbody class="history-content"></tbody>
+                                </table>
+                            </div>
+                            <div class="pagination">
+                                <span class="history-page-info"></span>
+                                <div class="links">
+                                    <button type="button" class="history-prev" disabled>이전</button>
+                                    <button type="button" class="history-next" disabled>다음</button>
+                                </div>
+                            </div>
+                        </section>
                     </td>
                 </tr>
                 </th:block>
@@ -153,6 +184,96 @@
     </section>
 </main>
 <script>
+    document.querySelectorAll('.detail-row').forEach(detail => {
+        const summary = detail.querySelector('.summary-panel');
+        const history = detail.querySelector('.history-panel');
+        const message = history.querySelector('.history-message');
+        const body = history.querySelector('.history-content');
+        const info = history.querySelector('.history-page-info');
+        const prev = history.querySelector('.history-prev');
+        const next = history.querySelector('.history-next');
+        const retry = history.querySelector('.history-retry');
+        let page = 0, loading = false, loaded = false;
+        const labels = {
+            PENDING: '출고요청', PICKING: '피킹시작', PICKED: '피킹완료',
+            PACKING: '포장시작', PACKED: '포장완료', DELIVERY_REQUEST: '인계요청',
+            COMPLETED: '출고완료', ON_HOLD: '출고보류', CANCELED: '출고취소', FAILED: '출고실패',
+            STATUS_CHANGED: '상태 변경', ADMIN: '관리자', CUSTOMER: '고객', SYSTEM: '시스템'
+        };
+        async function loadHistory(targetPage) {
+            if (loading) return;
+            loading = true;
+            page = targetPage;
+            prev.disabled = next.disabled = true;
+            retry.hidden = true;
+            body.replaceChildren();
+            info.textContent = '';
+            message.textContent = '작업 이력을 불러오는 중입니다.';
+            history.setAttribute('aria-busy', 'true');
+            try {
+                const url = new URL(history.dataset.historyUrl, window.location.href);
+                url.searchParams.set('page', String(page));
+                url.searchParams.set('size', '20');
+                const response = await fetch(url, {
+                    headers: {Accept: 'application/json'}, credentials: 'same-origin', cache: 'no-store'
+                });
+                if (response.status === 401 || response.status === 403 || response.redirected) {
+                    throw new Error('로그인 상태와 관리자 권한을 확인해주세요.');
+                }
+                if (!response.ok) throw new Error('작업 이력을 조회하지 못했습니다. 잠시 후 다시 시도해주세요.');
+                if (!(response.headers.get('content-type') || '').includes('application/json')) {
+                    throw new Error('작업 이력 응답을 확인할 수 없습니다.');
+                }
+                const data = await response.json();
+                const currentPage = data.number ?? data.page;
+                if (!Array.isArray(data.content) || !Number.isInteger(currentPage)
+                    || !Number.isInteger(data.totalPages) || !Number.isInteger(data.totalElements)) {
+                    throw new Error('작업 이력 응답 형식을 확인할 수 없습니다.');
+                }
+                data.content.forEach(item => {
+                    const row = document.createElement('tr');
+                    const values = [item.createdAt?.replace('T', ' '), labels[item.eventType] ?? item.eventType,
+                        labels[item.previousStatus] ?? item.previousStatus,
+                        labels[item.nextStatus ?? item.currentStatus] ?? item.nextStatus ?? item.currentStatus,
+                        labels[item.actorType] ?? item.actorType, item.actor, item.reason];
+                    values.forEach(value => {
+                        const cell = document.createElement('td');
+                        cell.textContent = value == null || value === '' ? '-' : String(value);
+                        row.appendChild(cell);
+                    });
+                    body.appendChild(row);
+                });
+                page = currentPage;
+                loaded = true;
+                message.textContent = data.content.length ? '' : '이 페이지에 표시할 작업 이력이 없습니다.';
+                info.textContent = `전체 ${data.totalElements}건 · ${data.totalPages === 0 ? 0 : page + 1} / ${data.totalPages}페이지`;
+                prev.disabled = page <= 0;
+                next.disabled = page + 1 >= data.totalPages;
+            } catch (error) {
+                loaded = false;
+                message.textContent = error instanceof TypeError ? '서버에 연결하지 못했습니다.' : error.message;
+                retry.hidden = false;
+            } finally {
+                loading = false;
+                history.setAttribute('aria-busy', 'false');
+            }
+        }
+        detail.querySelectorAll('[data-panel]').forEach(button => {
+            button.addEventListener('click', () => {
+                const showHistory = button.dataset.panel === 'history';
+                summary.hidden = showHistory;
+                history.hidden = !showHistory;
+                detail.querySelectorAll('[data-panel]').forEach(tab => {
+                    tab.setAttribute('aria-pressed', String(tab === button));
+                });
+                if (showHistory && !loaded) loadHistory(page);
+            });
+        });
+        prev.addEventListener('click', () => loadHistory(page - 1));
+        next.addEventListener('click', () => loadHistory(page + 1));
+        retry.addEventListener('click', () => loadHistory(page));
+    });
+
     document.querySelectorAll('.status-action').forEach(button => {
         button.addEventListener('click', async () => {
             if (button.disabled) return;
