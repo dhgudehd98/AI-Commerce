@@ -3,19 +3,24 @@ package com.sh.aicommerce.order.service;
 
 import com.sh.aicommerce.auth.repository.AuthRepository;
 import com.sh.aicommerce.common.exception.auth.AuthException;
+import com.sh.aicommerce.common.exception.order.OrderException;
 import com.sh.aicommerce.common.exception.product.ProductException;
-import com.sh.aicommerce.entity.Member;
-import com.sh.aicommerce.entity.ProductOption;
-import com.sh.aicommerce.entity.ProductVariant;
-import com.sh.aicommerce.order.dto.OrderSheetPriceDto;
-import com.sh.aicommerce.order.dto.OrderSheetProductDto;
-import com.sh.aicommerce.order.dto.OrderSheetResponseDto;
-import com.sh.aicommerce.order.dto.Receiver;
+import com.sh.aicommerce.common.exception.wms.OutboundException;
+import com.sh.aicommerce.entity.*;
+import com.sh.aicommerce.order.dto.*;
+import com.sh.aicommerce.order.orderRepository.OrderRepository;
+import com.sh.aicommerce.orderCancellation.repository.OrderCancellationRepository;
 import com.sh.aicommerce.product.repository.ProductVariantRepository;
 import com.sh.aicommerce.productOption.repository.ProductOptionRepository;
+import com.sh.aicommerce.wms.outbound.repository.OutboundRepository;
+import com.sh.aicommerce.wms.outboundHistory.repository.OutboundHistoryRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -24,12 +29,16 @@ public class OrderService {
 
     private final AuthRepository authRepository;
     private final ProductOptionRepository productOptionRepository;
+    private final OrderRepository orderRepository;
+    private final OutboundRepository outboundRepository;
+    private final OrderCancellationRepository orderCancellationRepository;
+    private final OutboundHistoryRepository historyRepository;
     private final ProductVariantRepository productVariantRepository;
 
 
     public OrderSheetResponseDto orderSheet(Long memberId, Long variantId, Long optionId) {
         // 회원에 대한 정보 검사 ->
-        Member member = authRepository.findById(memberId).orElseThrow(() -> new AuthException("존재하지 않는 회원입니다."));
+        Member member = validateMember(memberId);
 //        ProductVariant variant = productVariantRepository.findWithProductById(variantId).orElseThrow(() -> new ProductException("존재하지 않는 상품입니다."));
 
         // 상품 Variant, 상품 Option 정합성 검증(DB <-> ES)
@@ -60,5 +69,56 @@ public class OrderService {
         } else {
             return 5000;
         }
+    }
+
+    @Transactional
+    public OrderCancelResponseDto cancel(Long memberId, Long orderId, OrderCancelRequestDto requestDto) {
+        log.info("[주문 취소 요청] 주문 ID : {}", orderId);
+        try {
+            Member member = validateMember(memberId);
+            Orders order = orderRepository.findByMemberIdForUpdate(memberId, orderId)
+                    .orElseThrow(() -> new OrderException("본인 주문만 취소할 수 있습니다."));
+
+            // 주문 취소 요청 -> 중복 처리 검사
+            Optional<OrderCancellation> existCancel = orderCancellationRepository.findByOrderId(order.getId());
+            if (existCancel.isPresent()) {
+                return new OrderCancelResponseDto(
+                        "Y",
+                        "이미 접수된 취소 요청입니다. 현재 처리 상태 : " + existCancel.get().getCancelStatus().name()
+                );
+            }
+
+            // 출고 상태 확인
+            Outbound outbound = outboundRepository.findOutboundStatusBeforePackedByOrderIdForUpdate(order.getId())
+                    .orElseThrow(() -> new OutboundException("현재 출고 상태에서는 주문 취소 요청이 불가능합니다. 고객센터에 문의해주세요."));
+
+            // 출고 상태 취소 요청으로 변경
+            outbound.updateStatusCancel();
+            // 주문상태 취소 요청으로 변경
+            order.cancelOrder();
+
+            // 주문 취소 요청 Entity 생성
+            OrderCancellation orderCancellation = new OrderCancellation(order, requestDto.getReason());
+
+            // 취소 요청 이력 저장
+            OutboundHistory outboundHistory = OutboundHistory.createOutboundHistoryForOutboundCancel(member, order, outbound);
+
+            historyRepository.save(outboundHistory);
+            outboundRepository.save(outbound);
+            orderRepository.save(order);
+            orderCancellationRepository.save(orderCancellation);
+
+            log.info("[주문 취소 완료] 주문 번호 : {} , 출고 번호 : {}", orderId, outbound.getId());
+
+            return new OrderCancelResponseDto("Y", "주문 취소 요청이 완료되었습니다.");
+        } catch (Exception e) {
+            log.error("[주문 취소 처리 오류 발생] 주문 ID : {}", orderId);
+            log.error(e.getMessage());
+            throw new IllegalArgumentException("시스템 오류가 발생하였습니다. 관리자에게 문의해주세요.");
+        }
+    }
+
+    private Member validateMember(Long memberId) {
+        return authRepository.findById(memberId).orElseThrow(() -> new AuthException("존재하지 않는 회원입니다."));
     }
 }

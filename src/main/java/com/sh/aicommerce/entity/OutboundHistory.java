@@ -95,4 +95,17 @@ public class OutboundHistory {
 
         return history;
     }
+
+    public static OutboundHistory createOutboundHistoryForOutboundCancel(Member member, Orders order, Outbound outbound) {
+        OutboundHistory history = new OutboundHistory();
+        history.outbound = outbound;
+        history.eventType = OutboundHistoryEventType.CANCEL_REQUESTED;
+        history.previousStatus = outbound.getOutBoundStatus();
+        history.currentStatus = outbound.getOutBoundStatus();
+        history.actorType = OutboundHistoryActorType.CUSTOMER;
+        history.actor = member.getMemberName();
+        history.createdAt = LocalDateTime.now();
+
+        return history;
+    }
 }

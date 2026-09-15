@@ -85,4 +85,8 @@ public class Outbound {
     public void changeOutboundStatus(OutboundStatus outBoundStatus) {
         this.outBoundStatus = outBoundStatus;
     }
+
+    public void updateStatusCancel() {
+        this.cancellationRequest = true;
+    }
 }

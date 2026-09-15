@@ -41,6 +41,23 @@ public interface OutboundRepository extends JpaRepository<Outbound, Long> {
             join fetch ob.order o
             join fetch o.delivery d
             where ob.id = :outboundId
+            and ob.cancellationRequest = false
             """)
     Optional<Outbound> findByIdForUpdate(Long outboundId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+    select ob
+    from Outbound ob
+    where ob.order.id = :orderId
+    and (
+        ob.outBoundStatus = 'PENDING' or 
+        ob.outBoundStatus = 'PICKING' or
+        ob.outBoundStatus = 'PICKED' or
+        ob.outBoundStatus = 'PACKING' or
+        ob.outBoundStatus = 'PACKED' or
+        ob.outBoundStatus = 'ON_HOLD'  
+        )
+    """)
+    Optional<Outbound> findOutboundStatusBeforePackedByOrderIdForUpdate(@Param("orderId") Long orderId);
 }
