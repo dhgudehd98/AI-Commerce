@@ -1,6 +1,7 @@
 package com.sh.aicommerce.wms.outbound.controller;
 
 
+import com.sh.aicommerce.admin.service.AdminService;
 import com.sh.aicommerce.wms.outbound.dto.request.OutboundStatusRequestDto;
 import com.sh.aicommerce.wms.outbound.dto.response.OutboundStatusResponseDto;
 import com.sh.aicommerce.wms.outbound.dto.response.OutboundSummaryResponseDto;
@@ -21,6 +22,7 @@ import org.springframework.web.bind.annotation.*;
 public class OutboundController {
 
     private final OutboundService outboundService;
+
     @GetMapping("")
     public String getOutboundList(
             @RequestParam(defaultValue = "0") int page,

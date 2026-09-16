@@ -1,5 +1,6 @@
 package com.sh.aicommerce.wms.outbound.service;
 
+import com.sh.aicommerce.admin.service.AdminService;
 import com.sh.aicommerce.auth.repository.AuthRepository;
 import com.sh.aicommerce.common.exception.auth.AuthException;
 import com.sh.aicommerce.common.exception.delivery.DeliveryException;
@@ -37,6 +38,7 @@ public class OutboundService {
     private final OutboundRepository outboundRepository;
     private final WarehouseRepository warehouseRepository;
     private final AuthRepository authRepository;
+    private final AdminService adminService;
     @Transactional
     public void createOutbound(Orders order) {
         String outboundNumber = "outbound-" + order.getId();
@@ -84,7 +86,7 @@ public class OutboundService {
         log.info("[출고 상태 변경] 처리 관리자 memberId : {}", memberId);
         log.info("[NextRequestStatus] status : {}", nextRequestStatus);
 
-        Member admin = validateAdminMemberByMemberId(memberId);
+        Member admin = adminService.validateAdminMemberByMemberId(memberId);
         Outbound outbound = outboundRepository
                 .findByIdForUpdate(outboundId)
                 .orElseThrow(() -> new OutboundException("해당 ID에 일치하는 출고 정보가 존재하지 않습니다."));
@@ -143,7 +145,7 @@ public class OutboundService {
     }
 
     public Page<OutboundHistoryResponseDto> getOutboundHistories(Long memberId, Long outboundId, int page, int size) {
-        Member admin = validateAdminMemberByMemberId(memberId);
+        Member admin = adminService.validateAdminMemberByMemberId(memberId);
 
         Pageable pageable = PageRequest.of(
                 page,
@@ -155,12 +157,6 @@ public class OutboundService {
 
         return historyRepository.findByOutboundId(outboundId, pageable)
                 .map(OutboundHistoryResponseDto::new);
-    }
-
-
-    private Member validateAdminMemberByMemberId(Long memberId) {
-        return authRepository.findAdminById(memberId)
-                .orElseThrow(() -> new AuthException("해당 ID에 일치하는 관리자 정보가 존재하지 않습니다."));
     }
 
     private boolean existsOutbound(Long outboundId) {

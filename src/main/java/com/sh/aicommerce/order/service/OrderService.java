@@ -12,6 +12,7 @@ import com.sh.aicommerce.order.orderRepository.OrderRepository;
 import com.sh.aicommerce.orderCancellation.repository.OrderCancellationRepository;
 import com.sh.aicommerce.product.repository.ProductVariantRepository;
 import com.sh.aicommerce.productOption.repository.ProductOptionRepository;
+import com.sh.aicommerce.wms.outbound.enums.OutboundStatus;
 import com.sh.aicommerce.wms.outbound.repository.OutboundRepository;
 import com.sh.aicommerce.wms.outboundHistory.repository.OutboundHistoryRepository;
 import lombok.RequiredArgsConstructor;
@@ -98,7 +99,15 @@ public class OrderService {
             order.cancelOrder();
 
             // 주문 취소 요청 Entity 생성
-            OrderCancellation orderCancellation = new OrderCancellation(order, requestDto.getReason());
+            // 상품 복귀 확인 여부
+            boolean itemReturnRequired = switch (outbound.getOutBoundStatus()) {
+                case PENDING, ON_HOLD -> false;
+                case PICKING, PICKED, PACKING, PACKED -> true;
+                default -> throw new OutboundException(
+                        "현재 출고 상태에서는 취소할 수 없습니다."
+                );
+            };
+            OrderCancellation orderCancellation = new OrderCancellation(order, requestDto.getReason(), itemReturnRequired);
 
             // 취소 요청 이력 저장
             OutboundHistory outboundHistory = OutboundHistory.createOutboundHistoryForOutboundCancel(member, order, outbound);
