@@ -1,7 +1,8 @@
 package com.sh.aicommerce.orderCancellation.repository;
 
 import com.sh.aicommerce.entity.OrderCancellation;
-import com.sh.aicommerce.orderCancellation.dto.OrderCancellationWithOutbound;
+import com.sh.aicommerce.orderCancellation.dto.record.OrderCancellationDetailRecord;
+import com.sh.aicommerce.orderCancellation.dto.record.OrderCancellationWithOutbound;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -25,7 +26,7 @@ public interface OrderCancellationRepository extends JpaRepository<OrderCancella
 
     @Query(
     value = """
-    select new com.sh.aicommerce.orderCancellation.dto.OrderCancellationWithOutbound(
+    select new com.sh.aicommerce.orderCancellation.dto.record.OrderCancellationWithOutbound(
        oc,
        ob,
        oc.order.id,
@@ -41,4 +42,24 @@ public interface OrderCancellationRepository extends JpaRepository<OrderCancella
     """
     )
     Page<OrderCancellationWithOutbound> findOrderCancellationAll(Pageable pageable);
+
+    @Query(
+    value = """
+    select new com.sh.aicommerce.orderCancellation.dto.record.OrderCancellationDetailRecord(
+        oc,
+        oc.order,
+        ob,
+        m,
+        d,
+        p 
+    )
+    from OrderCancellation oc
+    join Outbound ob on ob.order = oc.order
+    join Delivery d on d.order = oc.order
+    join Payment p on p.order = oc.order
+    join Member m on oc.order.member = m 
+    where oc.id = :cancelId
+    """
+    )
+    Optional<OrderCancellationDetailRecord> findByIdWithOutbound(@Param("cancelId")Long cancelId);
 }

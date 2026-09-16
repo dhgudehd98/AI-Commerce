@@ -7,6 +7,7 @@ import com.sh.aicommerce.common.exception.card.CardException;
 import com.sh.aicommerce.common.exception.delivery.DeliveryException;
 import com.sh.aicommerce.common.exception.member.MemberException;
 import com.sh.aicommerce.common.exception.order.OrderException;
+import com.sh.aicommerce.common.exception.orderCancellation.OrderCancellationException;
 import com.sh.aicommerce.common.exception.orderItem.OrderItemException;
 import com.sh.aicommerce.common.exception.outbox.OutboxException;
 import com.sh.aicommerce.common.exception.payment.PaymentException;
@@ -33,6 +34,11 @@ import java.util.Map;
 @Slf4j
 public class GlobalExceptionHandler {
 
+    @ExceptionHandler(OrderCancellationException.class)
+    public ResponseEntity<?> handleOrderCancellationException(OrderCancellationException e) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(Map.of("result", "N", "message", e.getMessage()));
+    }
     @ExceptionHandler(OutboundNotFoundException.class)
     public ResponseEntity<?> handleOutboundNotFoundException(OutboundNotFoundException e) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)

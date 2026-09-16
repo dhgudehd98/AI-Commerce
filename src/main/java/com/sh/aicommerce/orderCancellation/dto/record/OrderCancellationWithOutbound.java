@@ -1,4 +1,4 @@
-package com.sh.aicommerce.orderCancellation.dto;
+package com.sh.aicommerce.orderCancellation.dto.record;
 
 import com.sh.aicommerce.entity.OrderCancellation;
 import com.sh.aicommerce.entity.Outbound;

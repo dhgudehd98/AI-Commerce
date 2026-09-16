@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 
@@ -24,4 +25,14 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
     """
     )
     Optional<OrderItem> validateOrderItemPaidOrderByMemberIdAndOrderItemId(@Param("memberId") Long memberId, @Param("orderItemId")Long orderItemId);
+
+    @Query(
+    """
+    select oi
+    from OrderItem oi
+    join fetch oi.productOption
+    where oi.order.id=:orderId
+    """
+    )
+    List<OrderItem> findByOrderId(@Param("orderId")Long orderId);
 }

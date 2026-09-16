@@ -1,14 +1,13 @@
 package com.sh.aicommerce.orderCancellation.controller;
 
-import com.sh.aicommerce.orderCancellation.dto.OrderCancelListResponseDto;
+import com.sh.aicommerce.orderCancellation.dto.response.OrderCancelListResponseDto;
 import com.sh.aicommerce.orderCancellation.service.OrderCancellationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.*;
 
 @Controller
 @RequestMapping("/api/admin/cancel")
@@ -27,5 +26,13 @@ public class OrderCancellationController {
         Page<OrderCancelListResponseDto> orderCancelPages = orderCancellationService.getOrderCancelList(3L, page, size);
         model.addAttribute("orderCancelPages", orderCancelPages);
         return "orderCancellation/orderCancellationList";
+    }
+
+    @PostMapping("{cancelId}")
+    public ResponseEntity<?> cancel(
+            @PathVariable Long cancelId
+    ) {
+        Long memberId = 3L;
+        return ResponseEntity.ok(orderCancellationService.cancel(cancelId));
     }
 }
