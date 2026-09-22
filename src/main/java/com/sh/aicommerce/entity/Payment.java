@@ -174,4 +174,8 @@ public class Payment {
         this.status = PaymentStatus.FAILED;
         this.updatedAt = LocalDateTime.now();
     }
+
+    public void updateCancelStatus() {
+        this.status = PaymentStatus.REFUNDED;
+    }
 }

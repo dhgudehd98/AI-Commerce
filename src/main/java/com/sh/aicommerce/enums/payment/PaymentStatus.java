@@ -12,6 +12,7 @@ public enum PaymentStatus {
     PAID("결제 완료"),
     FAILED("결제 실패"),
     CANCELED("결제 취소"),
+    CANCEL_FAILED("결제 취소 실패"),
     REFUNDED("환불");
 
     private String status;

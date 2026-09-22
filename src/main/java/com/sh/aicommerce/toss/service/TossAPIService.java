@@ -1,8 +1,10 @@
 package com.sh.aicommerce.toss.service;
 
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sh.aicommerce.common.exception.payment.PaymentException;
+import com.sh.aicommerce.entity.OrderCancellation;
 import com.sh.aicommerce.entity.Orders;
 import com.sh.aicommerce.entity.Payment;
 import com.sh.aicommerce.entity.TossPaymentLog;
@@ -14,6 +16,7 @@ import com.sh.aicommerce.payment.service.PaymentTransactionService;
 import com.sh.aicommerce.toss.dto.request.TossPaymentBillingRequestDto;
 import com.sh.aicommerce.toss.dto.request.TossPaymentRequestDto;
 import com.sh.aicommerce.toss.dto.response.TossPaymentBillingResponseDto;
+import com.sh.aicommerce.toss.dto.response.TossPaymentCancelResponseDto;
 import com.sh.aicommerce.toss.dto.response.TossPaymentSuccessResponseDto;
 import com.sh.aicommerce.toss.repository.TossPaymentLogRepository;
 import lombok.RequiredArgsConstructor;
@@ -37,7 +40,6 @@ public class TossAPIService {
     private final PaymentTransactionService paymentTransactionService;
     private final TossTransactionService transactionService;
     private final TossPaymentClient client;
-    private final OrderService orderService;
 
     // 카드 등록시 billingKey에 대한 값 획득
     public void getBillingKey(String customerKey, String authKey) {
@@ -58,5 +60,14 @@ public class TossAPIService {
         log.error("[토스페이먼츠 결제 위젯 오류 발생] 에러 코드 : {}, 에러 메세지 : {}", errorCode, errorMessage);
 
         paymentTransactionService.payFailTossPayment(orderNumber);
+    }
+
+    public void cancel(Long cancellationId) throws JsonProcessingException {
+        log.info("[토스페이먼츠 결제 취소 요청]");
+        Payment payment = paymentTransactionService.findPaymentByCancellationId(cancellationId);
+        TossPaymentCancelResponseDto response = client.cancel(payment.getPaymentKey());
+
+        // 결제 실패에 성공적으로 완료되었으면, Payment 객체 내역 업데이트
+        paymentTransactionService.cancel(response, cancellationId);
     }
 }

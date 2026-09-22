@@ -6,11 +6,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sh.aicommerce.common.exception.payment.PaymentException;
 import com.sh.aicommerce.payment.service.PaymentTransactionService;
 import com.sh.aicommerce.toss.dto.request.TossBillingPaymentRequestDto;
+import com.sh.aicommerce.toss.dto.request.TossCancelRequestDto;
 import com.sh.aicommerce.toss.dto.request.TossPaymentBillingRequestDto;
 import com.sh.aicommerce.toss.dto.request.TossPaymentRequestDto;
-import com.sh.aicommerce.toss.dto.response.TossPaymentBillingResponseDto;
-import com.sh.aicommerce.toss.dto.response.TossPaymentErrorResponseDto;
-import com.sh.aicommerce.toss.dto.response.TossPaymentSuccessResponseDto;
+import com.sh.aicommerce.toss.dto.response.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -175,6 +174,40 @@ public class TossPaymentClient {
             log.warn("[토스페이먼츠 자동결제 승인 에러] 에러 메세지 : {}", e.getMessage());
             paymentTransactionService.payFailTossPayment(orderNumber);
             throw e;
+        }
+    }
+
+    public TossPaymentCancelResponseDto cancel(String paymentKey) throws JsonProcessingException {
+        try {
+            String encodedSecretKey = Base64.getEncoder()
+                    .encodeToString((tossBillingSecretKey +
+                            ":").getBytes(StandardCharsets.UTF_8));
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.set("Authorization", "Basic " + encodedSecretKey);
+
+            TossCancelRequestDto request = new TossCancelRequestDto("고객 요청에 의한 환불 처리");
+
+            HttpEntity<TossCancelRequestDto> httpEntity =
+                    new HttpEntity<>(request, headers);
+
+            ResponseEntity<TossPaymentCancelResponseDto> response =
+                    tossRestTemplate.exchange(
+                            "https://api.tosspayments.com/v1/payments/" + paymentKey + "/cancel",
+                            HttpMethod.POST,
+                            httpEntity,
+                            TossPaymentCancelResponseDto.class
+                    );
+
+            return response.getBody();
+        } catch (HttpStatusCodeException e) {
+            TossPaymentErrorResponseDto errorResponse = objectMapper.readValue(e.getResponseBodyAsString(), TossPaymentErrorResponseDto.class);
+            log.warn("[토스페이먼츠 결제 취소 승인 실패] code : {}, message : {} ", errorResponse.getCode(), errorResponse.getMessage());
+            throw new IllegalArgumentException("토스페이먼츠 결제 취소 승인에 실패하였습니다. 관리자에게 문의해주세요.");
+        } catch (Exception e) {
+            log.warn("[토스페이먼츠 결제 취소 승인 에러] 에러 메세지 : {}", e.getMessage());
+            throw new IllegalArgumentException("토스페이먼츠 결제 취소 승인에 실패하였습니다. 관리자에게 문의해주세요.");
         }
     }
 }

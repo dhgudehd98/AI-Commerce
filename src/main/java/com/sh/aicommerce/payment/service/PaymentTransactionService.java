@@ -6,13 +6,17 @@ import com.sh.aicommerce.card.repository.CardRepository;
 import com.sh.aicommerce.common.exception.card.CardException;
 import com.sh.aicommerce.common.exception.member.MemberException;
 import com.sh.aicommerce.common.exception.order.OrderException;
+import com.sh.aicommerce.common.exception.orderCancellation.OrderCancellationException;
 import com.sh.aicommerce.common.exception.payment.PaymentException;
 import com.sh.aicommerce.common.exception.product.ProductException;
 import com.sh.aicommerce.entity.*;
 import com.sh.aicommerce.enums.payment.PaymentStatus;
 import com.sh.aicommerce.order.orderRepository.OrderRepository;
+import com.sh.aicommerce.orderCancellation.repository.OrderCancellationRepository;
+import com.sh.aicommerce.orderCancellation.service.OrderCancellationService;
 import com.sh.aicommerce.payment.repository.PaymentRepository;
 import com.sh.aicommerce.toss.dto.request.TossPaymentRequestDto;
+import com.sh.aicommerce.toss.dto.response.TossPaymentCancelResponseDto;
 import com.sh.aicommerce.toss.dto.response.TossPaymentSuccessResponseDto;
 import com.sh.aicommerce.toss.repository.TossPaymentLogRepository;
 import com.sh.aicommerce.wms.inventory.repository.ProductInventoryRepository;
@@ -36,6 +40,8 @@ public class PaymentTransactionService {
     private final OutboundService outboundService;
     private final CardRepository cardRepository;
     private final AuthRepository authRepository;
+    private final OrderCancellationRepository cancellationRepository;
+    private final OrderCancellationService cancellationService;
 
     @Transactional
     public void validatePaymentByTossWidget(TossPaymentRequestDto paymentDto) {
@@ -181,5 +187,26 @@ public class PaymentTransactionService {
         // 결제 실패 || 만료가 진행된 경우에는 Delivery Status의 상태 값을 실패로 설정
         if(order.getDelivery() != null) order.getDelivery().paymentFailUpdateStatus();
 
+    }
+
+    @Transactional
+    public void cancel(TossPaymentCancelResponseDto response, Long cancellationId) {
+        Payment payment = paymentRepository.findByPaymentKeyForUpdate(response.getPaymentKey()).orElseThrow(() -> new PaymentException("해당 PaymentKey를 가지고 있는 Payment 객체가 존재하지 않습니다."));
+
+        // 토스 페이먼츠 결제 취소 로그 작성
+
+        // 지불 상태를 환불로 상태 변경
+        payment.updateCancelStatus();
+        log.info("[주문 취소 요청 완료] Payment 객체 업데이트, paymentId : {} , paymentKey : {}", payment.getId(), payment.getPaymentKey());
+
+        if (payment.getStatus().equals(PaymentStatus.REFUNDED)) {
+            cancellationService.cancellationUpdateStatus(cancellationId);
+        }
+    }
+
+    @Transactional
+    public Payment findPaymentByCancellationId(Long cancellationId) {
+        OrderCancellation cancellation = cancellationRepository.findByIdWithOrder(cancellationId).orElseThrow(() -> new OrderCancellationException("해당 ID에 일치하는 주문취소 데이터를 찾을 수 없습니다."));
+        return paymentRepository.findByOrderIdForUpdate(cancellation.getOrder().getId()).orElseThrow(() -> new PaymentException("현재 주문 정보에 일치하는ㄴ 결제 정보가 존재하지 않습니다."));
     }
 }

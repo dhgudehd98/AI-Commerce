@@ -156,4 +156,22 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
             """
     )
     Optional<Payment> findExpiredPaymentForUpdate(@Param("paymentId")Long paymentId,@Param("expiredAt") LocalDateTime expiredAt);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+    select p
+    from Payment p
+    where p.order.id = :orderId
+    """
+    )
+    Optional<Payment> findByOrderIdForUpdate(@Param("orderId") Long orderId);
+
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+    select p
+    from Payment p
+    where p.paymentKey=:paymentKey
+    """)
+    Optional<Payment> findByPaymentKeyForUpdate(@Param("paymentKey") String paymentKey);
 }
