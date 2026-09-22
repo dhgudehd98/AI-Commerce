@@ -1,4 +1,5 @@
 package com.sh.aicommerce.entity;
+import com.sh.aicommerce.common.exception.product.ProductException;
 import com.sh.aicommerce.common.exception.wms.InventoryException;
 import com.sh.aicommerce.entity.ProductOption;
 import com.sh.aicommerce.entity.StockMovement;
@@ -103,5 +104,10 @@ public class ProductInventory {
     public void releasedReserved(Integer quantity) {
         // 예약 수량은 -quantity , 가지고 있는 수량은 +quantity
         this.reservedQuantity -= quantity;
+    }
+
+    public void releasedQuantity(Integer reservedQuantity) {
+        if(reservedQuantity < 0) throw new ProductException("예약 수량은 음수가 될 수 없습니다.");
+        this.reservedQuantity -= reservedQuantity;
     }
 }

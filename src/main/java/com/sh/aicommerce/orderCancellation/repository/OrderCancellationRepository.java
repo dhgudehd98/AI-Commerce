@@ -1,15 +1,20 @@
 package com.sh.aicommerce.orderCancellation.repository;
 
 import com.sh.aicommerce.entity.OrderCancellation;
+import com.sh.aicommerce.enums.order.OrderCancelStatus;
 import com.sh.aicommerce.orderCancellation.dto.record.OrderCancellationDetailRecord;
+import com.sh.aicommerce.orderCancellation.dto.record.OrderCancellationProcessCancelRecord;
 import com.sh.aicommerce.orderCancellation.dto.record.OrderCancellationWithOutbound;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -62,4 +67,49 @@ public interface OrderCancellationRepository extends JpaRepository<OrderCancella
     """
     )
     Optional<OrderCancellationDetailRecord> findByIdWithOutbound(@Param("cancelId")Long cancelId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query(
+    """
+    select oc
+    from OrderCancellation oc
+    where oc.id = :cancelId
+    """
+    )
+    Optional<OrderCancellation> findByCancelIdForUpdate(@Param("cancelId")Long cancelId);
+
+    @Query(
+    """
+    select oc.id
+    from OrderCancellation oc
+    where oc.cancelStatus = 'PROCESSING_START'
+    or oc.cancelStatus = 'PRODUCT_RESERVATION_RELEASE_FAILED'
+    or oc.cancelStatus = 'PRODUCT_RESERVATION_RELEASED'
+    or oc.cancelStatus = 'PAYMENT_CANCEL_FAILED'
+    or oc.cancelStatus = 'ITEM_RETURNED'
+    """
+    )
+    List<Long> findTargetOrderCancellation();
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query(
+    """
+    select oc
+    from OrderCancellation oc
+    join fetch oc.order
+    where oc.id = :cancellationId
+    """
+    )
+    Optional<OrderCancellation> findByIdForUpdate(@Param("cancellationId") Long cancellationId);
+
+    @Query(
+    """
+    select oc
+    from OrderCancellation oc
+    join fetch oc.order
+    where oc.id = :cancellationId
+    """
+    )
+    Optional<OrderCancellation> findByIdWithOrder(@Param("cancellationId") Long cancellationId);
+
 }

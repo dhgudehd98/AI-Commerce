@@ -29,10 +29,18 @@ public class OrderCancellationController {
     }
 
     @PostMapping("{cancelId}")
+    public ResponseEntity<?> orderCancellationDetail(
+            @PathVariable Long cancelId
+    ) {
+        Long memberId = 3L;
+        return ResponseEntity.ok(orderCancellationService.orderCancellationDetail(cancelId));
+    }
+
+    @PostMapping("{cancelId")
     public ResponseEntity<?> cancel(
             @PathVariable Long cancelId
     ) {
         Long memberId = 3L;
-        return ResponseEntity.ok(orderCancellationService.cancel(cancelId));
+        return ResponseEntity.ok(orderCancellationService.cancel(memberId, cancelId));
     }
 }

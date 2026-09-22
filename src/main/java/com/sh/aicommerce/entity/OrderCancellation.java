@@ -38,6 +38,7 @@ public class OrderCancellation {
 
     @Column(nullable = false)
     private LocalDateTime requestedAt; // 취소 요청 시간
+    private LocalDateTime startedAt; // 취소 처리 시작 시간
     private LocalDateTime updatedAt; // 취소 상태 변경 될 떄마다 업데이트
     private LocalDateTime completedAt; // 취소 완료 시간
 
@@ -47,5 +48,25 @@ public class OrderCancellation {
         this.cancelReason = cancelReason;
         this.itemReturnRequired = itemReturnRequired;
         this.requestedAt = LocalDateTime.now();
+    }
+
+    public void startOrderCancel(String adminName) {
+        this.cancelStatus = OrderCancelStatus.PROCESSING_START;
+        this.startedAt = LocalDateTime.now();
+        this.admin = adminName;
+    }
+
+    public void updateCancelStatus(OrderCancelStatus orderCancelStatus) {
+        this.cancelStatus = orderCancelStatus;
+
+    }
+
+    public void updateCancelStatusToReservationReleased(OrderCancelStatus orderCancelStatus) {
+        this.cancelStatus = orderCancelStatus;
+        this.reservationReleasedAt = LocalDateTime.now();
+    }
+
+    public void updateCancelStatusToReservationReleaseFailed(OrderCancelStatus orderCancelStatus) {
+        this.cancelStatus = orderCancelStatus;
     }
 }
