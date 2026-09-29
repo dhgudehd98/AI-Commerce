@@ -78,18 +78,16 @@ public interface OrderCancellationRepository extends JpaRepository<OrderCancella
     )
     Optional<OrderCancellation> findByCancelIdForUpdate(@Param("cancelId")Long cancelId);
 
-    @Query(
-    """
-    select oc.id
-    from OrderCancellation oc
-    where oc.cancelStatus = 'PROCESSING_START'
-    or oc.cancelStatus = 'PRODUCT_RESERVATION_RELEASE_FAILED'
-    or oc.cancelStatus = 'PRODUCT_RESERVATION_RELEASED'
-    or oc.cancelStatus = 'PAYMENT_CANCEL_COMPLETED'
-    or oc.cancelStatus = 'PAYMENT_CANCEL_FAILED'
-    or oc.cancelStatus = 'ITEM_RETURNED'
-    """
-    )
+    @Query("""
+      select oc.id
+      from OrderCancellation oc
+      where oc.cancelStatus in (
+          'PROCESSING_START',
+          'ITEM_RETURNED',
+          'PRODUCT_RESERVATION_RELEASED',
+          'PAYMENT_CANCEL_COMPLETED'
+      )
+      """)
     List<Long> findTargetOrderCancellation();
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)

@@ -72,10 +72,6 @@ public class OrderCancellationScheduler {
                             -> checkItemReturned(cancelId);
                     case PRODUCT_RESERVATION_RELEASED ->
                             processRefundPayment(cancelId);
-                    case PAYMENT_CANCEL_FAILED -> {
-                        // 재시도 가능한 오류인지, 재시도 시각이 됐는지 확인
-                        // 조건을 충족하면 processRefundPayment(cancelId) 호출
-                    }
                     case PAYMENT_CANCEL_COMPLETED ->
                             cancellationService.cancelled(cancelId);
                     default -> {
