@@ -1,5 +1,6 @@
 package com.sh.aicommerce.common.scheduler.orderCancellation;
 
+import com.sh.aicommerce.common.exception.orderCancellation.OrderCancellationException;
 import com.sh.aicommerce.common.exception.payment.PaymentException;
 import com.sh.aicommerce.common.exception.wms.InventoryException;
 import com.sh.aicommerce.entity.*;
@@ -43,6 +44,8 @@ public class OrderCancellationScheduler {
          *  - 복귀 확인이 필요없는 경우 -> 선점 재고 예약 해제
          * 3. 선점 재고 예약 해제
          * 4. 선점 재고 예약 해제 완료 시 -> PG사 결제 취소 요청 처리
+         * 5. PG사 결제 취소 요청
+         * 6. 주문 취소 처리 완료
          */
         List<Long> cancellationIds = cancellationService.findTargetOrderCancellation();
         // 현재 처리 할 주문 취소에 대한건이 없으면 해당 스케줄러 종료
@@ -73,6 +76,8 @@ public class OrderCancellationScheduler {
                         // 재시도 가능한 오류인지, 재시도 시각이 됐는지 확인
                         // 조건을 충족하면 processRefundPayment(cancelId) 호출
                     }
+                    case PAYMENT_CANCEL_COMPLETED ->
+                            cancellationService.cancelled(cancelId);
                     default -> {
                         // 조회 이후 다른 실행이 상태를 변경한 경우 건너뜀
                     }
@@ -108,8 +113,13 @@ public class OrderCancellationScheduler {
 
     // 상품 재고 복귀 처리
     public void processItemReturn(Long cancellationId) {
-
         // 재고 복귀처리가 필요한 경우에는 그냥 OrderCancelStatus -> ITEM_RETURN_REQUST(상품 복귀요청)으로만 변경하고 끝
+        try {
+            cancellationService.processItemReturn(cancellationId);
+        } catch (OrderCancellationException exception) {
+            // 재고 복귀 처리중 Exception이 터진 경우 -> 재고 복귀 처리 실패로 상태를 업데이트 하고, 해당 사유를 failReason에 저장
+            cancellationService.processItemReturnFailed(cancellationId, exception.getMessage());
+        }
         // 상품 복귀처리가 필요한 경우에는 실제로 사용자가 직접 옮기고 변경을 해야되기 떄문에 시스템 내부적으로 수행할 수 없음.
     }
 
@@ -154,6 +164,7 @@ public class OrderCancellationScheduler {
             if(checkStatus){
                 log.info("[주문 취소 처리] 결제 취소 요청 주문 취소 번호 : {}", cancellationId);
                 tossAPIService.cancel(cancellationId);
+                cancellationService.cancelled(cancellationId);
             }else{
                 log.info("[주문 취소 처리 실패] 정합성 검사 실패 주문 취소 번호 : {}", cancellationId);
             }

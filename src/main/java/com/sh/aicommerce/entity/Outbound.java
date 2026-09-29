@@ -86,7 +86,13 @@ public class Outbound {
         this.outBoundStatus = outBoundStatus;
     }
 
-    public void updateStatusCancel() {
+    public void updateStatusToCancelRequest() {
         this.cancellationRequest = true;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public void updateStatusToCancelled() {
+        this.outBoundStatus = OutboundStatus.CANCELED;
+        this.updatedAt = LocalDateTime.now();
     }
 }

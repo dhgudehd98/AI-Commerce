@@ -60,4 +60,12 @@ public interface OutboundRepository extends JpaRepository<Outbound, Long> {
         )
     """)
     Optional<Outbound> findOutboundStatusBeforePackedByOrderIdForUpdate(@Param("orderId") Long orderId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+    select ob
+    from Outbound ob
+    where ob.order.id = :orderId
+    """)
+    Optional<Outbound> findByOrderIdForUpdate(@Param("orderId")Long orderId);
 }

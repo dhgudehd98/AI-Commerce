@@ -87,17 +87,19 @@ public class Orders {
         item.setOrder(this);
     }
 
-    public void updateStatus() {
+    public void updateStatusToPaid() {
         this.status = OrderStatus.PAID;
     }
 
-
-    public void updateStatusFail() {
-        this.status = OrderStatus.CANCELED; // 일단 실패로 설정
-//        this.status = OrderStatus.FAILED;
+    public void updateStatusToFailed() {
+        this.status = OrderStatus.FAILED;
     }
 
-    public void cancelOrder() {
+    public void updateStatusToCancelRequest() {
         this.status = OrderStatus.CANCEL_REQUEST;
+    }
+
+    public void updateStatusToCancel() {
+        this.status = OrderStatus.CANCELED;
     }
 }

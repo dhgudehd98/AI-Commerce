@@ -94,7 +94,7 @@ public class PaymentTransactionService {
             throw new PaymentException("지원하지 않는 토스 결제 응답입니다.");
         }
         // Orders.Status = "CREATED" -> "PAID"로 변경
-        order.updateStatus();
+        order.updateStatusToPaid();
 
         log.info("[토스 페이먼츠] Payment 및 Order 업데이트 완료 업데이트 정보 paymentId : {} , orderId : {}",payment.getId(), order.getId());
     }
@@ -113,7 +113,7 @@ public class PaymentTransactionService {
         Orders order = payment.getOrder();
         payment.updateCardByBillingCard(response);
 
-        if(payment.getStatus().equals(PaymentStatus.PAID)) order.updateStatus();
+        if(payment.getStatus().equals(PaymentStatus.PAID)) order.updateStatusToPaid();
 
         // 결제 완료 시, 출고 요청 처리
         outboundService.createOutbound(order);
@@ -186,7 +186,7 @@ public class PaymentTransactionService {
             inventory.releasedReserved(quantity);
         }
 
-        if(payment.getStatus().equals(PaymentStatus.FAILED)) order.updateStatusFail();
+        if(payment.getStatus().equals(PaymentStatus.FAILED)) order.updateStatusToFailed();
 
         // 결제 실패 || 만료가 진행된 경우에는 Delivery Status의 상태 값을 실패로 설정
         if(order.getDelivery() != null) order.getDelivery().paymentFailUpdateStatus();
@@ -243,9 +243,13 @@ public class PaymentTransactionService {
         // 기존 메서드: 대상 결제·주문번호·취소 상태·금액 검증
         validateOrderCancelResponse(response, payment, order);
 
-        // 같은 트랜잭션에서 함께 저장
+        /**
+         * 동일한 트랜잭션에서 함꼐 저장
+         * PaymentStatus : CANCELED로 저장
+         * OrderCancelStatus : PAYMENT_CANCEL_COMPLETED 저장
+         */
         payment.updateCancelStatus();
-        cancellation.updateCancelStatusToCancelFailCompleted(response, cancellationId, OrderCancelStatus.PAYMENT_CANCEL_COMPLETED);
+        cancellation.updateCancelStatusToCancelFailCompleted();
 
         log.info(
                 "[결제 취소 반영 완료] cancellationId: {}, paymentId: {}",
@@ -383,7 +387,7 @@ public class PaymentTransactionService {
             throw new PaymentException("결제가 완료된 건만 취소 요청을 보낼 수 있습니다.");
 
         // 모든 상태 검증에 통과한 경우 -> 다음 로직은 TossAPI 결제 취소 요청 과정이기 때문에 해당 요청에 대한 데이터를 결제취소 요청 진행중으로 변경
-        cancellation.updateCancelStatusToPaymentCancelProcessing(cancellationId, OrderCancelStatus.PAYMENT_CANCEL_PROCESSING);
+        cancellation.updateCancelStatusToPaymentCancelProcessing();
         return payment;
     }
 }

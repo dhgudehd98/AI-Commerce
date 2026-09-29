@@ -108,4 +108,21 @@ public class OutboundHistory {
 
         return history;
     }
+
+    public static OutboundHistory createForCancellationCompleted(
+            Outbound outbound,
+            OutboundStatus previousStatus,
+            String cancelReason
+    ) {
+        return new OutboundHistory(
+                outbound,
+                OutboundHistoryEventType.CANCEL_COMPLETED,
+                previousStatus,
+                outbound.getOutBoundStatus(),
+                cancelReason,
+                OutboundHistoryActorType.SYSTEM,
+                "ORDER_CANCELLATION_SCHEDULER",
+                LocalDateTime.now()
+        );
+    }
 }

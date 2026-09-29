@@ -83,21 +83,33 @@ public class OrderCancellation {
         this.updatedAt = LocalDateTime.now();
     }
 
-    public void updateCancelStatusToCancelFailCompleted(TossPaymentCancelResponseDto response, Long cancellationId, OrderCancelStatus cancelStatus) {
-        this.cancelStatus = cancelStatus;
+    // 실제로 PG사 결제 취소 요청까지 성공적으로 진행된 경우
+    public void updateCancelStatusToCancelFailCompleted() {
+        this.cancelStatus = OrderCancelStatus.PAYMENT_CANCEL_COMPLETED;
         this.failReason = null;
         this.updatedAt = LocalDateTime.now();
     }
 
     //실제 주문취소의 모든 상태가 완료된 경우 CANCELED로 상태 변경 처리
-    public void updateCancelStatusCanceled(OrderCancelStatus cancelStatus) {
+    public void updateCancelStatusCanceled() {
         this.updatedAt = LocalDateTime.now();
         this.completedAt = LocalDateTime.now();
         this.cancelStatus = OrderCancelStatus.CANCELED; //
     }
 
-    public void updateCancelStatusToPaymentCancelProcessing(Long cancellationId, OrderCancelStatus orderCancelStatus) {
+    public void updateCancelStatusToPaymentCancelProcessing() {
         this.updatedAt = LocalDateTime.now();
-        this.cancelStatus = orderCancelStatus;
+        this.cancelStatus = OrderCancelStatus.PAYMENT_CANCEL_PROCESSING;
+    }
+
+    public void updateCancelStatusToItemReturnRequest() {
+        this.updatedAt = LocalDateTime.now();
+        this.cancelStatus = OrderCancelStatus.ITEM_RETURN_REQUEST;
+    }
+
+    public void updateCancelStatusItemReturnFailed(String failReason) {
+        this.updatedAt = LocalDateTime.now();
+        this.cancelStatus = OrderCancelStatus.ITEM_RETURN_FAILED;
+        this.failReason = failReason;
     }
 }

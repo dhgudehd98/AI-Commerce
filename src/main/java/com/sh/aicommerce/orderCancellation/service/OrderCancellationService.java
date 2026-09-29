@@ -2,6 +2,7 @@ package com.sh.aicommerce.orderCancellation.service;
 
 import com.sh.aicommerce.admin.service.AdminService;
 import com.sh.aicommerce.common.exception.orderCancellation.OrderCancellationException;
+import com.sh.aicommerce.common.exception.payment.PaymentException;
 import com.sh.aicommerce.common.exception.wms.InventoryException;
 import com.sh.aicommerce.entity.*;
 import com.sh.aicommerce.enums.order.OrderCancelStatus;
@@ -14,6 +15,7 @@ import com.sh.aicommerce.orderCancellation.repository.OrderCancellationRepositor
 import com.sh.aicommerce.orderItem.repository.OrderItemRepository;
 import com.sh.aicommerce.payment.repository.PaymentRepository;
 import com.sh.aicommerce.wms.inventory.repository.ProductInventoryRepository;
+import com.sh.aicommerce.wms.outbound.service.OutboundService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -36,6 +38,7 @@ public class OrderCancellationService {
     private final OrderCancellationRepository orderCancellationRepository;
     private final PaymentRepository paymentRepository;
     private final AdminService adminService;
+    private final OutboundService outboundService;
 
 
     @Transactional
@@ -153,9 +156,9 @@ public class OrderCancellationService {
     }
 
     public void cancellationUpdateStatus(Long cancellationId) {
-        log.info("[주문 취소 처리] 주문 취소 상태 업데이트 주문 취소 ID : {}", cancellationId);
+        log.info("[주문 취소 처리 완료] 주문 취소 상태 업데이트 주문 취소 ID : {}", cancellationId);
         OrderCancellation cancellation = validateOrderCancellationByIdWithLock(cancellationId);
-        cancellation.updateCancelStatus(OrderCancelStatus.CANCELED);
+        cancellation.updateCancelStatusCanceled();
     }
 
     @Transactional
@@ -264,5 +267,57 @@ public class OrderCancellationService {
     @Transactional
     public List<Long> findTargetOrderCancellationFailed() {
         return orderCancellationRepository.findTargetOrderCancellationFailed();
+    }
+
+    @Transactional
+    public void processItemReturn(Long cancellationId) {
+        log.info("[상품 복귀 확인] 주문 취소 번호 : {}", cancellationId);
+        OrderCancellation cancellation = validateOrderCancellationByIdWithLock(cancellationId);
+
+        if(!cancellation.isItemReturnRequired())
+            throw new OrderCancellationException("상품 복귀 확인 여부에 대한 값이 선택되어 있지 않습니다. 관리자에게 문의해주세요.");
+
+        // 상품 복귀 확인 요청으로 설정
+        cancellation.updateCancelStatusToItemReturnRequest();
+
+        // 상품 복귀 확인 완료에 대한 값은 나중에 사용자가 버튼을 클릭하면 완료되는 형식으로만 변경
+    }
+
+    @Transactional
+    public void processItemReturnFailed(Long cancellationId, String failReason) {
+        log.info("[상품 복귀 확인 실패] 주문 취소 번호 : {} 실패 사유 : {}", cancellationId, failReason);
+        OrderCancellation cancellation = validateOrderCancellationByIdWithLock(cancellationId);
+
+        cancellation.updateCancelStatusItemReturnFailed(failReason);
+    }
+
+    @Transactional
+    public void cancelled(Long cancellationId) {
+        log.info("[주문 취소 완료 처리] 주문 취소 번호 : {}", cancellationId);
+        OrderCancellation cancellation = validateOrderCancellationByIdWithLock(cancellationId);
+        Payment payment = paymentRepository.findByOrderId(cancellation.getOrder().getId())
+                .orElseThrow(() -> new PaymentException(
+                        "취소 대상 주문의 결제 정보가 존재하지 않습니다."
+                ));
+
+        // 정상적으로 주문 취소 완료처리를 해도 되는지 확인하기 위한 검증 처리
+        validateOrderCancellationToCanceled(cancellation, payment);
+
+        cancellation.updateCancelStatusCanceled();
+        outboundService.updateOutboundStatusCancel(cancellation.getCancelReason(),cancellation.getOrder().getId());
+
+    }
+
+    private void validateOrderCancellationToCanceled(OrderCancellation cancellation, Payment payment) {
+        OrderCancelStatus cancelStatus = cancellation.getCancelStatus();
+        PaymentStatus paymentStatus = payment.getStatus();
+
+        if(cancelStatus != OrderCancelStatus.PAYMENT_CANCEL_COMPLETED || paymentStatus != PaymentStatus.CANCELED)
+            throw new OrderCancellationException("현재 상태값이 일치하지 않습니다. 관리자에게 문의해주세요. 주문취소번호 : " + cancellation);
+
+        if (cancellation.getReservationReleasedAt() == null ||
+                (cancellation.isItemReturnRequired() && cancellation.getItemReturnedAt() == null)) {
+            throw new OrderCancellationException("주문 취소 완료 전에 선점 예약이 해제 되었는지와 상품 복귀 확인에 대한 여부값 확인이 필요합니다.");
+        }
     }
 }

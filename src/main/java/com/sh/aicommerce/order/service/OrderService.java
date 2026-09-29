@@ -94,9 +94,9 @@ public class OrderService {
                     .orElseThrow(() -> new OutboundException("현재 출고 상태에서는 주문 취소 요청이 불가능합니다. 고객센터에 문의해주세요."));
 
             // 출고 상태 취소 요청으로 변경
-            outbound.updateStatusCancel();
+            outbound.updateStatusToCancelRequest();
             // 주문상태 취소 요청으로 변경
-            order.cancelOrder();
+            order.updateStatusToCancelRequest();
 
             // 주문 취소 요청 Entity 생성
             // 상품 복귀 확인 여부
@@ -129,5 +129,10 @@ public class OrderService {
 
     private Member validateMember(Long memberId) {
         return authRepository.findById(memberId).orElseThrow(() -> new AuthException("존재하지 않는 회원입니다."));
+    }
+
+    public Orders validateOrderWithLock(Long orderId) {
+        return orderRepository.findByIdWithLock(orderId)
+                .orElseThrow(() -> new OrderException("해당 ID에 일치하는 주문번호가 존재하지 않습니다." + orderId));
     }
 }

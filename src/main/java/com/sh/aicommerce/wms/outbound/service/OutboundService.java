@@ -4,10 +4,14 @@ import com.sh.aicommerce.admin.service.AdminService;
 import com.sh.aicommerce.auth.repository.AuthRepository;
 import com.sh.aicommerce.common.exception.auth.AuthException;
 import com.sh.aicommerce.common.exception.delivery.DeliveryException;
+import com.sh.aicommerce.common.exception.order.OrderException;
 import com.sh.aicommerce.common.exception.wms.OutboundException;
 import com.sh.aicommerce.delivery.repository.DeliveryRepository;
 import com.sh.aicommerce.entity.*;
 import com.sh.aicommerce.enums.order.OrderStatus;
+import com.sh.aicommerce.order.orderRepository.OrderRepository;
+import com.sh.aicommerce.order.service.OrderService;
+import com.sh.aicommerce.orderCancellation.service.OrderCancellationService;
 import com.sh.aicommerce.wms.outbound.dto.request.OutboundStatusRequestDto;
 import com.sh.aicommerce.wms.outbound.dto.response.OutboundDetailResponseDto;
 import com.sh.aicommerce.wms.outbound.dto.response.OutboundHistoryResponseDto;
@@ -39,6 +43,7 @@ public class OutboundService {
     private final WarehouseRepository warehouseRepository;
     private final AuthRepository authRepository;
     private final AdminService adminService;
+    private final OrderService orderService;
     @Transactional
     public void createOutbound(Orders order) {
         String outboundNumber = "outbound-" + order.getId();
@@ -161,5 +166,40 @@ public class OutboundService {
 
     private boolean existsOutbound(Long outboundId) {
         return outboundRepository.existsById(outboundId);
+    }
+
+    public void updateOutboundStatusCancel(String cancelReason, Long orderId) {
+        Orders order = orderService.validateOrderWithLock(orderId);
+        Outbound outbound = outboundRepository.findByOrderIdForUpdate(order.getId())
+                .orElseThrow(() -> new OutboundException("해당 주문 번호에 일치하는 출고 정보가 존재하지 않습니다. 주문번호 : " + order.getId()));
+
+        OutboundStatus previousStatus = outbound.getOutBoundStatus();
+
+        log.info("[주문 취소 완료 처리 - 출고 상태 변경] 주문번호 : {} 출고번호 : {}", order.getId(), outbound.getId());
+
+        if(order.getStatus() == OrderStatus.CANCELED){
+            log.warn("[주문 취소 처리] 해당 주문건 취소 상태 변경 불가 주문 번호 : {}", order.getId());
+            throw new OrderException("이미 취소처리 된 주문 요청입니다. 관리자에게 문의해주세요. 주문번호 : " + order.getId());
+        }
+
+        if (outbound.getOutBoundStatus() == OutboundStatus.CANCELED) {
+            throw new OutboundException(
+                    "이미 취소 완료된 출고입니다. 출고번호: " + outbound.getId()
+            );
+        }
+
+        if (!outbound.isCancellationRequest()) {
+            throw new OutboundException(
+                    "취소 요청이 없는 출고입니다. 출고번호: " + outbound.getId()
+            );
+        }
+
+        // Order, Outbound에 대한 Status에 대한 값을 CANCEL로 변경
+        order.updateStatusToCancel();
+        outbound.updateStatusToCancelled();
+
+        OutboundHistory outboundHistory = OutboundHistory.createForCancellationCompleted(outbound, previousStatus, cancelReason);
+        historyRepository.save(outboundHistory);
+
     }
 }

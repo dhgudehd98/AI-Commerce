@@ -14,6 +14,7 @@ public enum OutboundStatus {
     PACKED("포장완료"),
     DELIVERY_REQUEST("인계요청"), // 인계요청
     COMPLETED("출고완료"), //완료
+    CANCEL_REQUEST("취소요청"),
     CANCELED("취소완료"), // 주문취소
     FAILED("출고실패");
 

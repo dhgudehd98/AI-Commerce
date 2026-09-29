@@ -62,7 +62,7 @@ class PaymentCancellationPrerequisiteTest {
         OrderCancellation cancellation = new OrderCancellation(null, "취소", false);
         cancellation.updateCancelStatusToCancelFail("이전 실패", OrderCancelStatus.PAYMENT_CANCEL_FAILED);
 
-        cancellation.updateCancelStatusToCancelFailCompleted(null, 1L, OrderCancelStatus.PAYMENT_CANCEL_COMPLETED);
+        cancellation.updateCancelStatusToCancelFailCompleted();
 
         assertEquals(OrderCancelStatus.PAYMENT_CANCEL_COMPLETED, cancellation.getCancelStatus());
         assertNull(cancellation.getFailReason());
