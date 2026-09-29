@@ -174,4 +174,6 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     where p.paymentKey=:paymentKey
     """)
     Optional<Payment> findByPaymentKeyForUpdate(@Param("paymentKey") String paymentKey);
+
+    Optional<Payment> findByOrderId(Long id);
 }

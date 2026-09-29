@@ -176,6 +176,12 @@ public class Payment {
     }
 
     public void updateCancelStatus() {
-        this.status = PaymentStatus.REFUNDED;
+
+        if(this.status == PaymentStatus.CANCELED) return ;
+        if (this.status != PaymentStatus.PAID) {
+            throw new PaymentException("결제가 완료된 건만 취소 완료로 변경할 수 있습니다.");
+        }
+        this.status = PaymentStatus.CANCELED;
+        this.updatedAt = LocalDateTime.now();
     }
 }

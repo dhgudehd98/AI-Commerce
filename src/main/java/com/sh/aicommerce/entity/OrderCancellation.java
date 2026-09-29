@@ -1,6 +1,7 @@
 package com.sh.aicommerce.entity;
 
 import com.sh.aicommerce.enums.order.OrderCancelStatus;
+import com.sh.aicommerce.toss.dto.response.TossPaymentCancelResponseDto;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
@@ -67,6 +68,36 @@ public class OrderCancellation {
     }
 
     public void updateCancelStatusToReservationReleaseFailed(OrderCancelStatus orderCancelStatus) {
+        this.cancelStatus = orderCancelStatus;
+    }
+
+    public void updateCancelStatusToCancelFail(String failReason, OrderCancelStatus orderCancelStatus) {
+        this.failReason = failReason;
+        this.cancelStatus = orderCancelStatus;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public void updateCancelStatusToCancelFailCheck(String failReason, OrderCancelStatus orderCancelStatus) {
+        this.failReason = failReason;
+        this.cancelStatus = orderCancelStatus;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public void updateCancelStatusToCancelFailCompleted(TossPaymentCancelResponseDto response, Long cancellationId, OrderCancelStatus cancelStatus) {
+        this.cancelStatus = cancelStatus;
+        this.failReason = null;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    //실제 주문취소의 모든 상태가 완료된 경우 CANCELED로 상태 변경 처리
+    public void updateCancelStatusCanceled(OrderCancelStatus cancelStatus) {
+        this.updatedAt = LocalDateTime.now();
+        this.completedAt = LocalDateTime.now();
+        this.cancelStatus = OrderCancelStatus.CANCELED; //
+    }
+
+    public void updateCancelStatusToPaymentCancelProcessing(Long cancellationId, OrderCancelStatus orderCancelStatus) {
+        this.updatedAt = LocalDateTime.now();
         this.cancelStatus = orderCancelStatus;
     }
 }

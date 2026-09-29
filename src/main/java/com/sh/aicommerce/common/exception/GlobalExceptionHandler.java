@@ -15,6 +15,7 @@ import com.sh.aicommerce.common.exception.product.ProductException;
 import com.sh.aicommerce.common.exception.review.ReviewException;
 import com.sh.aicommerce.common.exception.search.SearchException;
 import com.sh.aicommerce.common.exception.search.WeatherException;
+import com.sh.aicommerce.common.exception.toss.TossRestClientException;
 import com.sh.aicommerce.common.exception.wms.InventoryException;
 import com.sh.aicommerce.common.exception.wms.OutboundException;
 import com.sh.aicommerce.common.exception.wms.OutboundNotFoundException;
@@ -33,6 +34,12 @@ import java.util.Map;
 @RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(TossRestClientException.class)
+    public ResponseEntity<?> handleTossRestClientException(TossRestClientException e) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(Map.of("result", "N", "message", e.getMessage()));
+    }
 
     @ExceptionHandler(OrderCancellationException.class)
     public ResponseEntity<?> handleOrderCancellationException(OrderCancellationException e) {

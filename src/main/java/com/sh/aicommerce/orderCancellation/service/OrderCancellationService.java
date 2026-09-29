@@ -5,12 +5,14 @@ import com.sh.aicommerce.common.exception.orderCancellation.OrderCancellationExc
 import com.sh.aicommerce.common.exception.wms.InventoryException;
 import com.sh.aicommerce.entity.*;
 import com.sh.aicommerce.enums.order.OrderCancelStatus;
+import com.sh.aicommerce.enums.payment.PaymentStatus;
 import com.sh.aicommerce.orderCancellation.dto.record.OrderCancellationDetailRecord;
 import com.sh.aicommerce.orderCancellation.dto.record.OrderCancellationProcessCancelRecord;
 import com.sh.aicommerce.orderCancellation.dto.response.OrderCancelDetailResponseDto;
 import com.sh.aicommerce.orderCancellation.dto.response.OrderCancelListResponseDto;
 import com.sh.aicommerce.orderCancellation.repository.OrderCancellationRepository;
 import com.sh.aicommerce.orderItem.repository.OrderItemRepository;
+import com.sh.aicommerce.payment.repository.PaymentRepository;
 import com.sh.aicommerce.wms.inventory.repository.ProductInventoryRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,6 +34,7 @@ public class OrderCancellationService {
     private final ProductInventoryRepository inventoryRepository;
     private final OrderItemRepository orderItemRepository;
     private final OrderCancellationRepository orderCancellationRepository;
+    private final PaymentRepository paymentRepository;
     private final AdminService adminService;
 
 
@@ -156,14 +159,32 @@ public class OrderCancellationService {
     }
 
     @Transactional
-    public void checkCancelStatusReleased(Long cancellationId) {
+    public boolean checkCancelStatusAndPaymentStatus(Long cancellationId) {
         OrderCancellation orderCancellation = validateOrderCancellationByIdWithLock(cancellationId);
+        Orders order = orderCancellation.getOrder();
+
+        Payment payment = paymentRepository.findByOrderId(order.getId()).orElseThrow(() -> new OrderCancellationException("현재 주문번호에 일치하는 결제내역이 존재하지 않습니다. 주문번호 : " + order.getId() + " 주문 취소 번호 : " + cancellationId));
+        PaymentStatus paymentStatus = payment.getStatus();
+
+        if(paymentStatus == PaymentStatus.CANCELED){
+            log.info("이미 결제 취소가 완료된 주문입니다. 관리자에게 문의해주세요. 주문취소 ID : " + cancellationId);
+            return false;
+        }
 
         if (orderCancellation.getCancelStatus() != OrderCancelStatus.PRODUCT_RESERVATION_RELEASED) {
-            throw new OrderCancellationException("현재 상품의 재고 선점이 해제되지 않았습니다. 관리자에게 문의해주세요. 주문 취소 ID : " + cancellationId);
+            log.info("현재 상품의 재고 선점이 해제되지 않았습니다. 관리자에게 문의해주세요. 주문 취소 ID : " + cancellationId);
+            return false;
         }
+
+        if (orderCancellation.getCancelStatus().equals(OrderCancelStatus.PAYMENT_CANCEL_PROCESSING)) {
+            log.info("현재 결제 취소가 진행중인 주문 번호 입니다. 주문 취소 ID : {}", cancellationId);
+            return false;
+        }
+
+        return true;
     }
 
+    @Transactional
     // 재고 선점 예약 해제 실패 상태 변경 메소드
     public void releaseReservationFailed(Long cancellationId) {
         OrderCancellation cancellation = validateOrderCancellationByIdWithLock(cancellationId);
@@ -184,6 +205,49 @@ public class OrderCancellationService {
     }
 
     @Transactional
+    public void paymentCancelFailed(Long cancellationId, String failReason) {
+
+        OrderCancellation cancellation =
+                validateOrderCancellationByIdWithLock(cancellationId);
+
+        if (cancellation.getCancelStatus()
+                != OrderCancelStatus.PAYMENT_CANCEL_PROCESSING) {
+            return;
+        }
+
+        cancellation.updateCancelStatusToCancelFail(
+                failReason,
+                OrderCancelStatus.PAYMENT_CANCEL_FAILED
+        );
+
+        log.warn(
+                "[결제 취소 거절 반영] cancellationId: {}",
+                cancellationId
+        );
+    }
+
+    @Transactional
+    public void paymentCancelFailedCheck(String failReason, Long cancellationId) {
+        OrderCancellation cancellation =
+                validateOrderCancellationByIdWithLock(cancellationId);
+
+        if (cancellation.getCancelStatus()
+                != OrderCancelStatus.PAYMENT_CANCEL_PROCESSING) {
+            return;
+        }
+
+        cancellation.updateCancelStatusToCancelFailCheck(
+                failReason,
+                OrderCancelStatus.PAYMENT_CANCEL_FAILED_CHECK
+        );
+
+        log.warn(
+                "[결제 취소 결과 확인 필요] cancellationId: {}",
+                cancellationId
+        );
+    }
+
+    @Transactional
     public OrderCancellation validateOrderCancellationById(Long cancellationId) {
         return orderCancellationRepository
                 .findById(cancellationId)
@@ -195,5 +259,10 @@ public class OrderCancellationService {
         return orderCancellationRepository
                 .findByIdForUpdate(cancellationId)
                 .orElseThrow(() -> new OrderCancellationException("주문 취소 ID와 일치하는 취소 정보가 존재하지 않습니다."));
+    }
+
+    @Transactional
+    public List<Long> findTargetOrderCancellationFailed() {
+        return orderCancellationRepository.findTargetOrderCancellationFailed();
     }
 }

@@ -11,9 +11,8 @@ public enum PaymentStatus {
     CONFIRMING("결제 확인"),
     PAID("결제 완료"),
     FAILED("결제 실패"),
-    CANCELED("결제 취소"),
-    CANCEL_FAILED("결제 취소 실패"),
-    REFUNDED("환불");
+    CANCELED("결제 취소 완료"),
+    CANCEL_FAILED("결제 취소 실패");
 
     private String status;
 

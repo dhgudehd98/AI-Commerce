@@ -3,14 +3,19 @@ package com.sh.aicommerce.toss.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sh.aicommerce.common.exception.orderCancellation.OrderCancellationException;
 import com.sh.aicommerce.common.exception.payment.PaymentException;
+import com.sh.aicommerce.common.exception.toss.TossCancelException;
+import com.sh.aicommerce.common.exception.toss.TossRestClientException;
 import com.sh.aicommerce.entity.OrderCancellation;
 import com.sh.aicommerce.entity.Orders;
 import com.sh.aicommerce.entity.Payment;
 import com.sh.aicommerce.entity.TossPaymentLog;
+import com.sh.aicommerce.enums.order.OrderCancelStatus;
 import com.sh.aicommerce.enums.payment.CardCompany;
 import com.sh.aicommerce.enums.payment.PaymentStatus;
 import com.sh.aicommerce.order.service.OrderService;
+import com.sh.aicommerce.orderCancellation.service.OrderCancellationService;
 import com.sh.aicommerce.payment.repository.PaymentRepository;
 import com.sh.aicommerce.payment.service.PaymentTransactionService;
 import com.sh.aicommerce.toss.dto.request.TossPaymentBillingRequestDto;
@@ -28,6 +33,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 
+import javax.management.RuntimeMBeanException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 
@@ -40,6 +46,7 @@ public class TossAPIService {
     private final PaymentTransactionService paymentTransactionService;
     private final TossTransactionService transactionService;
     private final TossPaymentClient client;
+    private final OrderCancellationService cancellationService;
 
     // 카드 등록시 billingKey에 대한 값 획득
     public void getBillingKey(String customerKey, String authKey) {
@@ -62,12 +69,55 @@ public class TossAPIService {
         paymentTransactionService.payFailTossPayment(orderNumber);
     }
 
-    public void cancel(Long cancellationId) throws JsonProcessingException {
+    public void cancel(Long cancellationId) {
         log.info("[토스페이먼츠 결제 취소 요청]");
+        TossPaymentCancelResponseDto response;
         Payment payment = paymentTransactionService.findPaymentByCancellationId(cancellationId);
-        TossPaymentCancelResponseDto response = client.cancel(payment.getPaymentKey());
+        // TossAPI 결제 취소 요청
+        try {
+            response = client.cancel(payment.getPaymentKey());
+            // 결제 실패 요청이 성공적으로 완료되었으면, Payment 객체 내역 업데이트
+            paymentTransactionService.cancel(response, cancellationId);
+        } catch (TossCancelException e) {
+            log.error("[토스페이먼츠 결제 취소 요청 처리 실패] 에러 메세지 : {}", e.getMessage());
 
-        // 결제 실패에 성공적으로 완료되었으면, Payment 객체 내역 업데이트
-        paymentTransactionService.cancel(response, cancellationId);
+            try {
+                // 카드 정지나 TossAPI에서 설정된 에러 코드를 보내주는 경우에 Failed로 작성
+                cancellationService.paymentCancelFailed(cancellationId, e.getMessage());
+
+            } catch (RuntimeException saveException) {
+                e.addSuppressed(saveException);
+            }
+            throw e;
+
+        } catch (TossRestClientException e) {
+            log.error("[토스페이먼츠 결제 취소 요청 통신 에러 발생] 메세지 : {}", e.getMessage());
+
+            try {
+                // 타임아웃 외부 API의 연결에 실패한 경우 해당 내역을 확인할 수 있도록 상태 업데이트
+                cancellationService.paymentCancelFailedCheck(e.getMessage(), cancellationId);
+            } catch (RuntimeException saveException) {
+                e.addSuppressed(saveException);
+
+                log.error(
+                        "[결제 취소 결과 확인 필요] cancellationId: {}",
+                        cancellationId,
+                        e
+                );
+            }
+
+            throw e;
+        } catch (RuntimeException e) {
+            try {
+                cancellationService.paymentCancelFailedCheck(
+                        "PG 호출 이후 응답 검증 또는 내부 반영 실패: 결제 취소 결과 확인 필요",
+                        cancellationId
+                );
+            } catch (RuntimeException saveException) {
+                e.addSuppressed(saveException);
+            }
+
+            throw e;
+        }
     }
 }
