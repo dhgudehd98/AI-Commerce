@@ -72,18 +72,22 @@ public class TossAPIService {
     public void cancel(Long cancellationId) {
         log.info("[토스페이먼츠 결제 취소 요청]");
         TossPaymentCancelResponseDto response;
-        Payment payment = paymentTransactionService.findPaymentByCancellationId(cancellationId);
-        // TossAPI 결제 취소 요청
+        Payment payment = paymentTransactionService.prepareRefund(cancellationId);
+
         try {
+            // TossAPI 결제 취소 요청
             response = client.cancel(payment.getPaymentKey());
-            // 결제 실패 요청이 성공적으로 완료되었으면, Payment 객체 내역 업데이트
+            // 결제 실패 요청이 성공적으로 완료 처리
             paymentTransactionService.cancel(response, cancellationId);
         } catch (TossCancelException e) {
             log.error("[토스페이먼츠 결제 취소 요청 처리 실패] 에러 메세지 : {}", e.getMessage());
 
             try {
                 // 카드 정지나 TossAPI에서 설정된 에러 코드를 보내주는 경우에 Failed로 작성
-                cancellationService.paymentCancelFailed(cancellationId, e.getMessage());
+                cancellationService.paymentCancelFailed(
+                        cancellationId,
+                        e.getErrorCode(),
+                        e.getMessage());
 
             } catch (RuntimeException saveException) {
                 e.addSuppressed(saveException);

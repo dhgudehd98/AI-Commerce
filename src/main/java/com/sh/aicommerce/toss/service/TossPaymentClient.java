@@ -256,7 +256,10 @@ public class TossPaymentClient {
             if (e.getStatusCode().is4xxClientError()
                     && DEFINITE_CANCEL_REJECTION_CODES.contains(error.getCode())) {
                 throw new TossCancelException(
-                        "PG 결제 취소 요청 거절. 오류 코드: " + error.getCode(), e);
+                        error.getCode(),     // Refund.failureCode에 저장할 PG 오류 코드
+                        error.getMessage(),  // Refund.failureReason에 저장할 PG 오류 메시지
+                        e                    // 원인 예외 보존
+                );
             }
 
             // 아직 분류하지 않은 코드는 실패로 단정하지 않고 조회·복구 대상으로 보낸다.

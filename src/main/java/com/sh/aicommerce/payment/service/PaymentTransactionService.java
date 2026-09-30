@@ -9,14 +9,17 @@ import com.sh.aicommerce.common.exception.order.OrderException;
 import com.sh.aicommerce.common.exception.orderCancellation.OrderCancellationException;
 import com.sh.aicommerce.common.exception.payment.PaymentException;
 import com.sh.aicommerce.common.exception.product.ProductException;
+import com.sh.aicommerce.common.exception.refund.RefundException;
 import com.sh.aicommerce.common.exception.toss.TossCancelException;
 import com.sh.aicommerce.entity.*;
 import com.sh.aicommerce.enums.order.OrderCancelStatus;
 import com.sh.aicommerce.enums.payment.PaymentStatus;
+import com.sh.aicommerce.enums.refund.RefundStatus;
 import com.sh.aicommerce.order.orderRepository.OrderRepository;
 import com.sh.aicommerce.orderCancellation.repository.OrderCancellationRepository;
 import com.sh.aicommerce.orderCancellation.service.OrderCancellationService;
 import com.sh.aicommerce.payment.repository.PaymentRepository;
+import com.sh.aicommerce.refund.service.RefundService;
 import com.sh.aicommerce.toss.dto.request.TossPaymentRequestDto;
 import com.sh.aicommerce.toss.dto.response.CancelResponseDto;
 import com.sh.aicommerce.toss.dto.response.TossPaymentCancelResponseDto;
@@ -40,12 +43,14 @@ public class PaymentTransactionService {
     private final PaymentRepository paymentRepository;
     private final ProductInventoryRepository inventoryRepository;
     private final TossPaymentLogRepository logRepository;
-
-    private final OutboundService outboundService;
     private final CardRepository cardRepository;
     private final AuthRepository authRepository;
     private final OrderCancellationRepository cancellationRepository;
+
+    private final RefundService refundService;
+    private final OutboundService outboundService;
     private final OrderCancellationService cancellationService;
+
 
     @Transactional
     public void validatePaymentByTossWidget(TossPaymentRequestDto paymentDto) {
@@ -208,6 +213,8 @@ public class PaymentTransactionService {
                         "취소 대상 주문의 결제 정보가 존재하지 않습니다."
                 ));
 
+        Refund refund = refundService.findRefundByCancellationIdWithLock(cancellation.getId());
+
         OrderCancelStatus status = cancellation.getCancelStatus();
 
 
@@ -215,12 +222,17 @@ public class PaymentTransactionService {
         if (status == OrderCancelStatus.PAYMENT_CANCEL_COMPLETED
                 || status == OrderCancelStatus.CANCELED) {
 
-            if (payment.getStatus() != PaymentStatus.CANCELED) {
-                throw new PaymentException(
-                        "주문 취소 상태와 결제 상태가 일치하지 않습니다."
+            if (payment.getStatus() != PaymentStatus.CANCELED
+                    || refund.getRefundStatus() != RefundStatus.COMPLETED) {
+                log.error("[결제 취소 완료 상태 불일치] cancellationId: {}, paymentId: {}, refundId: {}, paymentStatus: {}, refundStatus: {}",
+                        cancellationId, payment.getId(), refund.getId(), payment.getStatus(), refund.getRefundStatus());
+                throw new RefundException(
+                        "완료된 주문 취소의 결제·환불 상태가 일치하지 않습니다. 주문 취소 ID: " + cancellationId
                 );
             }
 
+            log.info("[결제 취소 중복 반영 건너뜀] cancellationId: {}, paymentId: {}, refundId: {}",
+                    cancellationId, payment.getId(), refund.getId());
             return;
         }
 
@@ -228,6 +240,13 @@ public class PaymentTransactionService {
             throw new OrderCancellationException(
                     "결제 취소 결과를 반영할 수 없는 상태입니다."
             );
+        }
+
+        // 신규 결과는 취소 건과 환불 건이 모두 처리 중일 때만 반영한다.
+        if (refund.getRefundStatus() != RefundStatus.PROCESSING) {
+            log.error("[결제 취소 반영 불가: 환불 상태] cancellationId: {}, refundId: {}, refundStatus: {}",
+                    cancellationId, refund.getId(), refund.getRefundStatus());
+            throw new RefundException("결제 취소 결과를 반영할 수 없는 환불 상태입니다. 환불 ID: " + refund.getId());
         }
 
         // get(0)을 호출하기 전에 검사
@@ -241,13 +260,15 @@ public class PaymentTransactionService {
         }
 
         // 기존 메서드: 대상 결제·주문번호·취소 상태·금액 검증
-        validateOrderCancelResponse(response, payment, order);
+        validateOrderCancelResponse(response, payment, order, refund);
 
         /**
          * 동일한 트랜잭션에서 함꼐 저장
          * PaymentStatus : CANCELED로 저장
          * OrderCancelStatus : PAYMENT_CANCEL_COMPLETED 저장
+         * Refund : 결제 취소 요청 완료에 대한 정보와 환불 상태에 대한 값을 저장
          */
+        refund.updateStatusToCompleted(response);
         payment.updateCancelStatus();
         cancellation.updateCancelStatusToCancelFailCompleted();
 
@@ -266,13 +287,37 @@ public class PaymentTransactionService {
      * 검증 실패는 PG의 명확한 거절이 아니므로 PaymentException을 던져
      * TossAPIService에서 결과 확인 필요(FAILED_CHECK) 경로로 처리한다.
      */
-    private void validateOrderCancelResponse(TossPaymentCancelResponseDto response, Payment payment, Orders order) {
+    private void validateOrderCancelResponse(TossPaymentCancelResponseDto response, Payment payment, Orders order, Refund refund) {
         // 목록을 안전하게 검사한 뒤 검증할 취소 거래를 가져온다.
         CancelResponseDto cancel = requireSingleCancel(response, order.getId(), payment.getId());
         // 요청한 주문·결제가 맞고 전액 취소 상태인지 확인한다.
         validateCanceledPayment(response, payment, order);
         // 실제 취소 거래의 금액과 완료 정보를 확인한다.
         validateCancelTransaction(cancel, response.getLastTransactionKey(), payment, order.getId());
+
+        validateRefund(response, payment, refund);
+    }
+
+    private void validateRefund(TossPaymentCancelResponseDto response, Payment payment, Refund refund) {
+        if (!Objects.equals(refund.getPayment().getId(), payment.getId())
+                || refund.getRequestedAmount() == null
+                || !Objects.equals(
+                refund.getRequestedAmount(),
+                response.getCancels().get(0).getCancelAmount()
+        )) {
+            throw new RefundException(
+                    "환불 대상 결제 또는 요청 금액이 PG 취소 결과와 일치하지 않습니다."
+            );
+        }
+
+        if (refund.getPaymentKey() == null
+                || refund.getPaymentKey().isBlank()
+                || !refund.getPaymentKey().equals(response.getPaymentKey())) {
+            throw new RefundException(
+                    "환불 대상 결제와 PG 응답의 결제 식별자가 일치하지 않습니다."
+            );
+        }
+
     }
 
     /** 현재 한 번의 전액 취소 정책에 맞는 취소 거래 한 건을 반환한다. */
@@ -356,7 +401,7 @@ public class PaymentTransactionService {
     }
 
     @Transactional
-    public Payment findPaymentByCancellationId(Long cancellationId) {
+    public Payment prepareRefund(Long cancellationId) {
         log.info("[주문 취소 처리 요청 전 데이터 검증] 주문 취소 ID : {}", cancellationId);
         OrderCancellation cancellation = cancellationService.validateOrderCancellationByIdWithLock(cancellationId);
         OrderCancelStatus status = cancellation.getCancelStatus();
@@ -388,6 +433,10 @@ public class PaymentTransactionService {
 
         if(payment.getStatus() != PaymentStatus.PAID)
             throw new PaymentException("결제가 완료된 건만 취소 요청을 보낼 수 있습니다.");
+
+        // 환불 정보 생성
+        Refund refund = refundService.createRefund(cancellation, payment);
+        log.info("[주문 취소 처리 요청 전 환불 데이터 생성 완료] 환불 ID : {}", refund.getId());
 
         // 모든 상태 검증에 통과한 경우 -> 다음 로직은 TossAPI 결제 취소 요청 과정이기 때문에 해당 요청에 대한 데이터를 결제취소 요청 진행중으로 변경
         cancellation.updateCancelStatusToPaymentCancelProcessing();

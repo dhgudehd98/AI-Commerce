@@ -3,10 +3,12 @@ package com.sh.aicommerce.orderCancellation.service;
 import com.sh.aicommerce.admin.service.AdminService;
 import com.sh.aicommerce.common.exception.orderCancellation.OrderCancellationException;
 import com.sh.aicommerce.common.exception.payment.PaymentException;
+import com.sh.aicommerce.common.exception.refund.RefundException;
 import com.sh.aicommerce.common.exception.wms.InventoryException;
 import com.sh.aicommerce.entity.*;
 import com.sh.aicommerce.enums.order.OrderCancelStatus;
 import com.sh.aicommerce.enums.payment.PaymentStatus;
+import com.sh.aicommerce.enums.refund.RefundStatus;
 import com.sh.aicommerce.orderCancellation.dto.record.OrderCancellationDetailRecord;
 import com.sh.aicommerce.orderCancellation.dto.record.OrderCancellationProcessCancelRecord;
 import com.sh.aicommerce.orderCancellation.dto.response.OrderCancelDetailResponseDto;
@@ -14,6 +16,7 @@ import com.sh.aicommerce.orderCancellation.dto.response.OrderCancelListResponseD
 import com.sh.aicommerce.orderCancellation.repository.OrderCancellationRepository;
 import com.sh.aicommerce.orderItem.repository.OrderItemRepository;
 import com.sh.aicommerce.payment.repository.PaymentRepository;
+import com.sh.aicommerce.refund.service.RefundService;
 import com.sh.aicommerce.wms.inventory.repository.ProductInventoryRepository;
 import com.sh.aicommerce.wms.outbound.service.OutboundService;
 import lombok.RequiredArgsConstructor;
@@ -39,6 +42,7 @@ public class OrderCancellationService {
     private final PaymentRepository paymentRepository;
     private final AdminService adminService;
     private final OutboundService outboundService;
+    private final RefundService refundService;
 
 
     @Transactional
@@ -208,10 +212,20 @@ public class OrderCancellationService {
     }
 
     @Transactional
-    public void paymentCancelFailed(Long cancellationId, String failReason) {
+    public void paymentCancelFailed(Long cancellationId,String errorCode, String failReason) {
 
+        log.info("[주문 취소 결제 취소 요청 실패] 주문 취소 번호 : {}, 에러코드 : {}, 에러 메세지 : {}", cancellationId, errorCode, failReason);
         OrderCancellation cancellation =
                 validateOrderCancellationByIdWithLock(cancellationId);
+
+        Refund refund = refundService.findRefundByCancellationIdWithLock(cancellation.getId());
+
+        // 신규 결과는 취소 건과 환불 건이 모두 처리 중일 때만 반영한다.
+        if (refund.getRefundStatus() != RefundStatus.PROCESSING) {
+            log.error("[결제 취소 요청 실패 반영 불가: 환불 상태] cancellationId: {}, refundId: {}, refundStatus: {}",
+                    cancellationId, refund.getId(), refund.getRefundStatus());
+            throw new RefundException("결제 취소 결과를 반영할 수 없는 환불 상태입니다. 환불 ID: " + refund.getId());
+        }
 
         if (cancellation.getCancelStatus()
                 != OrderCancelStatus.PAYMENT_CANCEL_PROCESSING) {
@@ -223,6 +237,9 @@ public class OrderCancellationService {
                 OrderCancelStatus.PAYMENT_CANCEL_FAILED
         );
 
+        // 환불도 실패 상태로 변경
+        refund.updateStatusToFailed(errorCode, failReason);
+
         log.warn(
                 "[결제 취소 거절 반영] cancellationId: {}",
                 cancellationId
@@ -231,8 +248,18 @@ public class OrderCancellationService {
 
     @Transactional
     public void paymentCancelFailedCheck(String failReason, Long cancellationId) {
+
+        log.info("[주문 취소 결제 취소 요청 실패] 실패 사유 확인 필요, 실패 사유 : {}", failReason);
         OrderCancellation cancellation =
                 validateOrderCancellationByIdWithLock(cancellationId);
+
+        Refund refund = refundService.findRefundByCancellationIdWithLock(cancellation.getId());
+        // 신규 결과는 취소 건과 환불 건이 모두 처리 중일 때만 반영한다.
+        if (refund.getRefundStatus() != RefundStatus.PROCESSING) {
+            log.error("[결제 취소 요청 실패 반영 불가: 환불 상태] cancellationId: {}, refundId: {}, refundStatus: {}",
+                    cancellationId, refund.getId(), refund.getRefundStatus());
+            throw new RefundException("결제 취소 결과를 반영할 수 없는 환불 상태입니다. 환불 ID: " + refund.getId());
+        }
 
         if (cancellation.getCancelStatus()
                 != OrderCancelStatus.PAYMENT_CANCEL_PROCESSING) {
@@ -243,6 +270,8 @@ public class OrderCancellationService {
                 failReason,
                 OrderCancelStatus.PAYMENT_CANCEL_FAILED_CHECK
         );
+
+        refund.updateStatusToFailedCheck(failReason);
 
         log.warn(
                 "[결제 취소 결과 확인 필요] cancellationId: {}",

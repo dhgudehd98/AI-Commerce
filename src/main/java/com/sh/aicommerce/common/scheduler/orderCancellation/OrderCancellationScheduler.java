@@ -2,6 +2,7 @@ package com.sh.aicommerce.common.scheduler.orderCancellation;
 
 import com.sh.aicommerce.common.exception.orderCancellation.OrderCancellationException;
 import com.sh.aicommerce.common.exception.payment.PaymentException;
+import com.sh.aicommerce.common.exception.refund.RefundException;
 import com.sh.aicommerce.common.exception.wms.InventoryException;
 import com.sh.aicommerce.entity.*;
 import com.sh.aicommerce.enums.order.OrderCancelStatus;
@@ -153,14 +154,20 @@ public class OrderCancellationScheduler {
              */
             checkStatus = cancellationService.checkCancelStatusAndPaymentStatus(cancellationId);
 
-            if(checkStatus){
+            if (checkStatus) {
                 log.info("[주문 취소 처리] 결제 취소 요청 주문 취소 번호 : {}", cancellationId);
                 tossAPIService.cancel(cancellationId);
                 cancellationService.cancelled(cancellationId);
-            }else{
+            } else {
                 log.info("[주문 취소 처리 실패] 정합성 검사 실패 주문 취소 번호 : {}", cancellationId);
             }
-
+        } catch (RefundException e) {
+            log.error(
+                    "[환불 준비 실패] cancellationId: {}, reason: {}",
+                    cancellationId,
+                    e.getMessage(),
+                    e
+            );
         } catch (Exception e) {
             log.error(
                     "[결제 취소 처리 오류] cancellationId: {}",
