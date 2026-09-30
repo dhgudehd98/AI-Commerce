@@ -93,6 +93,6 @@ public class Refund {
     public void updateStatusToFailedCheck(String failReason) {
         this.failureReason = failReason;
         this.updatedAt = LocalDateTime.now();
-        this.refundStatus = RefundStatus.CHECK_REQUIRED;
+        this.refundStatus = RefundStatus.FAILED_CHECK;
     }
 }
