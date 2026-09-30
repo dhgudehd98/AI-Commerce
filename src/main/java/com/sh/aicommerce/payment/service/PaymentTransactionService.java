@@ -251,6 +251,9 @@ public class PaymentTransactionService {
         payment.updateCancelStatus();
         cancellation.updateCancelStatusToCancelFailCompleted();
 
+        TossPaymentLog tossPaymentLog = TossPaymentLog.cancelSuccess(payment, response, cancellationId);
+        logRepository.save(tossPaymentLog);
+
         log.info(
                 "[결제 취소 반영 완료] cancellationId: {}, paymentId: {}",
                 cancellationId,

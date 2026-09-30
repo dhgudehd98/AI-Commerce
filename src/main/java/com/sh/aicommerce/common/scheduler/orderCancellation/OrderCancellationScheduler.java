@@ -80,11 +80,7 @@ public class OrderCancellationScheduler {
                 }
 
             } catch (Exception e) {
-                log.error(
-                        "[주문 취소 개별 처리 실패] cancellationId: {}",
-                        cancelId,
-                        e
-                );
+
             }
 
         }
