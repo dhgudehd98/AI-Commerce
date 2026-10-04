@@ -94,7 +94,7 @@
                     <td>
                         <button type="button" class="detail-button"
                                 th:data-cancel-id="${cancel.cancelId}"
-                                th:data-detail-url="@{/api/admin/cancel/{id}(id=${cancel.cancelId})}"
+                                th:data-detail-url="@{/api/admin/cancel/detail/{id}(id=${cancel.cancelId})}"
                                 th:attr="aria-label=|취소 요청 ${cancel.cancelId} 상세보기|">상세보기</button>
 
                     </td>

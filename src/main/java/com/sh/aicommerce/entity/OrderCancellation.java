@@ -67,8 +67,10 @@ public class OrderCancellation {
         this.reservationReleasedAt = LocalDateTime.now();
     }
 
-    public void updateCancelStatusToReservationReleaseFailed(OrderCancelStatus orderCancelStatus) {
+    public void updateCancelStatusToReservationReleaseFailed(OrderCancelStatus orderCancelStatus, String failReason) {
         this.cancelStatus = orderCancelStatus;
+        this.failReason = failReason;
+        this.updatedAt = LocalDateTime.now();
     }
 
     public void updateCancelStatusToCancelFail(String failReason, OrderCancelStatus orderCancelStatus) {

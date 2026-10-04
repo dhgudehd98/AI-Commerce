@@ -12,6 +12,7 @@ import com.sh.aicommerce.enums.refund.RefundStatus;
 import com.sh.aicommerce.orderCancellation.dto.record.OrderCancellationDetailRecord;
 import com.sh.aicommerce.orderCancellation.dto.record.OrderCancellationProcessCancelRecord;
 import com.sh.aicommerce.orderCancellation.dto.response.OrderCancelDetailResponseDto;
+import com.sh.aicommerce.orderCancellation.dto.response.OrderCancelFailResponseDto;
 import com.sh.aicommerce.orderCancellation.dto.response.OrderCancelListResponseDto;
 import com.sh.aicommerce.orderCancellation.repository.OrderCancellationRepository;
 import com.sh.aicommerce.orderItem.repository.OrderItemRepository;
@@ -97,6 +98,32 @@ public class OrderCancellationService {
             log.error("주문 취소 처리 실패 : 에러 메세지 : {}", e);
             throw e;
         }
+    }
+
+    @Transactional
+    public Page<OrderCancelFailResponseDto> orderCancelFailList(Long memberId,int page, int size) {
+        Member admin = adminService.validateAdminMemberByMemberId(memberId);
+
+        Pageable pageable = PageRequest.of(
+                page,
+                size,
+                Sort.by(
+                        Sort.Order.desc("updatedAt"),
+                        Sort.Order.desc("id")
+                )
+        );
+
+        List<OrderCancelStatus> statuses = List.of(
+                OrderCancelStatus.ITEM_RETURN_FAILED,
+                OrderCancelStatus.PRODUCT_RESERVATION_RELEASE_FAILED,
+                OrderCancelStatus.PAYMENT_CANCEL_FAILED,
+                OrderCancelStatus.PAYMENT_CANCEL_FAILED_CHECK
+        );
+
+        return orderCancellationRepository
+                .findFailedOrderCancels(pageable, statuses)
+                .map(OrderCancelFailResponseDto::new);
+
     }
 
     @Transactional

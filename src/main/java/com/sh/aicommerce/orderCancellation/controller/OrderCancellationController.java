@@ -1,5 +1,6 @@
 package com.sh.aicommerce.orderCancellation.controller;
 
+import com.sh.aicommerce.orderCancellation.dto.response.OrderCancelFailResponseDto;
 import com.sh.aicommerce.orderCancellation.dto.response.OrderCancelListResponseDto;
 import com.sh.aicommerce.orderCancellation.service.OrderCancellationService;
 import lombok.RequiredArgsConstructor;
@@ -16,6 +17,7 @@ public class OrderCancellationController {
 
     private final OrderCancellationService orderCancellationService;
 
+    // 주문 취소 리스트 출력 API
     @GetMapping("")
     public String orderCancelList(
             @RequestParam(defaultValue = "0") int page,
@@ -28,7 +30,8 @@ public class OrderCancellationController {
         return "orderCancellation/orderCancellationList";
     }
 
-    @PostMapping("{cancelId}")
+    // 주문 취소 상세 정보 API
+    @PostMapping("/detail/{cancelId}")
     public ResponseEntity<?> orderCancellationDetail(
             @PathVariable Long cancelId
     ) {
@@ -36,11 +39,27 @@ public class OrderCancellationController {
         return ResponseEntity.ok(orderCancellationService.orderCancellationDetail(cancelId));
     }
 
-    @PostMapping("{cancelId")
+    // 주문 취소 요청 시 처리 로직 API
+    @PostMapping("{cancelId}")
     public ResponseEntity<?> cancel(
             @PathVariable Long cancelId
     ) {
         Long memberId = 3L;
         return ResponseEntity.ok(orderCancellationService.cancel(memberId, cancelId));
+    }
+
+    //주문 취소 요청 실패 List API
+    @GetMapping("fail")
+    public String orderCancelFailList(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            Model model
+    ) {
+        Long memberId = 3L;
+        Page<OrderCancelFailResponseDto> cancelFailPages = orderCancellationService.orderCancelFailList(memberId, page, size);
+        model.addAttribute("cancelFailPages", cancelFailPages);
+
+        return "orderCancellation/orderCancelFailList";
+
     }
 }

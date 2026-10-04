@@ -49,6 +49,26 @@ public interface OrderCancellationRepository extends JpaRepository<OrderCancella
     Page<OrderCancellationWithOutbound> findOrderCancellationAll(Pageable pageable);
 
     @Query(
+            value = """
+    select new com.sh.aicommerce.orderCancellation.dto.record.OrderCancellationWithOutbound(
+       oc,
+       ob,
+       oc.order.id,
+       oc.order.orderNumber
+    )
+    from OrderCancellation oc 
+    join Outbound ob on ob.order=  oc.order
+    """,
+            countQuery = """
+    select count(oc)
+    from OrderCancellation  oc
+    join Outbound ob on ob.order= oc.order
+    """
+    )
+    Page<OrderCancellationWithOutbound> findFailedOrderCancels(Pageable pageable, List<OrderCancelStatus> statuses);
+
+
+    @Query(
     value = """
     select new com.sh.aicommerce.orderCancellation.dto.record.OrderCancellationDetailRecord(
         oc,

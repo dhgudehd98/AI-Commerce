@@ -47,6 +47,7 @@ public class OrderCancelDetailResponseDto {
         this.outboundStatus = data.outbound().getOutBoundStatus().getStatus();
         this.cancelStatus = data.cancellation().getCancelStatus().getStatus();
         this.cancelReason = data.cancellation().getCancelReason();
+        this.failReason = data.cancellation().getFailReason();
         this.requestedAt = data.cancellation().getRequestedAt();
         this.updatedAt = data.cancellation().getUpdatedAt();
         this.completedAt = data.cancellation().getCompletedAt();
