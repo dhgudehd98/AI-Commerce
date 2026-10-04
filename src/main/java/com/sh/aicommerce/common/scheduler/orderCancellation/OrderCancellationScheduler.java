@@ -30,7 +30,7 @@ public class OrderCancellationScheduler {
     private final ProductInventoryRepository inventoryRepository;
     private final PaymentRepository paymentRepository;
     private final TossAPIService tossAPIService;
-//    @Scheduled()
+//    @Scheduled(cron = "0 * * * * *")
     public void processOrderCancellation() {
 
         /**
@@ -81,7 +81,7 @@ public class OrderCancellationScheduler {
                 }
 
             } catch (Exception e) {
-
+                log.error("[주문 취소 스케줄러 처리 실패] 취소 ID: {}, 사유: {}", cancelId, e.getMessage(), e);
             }
 
         }
@@ -136,7 +136,7 @@ public class OrderCancellationScheduler {
             released = cancellationService.releaseReservationProduct(cancellationId);
         } catch (Exception e) {
             // 예약선점 재고 실패 트랜잭션 설정
-            cancellationService.releaseReservationFailed(cancellationId);
+            cancellationService.releaseReservationFailed(cancellationId, e.getMessage());
             return;
         }
         // 상품의 예약 선점 해제가 성공적으로 완료되었으면 환불 취소 처리 -> OrderCancellationStatus의 상태는 releaseReservationProduct 안에서 RELEASE_FAILED인지 PROCESSING_START인지 체크 하기 때문에
@@ -163,7 +163,7 @@ public class OrderCancellationScheduler {
             }
         } catch (RefundException e) {
             log.error(
-                    "[환불 준비 실패] cancellationId: {}, reason: {}",
+                    "[주문 취소 환불 처리 실패] 취소 ID: {}, 사유: {}",
                     cancellationId,
                     e.getMessage(),
                     e

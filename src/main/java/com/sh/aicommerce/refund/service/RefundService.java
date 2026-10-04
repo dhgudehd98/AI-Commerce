@@ -23,8 +23,8 @@ public class RefundService {
 
         if (existsRefund != null) {
             throw new RefundException(
-                    "기존 환불 건이 존재합니다. refundId: " + existsRefund.getId()
-                            + ", status: " + existsRefund.getRefundStatus()
+                    "[환불 준비] 기존 환불 정보가 존재합니다. | 환불 ID: " + existsRefund.getId()
+                            + ", 환불 상태: " + existsRefund.getRefundStatus()
                             + ". 상태 확인 후 관리자 재처리 경로를 사용해주세요."
             );
         }
@@ -37,7 +37,7 @@ public class RefundService {
     public Refund findRefundByCancellationIdWithLock(Long cancellationId) {
         return refundRepository.findByOrderCancellationIdWithLock(cancellationId)
                 .orElseThrow(() -> new RefundException(
-                        "환불 정보가 존재하지 않습니다. 주문 취소 ID: "
+                        "[환불 조회] 환불 정보가 없습니다. | 취소 ID: "
                                 + cancellationId
                 ));
     }

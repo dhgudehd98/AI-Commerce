@@ -108,7 +108,7 @@ public class OrderCancellationService {
     public boolean releaseReservationProduct(Long cancellationId) {
         OrderCancellation orderCancellation = orderCancellationRepository
                 .findByIdForUpdate(cancellationId)
-                .orElseThrow(() -> new OrderCancellationException("주문 취소 ID와 일치하는 취소 정보가 존재하지 않습니다."));
+                .orElseThrow(() -> new OrderCancellationException("[취소 정보 조회] 주문 취소 정보가 없습니다. | 취소 ID: " + cancellationId));
         try {
             OrderCancelStatus status = orderCancellation.getCancelStatus();
             // 이미 선점이 해제된 시점이 저장이 되어 있다면 해당 데이터는 이미 선점된 데이터 -> 즉시 종료 처리
@@ -132,7 +132,7 @@ public class OrderCancellationService {
 
                 ProductInventory inventory = inventoryRepository
                         .findByProductOptionIdForUpdate(option.getId())
-                        .orElseThrow(() -> new InventoryException("선점하고 있는 상품에 대한 정보가 존재하지 않습니다."));
+                        .orElseThrow(() -> new InventoryException("[재고 선점 해제] 상품 재고 정보가 없습니다. | 상품 옵션 ID: " + option.getId()));
                 log.info("[예약 재고 해제 전 상품 수량 확인] 상품 번호 : {}, 선점된 재고 : {}, 이용 가능 재고 : {}", option.getId(), inventory.getReservedQuantity(), inventory.getAvailableQuantity());
                 inventory.releasedQuantity(reservedQuantity);
 
@@ -152,9 +152,12 @@ public class OrderCancellationService {
                     e
             );
 
+            if (e instanceof InventoryException) {
+                throw e;
+            }
             throw new OrderCancellationException(
-                    "선점 재고 해제에 실패했습니다. 주문 취소 ID: " +
-                            cancellationId
+                    "[재고 선점 해제] 내부 처리 중 오류가 발생했습니다. | 취소 ID: " + cancellationId,
+                    e
             );
         }
     }
@@ -170,7 +173,7 @@ public class OrderCancellationService {
         OrderCancellation orderCancellation = validateOrderCancellationByIdWithLock(cancellationId);
         Orders order = orderCancellation.getOrder();
 
-        Payment payment = paymentRepository.findByOrderId(order.getId()).orElseThrow(() -> new OrderCancellationException("현재 주문번호에 일치하는 결제내역이 존재하지 않습니다. 주문번호 : " + order.getId() + " 주문 취소 번호 : " + cancellationId));
+        Payment payment = paymentRepository.findByOrderId(order.getId()).orElseThrow(() -> new OrderCancellationException("[환불 준비 검증] 주문에 해당하는 결제 정보가 없습니다. | 주문 ID: " + order.getId() + " 주문 취소 번호 : " + cancellationId));
         PaymentStatus paymentStatus = payment.getStatus();
 
         if(paymentStatus == PaymentStatus.CANCELED){
@@ -193,7 +196,7 @@ public class OrderCancellationService {
 
     @Transactional
     // 재고 선점 예약 해제 실패 상태 변경 메소드
-    public void releaseReservationFailed(Long cancellationId) {
+    public void releaseReservationFailed(Long cancellationId, String failReason) {
         OrderCancellation cancellation = validateOrderCancellationByIdWithLock(cancellationId);
         OrderCancelStatus status = cancellation.getCancelStatus();
         if (cancellation.getReservationReleasedAt() != null) {
@@ -208,7 +211,7 @@ public class OrderCancellationService {
             return;
         }
 
-        cancellation.updateCancelStatusToReservationReleaseFailed(OrderCancelStatus.PRODUCT_RESERVATION_RELEASE_FAILED);
+        cancellation.updateCancelStatusToReservationReleaseFailed(OrderCancelStatus.PRODUCT_RESERVATION_RELEASE_FAILED, failReason);
     }
 
     @Transactional
@@ -224,7 +227,7 @@ public class OrderCancellationService {
         if (refund.getRefundStatus() != RefundStatus.PROCESSING) {
             log.error("[결제 취소 요청 실패 반영 불가: 환불 상태] cancellationId: {}, refundId: {}, refundStatus: {}",
                     cancellationId, refund.getId(), refund.getRefundStatus());
-            throw new RefundException("결제 취소 결과를 반영할 수 없는 환불 상태입니다. 환불 ID: " + refund.getId());
+            throw new RefundException("[결제 취소 실패 반영] 환불 상태가 처리 중이 아닙니다. | 환불 ID: " + refund.getId());
         }
 
         if (cancellation.getCancelStatus()
@@ -258,7 +261,7 @@ public class OrderCancellationService {
         if (refund.getRefundStatus() != RefundStatus.PROCESSING) {
             log.error("[결제 취소 요청 실패 반영 불가: 환불 상태] cancellationId: {}, refundId: {}, refundStatus: {}",
                     cancellationId, refund.getId(), refund.getRefundStatus());
-            throw new RefundException("결제 취소 결과를 반영할 수 없는 환불 상태입니다. 환불 ID: " + refund.getId());
+            throw new RefundException("[결제 취소 실패 반영] 환불 상태가 처리 중이 아닙니다. | 환불 ID: " + refund.getId());
         }
 
         if (cancellation.getCancelStatus()
@@ -283,14 +286,14 @@ public class OrderCancellationService {
     public OrderCancellation validateOrderCancellationById(Long cancellationId) {
         return orderCancellationRepository
                 .findById(cancellationId)
-                .orElseThrow(() -> new OrderCancellationException("주문 취소 ID와 일치하는 취소 정보가 존재하지 않습니다."));
+                .orElseThrow(() -> new OrderCancellationException("[취소 정보 조회] 주문 취소 정보가 없습니다. | 취소 ID: " + cancellationId));
     }
 
     @Transactional
     public OrderCancellation validateOrderCancellationByIdWithLock(Long cancellationId) {
         return orderCancellationRepository
                 .findByIdForUpdate(cancellationId)
-                .orElseThrow(() -> new OrderCancellationException("주문 취소 ID와 일치하는 취소 정보가 존재하지 않습니다."));
+                .orElseThrow(() -> new OrderCancellationException("[취소 정보 조회] 주문 취소 정보가 없습니다. | 취소 ID: " + cancellationId));
     }
 
     @Transactional
@@ -304,7 +307,7 @@ public class OrderCancellationService {
         OrderCancellation cancellation = validateOrderCancellationByIdWithLock(cancellationId);
 
         if(!cancellation.isItemReturnRequired())
-            throw new OrderCancellationException("상품 복귀 확인 여부에 대한 값이 선택되어 있지 않습니다. 관리자에게 문의해주세요.");
+            throw new OrderCancellationException("[상품 복귀 요청] 상품 복귀가 필요한 취소 건이 아닙니다.");
 
         // 상품 복귀 확인 요청으로 설정
         cancellation.updateCancelStatusToItemReturnRequest();
@@ -326,7 +329,7 @@ public class OrderCancellationService {
         OrderCancellation cancellation = validateOrderCancellationByIdWithLock(cancellationId);
         Payment payment = paymentRepository.findByOrderId(cancellation.getOrder().getId())
                 .orElseThrow(() -> new PaymentException(
-                        "취소 대상 주문의 결제 정보가 존재하지 않습니다."
+                        "[주문 취소 완료 검증] 취소 대상 결제 정보가 없습니다."
                 ));
 
         // 정상적으로 주문 취소 완료처리를 해도 되는지 확인하기 위한 검증 처리
@@ -342,11 +345,11 @@ public class OrderCancellationService {
         PaymentStatus paymentStatus = payment.getStatus();
 
         if(cancelStatus != OrderCancelStatus.PAYMENT_CANCEL_COMPLETED || paymentStatus != PaymentStatus.CANCELED)
-            throw new OrderCancellationException("현재 상태값이 일치하지 않습니다. 관리자에게 문의해주세요. 주문취소번호 : " + cancellation);
+            throw new OrderCancellationException("[주문 취소 완료 검증] 결제 취소 완료 상태가 일치하지 않습니다. | 취소 ID: " + cancellation.getId() + ", 취소 상태: " + cancelStatus + ", 결제 상태: " + paymentStatus);
 
         if (cancellation.getReservationReleasedAt() == null ||
                 (cancellation.isItemReturnRequired() && cancellation.getItemReturnedAt() == null)) {
-            throw new OrderCancellationException("주문 취소 완료 전에 선점 예약이 해제 되었는지와 상품 복귀 확인에 대한 여부값 확인이 필요합니다.");
+            throw new OrderCancellationException("[주문 취소 완료 검증] 선점 해제 또는 필요한 상품 복귀가 완료되지 않았습니다.");
         }
     }
 }

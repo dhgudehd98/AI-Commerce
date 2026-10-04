@@ -214,7 +214,7 @@ public class TossPaymentClient {
                     );
 
             if(response.getBody() == null)
-                throw new TossRestClientException("PG 결제 취소 응답이 비어 있습니다.");
+                throw new TossRestClientException("[PG 결제 취소 결과 확인 필요] 응답 본문이 비어 있습니다.");
 
             return response.getBody();
         } catch (HttpStatusCodeException e) {
@@ -225,14 +225,14 @@ public class TossPaymentClient {
 
             }catch (JsonProcessingException parseException) {
                 throw new TossRestClientException(
-                        "PG 오류 응답을 해석하지 못했습니다. HTTP 상태: "
+                        "[PG 결제 취소 결과 확인 필요] 오류 응답을 해석하지 못했습니다. | HTTP 상태: "
                                 + e.getStatusCode().value(),
                         e
                 );
             }
             if (error == null || error.getCode() == null) {
                 throw new TossRestClientException(
-                        "PG 오류 응답에 오류 코드가 없습니다.",
+                        "[PG 결제 취소 결과 확인 필요] 오류 응답에 코드가 없습니다.",
                         e
                 );
             }
@@ -246,7 +246,7 @@ public class TossPaymentClient {
             // 서버 오류는 코드가 있어도 실제 취소 결과를 확정할 수 없다.
             if (e.getStatusCode().is5xxServerError()) {
                 throw new TossRestClientException(
-                        "PG 서버 오류로 결제 취소 결과 확인이 필요합니다. 오류 코드: " + error.getCode(), e);
+                        "[PG 결제 취소 결과 확인 필요] 서버 오류로 결과를 확정할 수 없습니다. | PG 오류 코드: " + error.getCode(), e);
             }
 
             if ("ALREADY_CANCELED_PAYMENT".equals(error.getCode())) {
@@ -257,18 +257,18 @@ public class TossPaymentClient {
                     && DEFINITE_CANCEL_REJECTION_CODES.contains(error.getCode())) {
                 throw new TossCancelException(
                         error.getCode(),     // Refund.failureCode에 저장할 PG 오류 코드
-                        error.getMessage(),  // Refund.failureReason에 저장할 PG 오류 메시지
+                        "[PG 결제 취소 거절] " + error.getMessage() + " | PG 오류 코드: " + error.getCode(),
                         e                    // 원인 예외 보존
                 );
             }
 
             // 아직 분류하지 않은 코드는 실패로 단정하지 않고 조회·복구 대상으로 보낸다.
             throw new TossRestClientException(
-                    "PG 결제 취소 결과 확인이 필요합니다. 오류 코드: " + error.getCode(), e);
+                    "[PG 결제 취소 결과 확인 필요] 미분류 오류로 결과를 확정할 수 없습니다. | PG 오류 코드: " + error.getCode(), e);
         } catch (RestClientException e) {
             // 타임아웃·통신 오류·성공 응답 변환 오류 등
             throw new TossRestClientException(
-                    "PG 결제 취소 결과를 정상적으로 확인하지 못했습니다.",
+                    "[PG 결제 취소 결과 확인 필요] 통신 또는 응답 변환 오류로 결과를 확인하지 못했습니다.",
                     e
             );
         }
@@ -302,7 +302,7 @@ public class TossPaymentClient {
             if (!response.getStatusCode().is2xxSuccessful()
                     || response.getBody() == null) {
                 throw new TossRestClientException(
-                        "이미 취소된 결제의 조회 결과를 확인하지 못했습니다."
+                        "[PG 결제 결과 조회] 이미 취소된 결제의 유효한 조회 응답이 없습니다."
                 );
             }
 
@@ -310,7 +310,7 @@ public class TossPaymentClient {
 
         } catch (RestClientException e) {
             throw new TossRestClientException(
-                    "이미 취소된 결제의 상세 조회에 실패했습니다.",
+                    "[PG 결제 결과 조회] 통신 또는 응답 변환 오류로 조회 결과를 확인하지 못했습니다.",
                     e
             );
         }

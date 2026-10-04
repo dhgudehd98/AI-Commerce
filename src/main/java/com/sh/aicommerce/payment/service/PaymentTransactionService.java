@@ -210,7 +210,7 @@ public class PaymentTransactionService {
         Payment payment = paymentRepository
                 .findByOrderIdForUpdate(order.getId())
                 .orElseThrow(() -> new PaymentException(
-                        "취소 대상 주문의 결제 정보가 존재하지 않습니다."
+                        "[결제 취소 결과 반영] 취소 대상 결제 정보가 없습니다."
                 ));
 
         Refund refund = refundService.findRefundByCancellationIdWithLock(cancellation.getId());
@@ -227,7 +227,7 @@ public class PaymentTransactionService {
                 log.error("[결제 취소 완료 상태 불일치] cancellationId: {}, paymentId: {}, refundId: {}, paymentStatus: {}, refundStatus: {}",
                         cancellationId, payment.getId(), refund.getId(), payment.getStatus(), refund.getRefundStatus());
                 throw new RefundException(
-                        "완료된 주문 취소의 결제·환불 상태가 일치하지 않습니다. 주문 취소 ID: " + cancellationId
+                        "[결제 취소 완료 검증] 결제·환불 상태가 일치하지 않습니다. | 취소 ID: " + cancellationId
                 );
             }
 
@@ -238,7 +238,7 @@ public class PaymentTransactionService {
 
         if (status != OrderCancelStatus.PAYMENT_CANCEL_PROCESSING) {
             throw new OrderCancellationException(
-                    "결제 취소 결과를 반영할 수 없는 상태입니다."
+                    "[결제 취소 결과 반영] 취소 상태가 처리 중이 아닙니다."
             );
         }
 
@@ -246,7 +246,7 @@ public class PaymentTransactionService {
         if (refund.getRefundStatus() != RefundStatus.PROCESSING) {
             log.error("[결제 취소 반영 불가: 환불 상태] cancellationId: {}, refundId: {}, refundStatus: {}",
                     cancellationId, refund.getId(), refund.getRefundStatus());
-            throw new RefundException("결제 취소 결과를 반영할 수 없는 환불 상태입니다. 환불 ID: " + refund.getId());
+            throw new RefundException("[결제 취소 결과 반영] 환불 상태가 처리 중이 아닙니다. | 환불 ID: " + refund.getId());
         }
 
         // get(0)을 호출하기 전에 검사
@@ -255,7 +255,7 @@ public class PaymentTransactionService {
                 || response.getCancels().isEmpty()
                 || response.getCancels().get(0) == null) {
             throw new PaymentException(
-                    "PG 결제 취소 상세 응답이 존재하지 않습니다."
+                    "[결제 취소 응답 검증] 취소 상세 응답이 없습니다."
             );
         }
 
@@ -306,7 +306,7 @@ public class PaymentTransactionService {
                 response.getCancels().get(0).getCancelAmount()
         )) {
             throw new RefundException(
-                    "환불 대상 결제 또는 요청 금액이 PG 취소 결과와 일치하지 않습니다."
+                    "[환불 응답 검증] 대상 결제 또는 요청 금액이 PG 취소 결과와 일치하지 않습니다."
             );
         }
 
@@ -314,7 +314,7 @@ public class PaymentTransactionService {
                 || refund.getPaymentKey().isBlank()
                 || !refund.getPaymentKey().equals(response.getPaymentKey())) {
             throw new RefundException(
-                    "환불 대상 결제와 PG 응답의 결제 식별자가 일치하지 않습니다."
+                    "[환불 응답 검증] PG 응답의 결제 식별자가 환불 대상과 일치하지 않습니다."
             );
         }
 
@@ -332,7 +332,7 @@ public class PaymentTransactionService {
                     log.error("[결제 취소 검증 실패: 응답 구조] orderId: {}, paymentId: {}, responsePresent: {}, cancelCount: {}, firstCancelPresent: {}",
                     orderId, paymentId, response != null, cancelCount,
                     cancelCount != null && cancelCount > 0 && response.getCancels().get(0) != null);
-            throw new PaymentException("전액 취소 응답에는 취소 거래가 정확히 한 건 있어야 합니다.");
+            throw new PaymentException("[결제 취소 응답 검증] 유효한 취소 거래가 정확히 한 건이어야 합니다.");
         }
         log.info("[결제 취소 검증 통과: 응답 구조] orderId: {}, paymentId: {}", orderId, paymentId);
         return response.getCancels().get(0);
@@ -354,7 +354,7 @@ public class PaymentTransactionService {
                             && payment.getPaymentKey().equals(response.getPaymentKey()),
                     order.getOrderNumber() != null && !order.getOrderNumber().isBlank()
                             && order.getOrderNumber().equals(response.getOrderId()));
-            throw new PaymentException("PG 응답의 결제 식별자 또는 주문번호가 취소 대상과 다릅니다.");
+            throw new PaymentException("[결제 취소 대상 검증] PG 응답의 결제 식별자 또는 주문번호가 취소 대상과 다릅니다.");
         }
 
         // totalAmount는 최초 결제 금액이며, 전액 취소 후 balanceAmount는 0이어야 한다.
@@ -367,7 +367,7 @@ public class PaymentTransactionService {
             log.error("[결제 취소 검증 실패: 결제 금액·잔액·상태] orderId: {}, paymentId: {}, paymentAmount: {}, totalAmount: {}, balanceAmount: {}, pgStatus: {}",
                     order.getId(), payment.getId(), payment.getAmount(), response.getTotalAmount(),
                     response.getBalanceAmount(), response.getStatus());
-            throw new PaymentException("PG 결제 금액·잔액·상태가 전액 취소 조건과 일치하지 않습니다.");
+            throw new PaymentException("[결제 취소 응답 검증] 결제 금액·잔액·상태가 전액 취소 조건과 일치하지 않습니다. | 결제 금액: " + payment.getAmount() + ", PG 원결제 금액: " + response.getTotalAmount() + ", 잔액: " + response.getBalanceAmount() + ", PG 상태: " + response.getStatus());
         }
         log.info("[결제 취소 검증 통과: 결제 정보] orderId: {}, paymentId: {}", order.getId(), payment.getId());
     }
@@ -381,7 +381,7 @@ public class PaymentTransactionService {
                 || !Objects.equals(cancel.getCancelAmount(), paymentAmount)) {
             log.error("[결제 취소 검증 실패: 취소 금액 불일치] orderId: {}, paymentId: {}, paymentAmount: {}, cancelAmount: {}",
                     orderId, payment.getId(), paymentAmount, cancel.getCancelAmount());
-            throw new PaymentException("실제 취소 금액이 내부 결제 금액과 일치하지 않습니다.");
+            throw new PaymentException("[결제 취소 금액 검증] 취소 금액이 유효하지 않거나 내부 결제 금액과 다릅니다. | 결제 ID: " + payment.getId() + ", 결제 금액: " + paymentAmount + ", 취소 금액: " + cancel.getCancelAmount());
         }
         // DONE 상태이며 실제 취소 금액(cancelAmount)이 내부 결제 금액과 같아야 한다.
         // 완료 시간이 존재하고 거래 식별자가 Payment 응답의 lastTransactionKey와 같아야 한다.
@@ -394,7 +394,7 @@ public class PaymentTransactionService {
                     orderId, payment.getId(), paymentAmount, cancel.getCancelAmount(), cancel.getCancelStatus(),
                     cancel.getCanceledAt(), cancel.getTransactionKey() != null && !cancel.getTransactionKey().isBlank(),
                     cancel.getTransactionKey() != null && cancel.getTransactionKey().equals(lastTransactionKey));
-            throw new PaymentException("PG 취소 거래의 상태·금액·시간·거래 식별자가 올바르지 않습니다.");
+            throw new PaymentException("[결제 취소 거래 검증] 완료 상태·시간 또는 거래 식별자가 올바르지 않습니다.");
         }
         log.info("[결제 취소 검증 통과: 취소 거래] orderId: {}, paymentId: {}, paymentAmount: {}, cancelAmount: {}",
                 orderId, payment.getId(), paymentAmount, cancel.getCancelAmount());
@@ -408,31 +408,31 @@ public class PaymentTransactionService {
 
         if (status == OrderCancelStatus.PAYMENT_CANCEL_PROCESSING) {
             throw new OrderCancellationException(
-                    "이미 결제 취소가 진행 중입니다."
+                    "[환불 준비] 이미 결제 취소가 진행 중입니다."
             );
         }
 
         // 모든 취소 건에서 선점 해제 예약 완료시간 확인
         if(cancellation.getReservationReleasedAt() == null)
-            throw new OrderCancellationException("예약 재고 해제 시간이 존재하지 않습니다. 선점 여부를 확인해주세요.");
+            throw new OrderCancellationException("[환불 준비] 재고 선점 해제 완료 시간이 없습니다.");
 
         // 현재 처리 단계와 관계없이, 상품 복귀가 필요한 건은 복귀 완료를 확인한다.
         if(cancellation.isItemReturnRequired() && cancellation.getItemReturnedAt() == null)
-            throw new OrderCancellationException("상품 복귀가 확인되지 않았습니다. 상품 복귀 확인 후 결제 취소를 진행해주세요.");
+            throw new OrderCancellationException("[환불 준비] 필요한 상품 복귀가 확인되지 않았습니다.");
 
         Payment payment = paymentRepository
                 .findByOrderIdForUpdate(cancellation.getOrder().getId())
-                .orElseThrow(() -> new PaymentException("현재 주문 정보에 일치하는 결제 정보가 존재하지 않습니다."));
+                .orElseThrow(() -> new PaymentException("[환불 준비] 주문에 해당하는 결제 정보가 없습니다."));
 
         if (status != OrderCancelStatus.PRODUCT_RESERVATION_RELEASED
                 && status != OrderCancelStatus.PAYMENT_CANCEL
                 && status != OrderCancelStatus.PAYMENT_CANCEL_FAILED) {
-            log.error("[주문 취소 처리 요청 실패] 주문 취소 상태에 따른 요청 실패 주문 취소 ID : {} , 주문 취소 상태 : {}", cancellationId, cancellation.getCancelStatus().getStatus());
-            throw new OrderCancellationException("현재 주문 취소 처리를 요청 할 수 있는 상태가 아닙니다. 주문 취소 ID ; " + cancellationId + " 주문 취소 상태 : " + cancellation.getCancelStatus().getStatus());
+            log.error("[주문 취소 처리 요청 실패] 주문 취소 상태에 따른 요청 실패 주문 취소 ID : {} , 현재 상태: {}", cancellationId, cancellation.getCancelStatus().getStatus());
+            throw new OrderCancellationException("[환불 준비] 결제 취소 요청을 허용하지 않는 상태입니다. | 취소 ID: " + cancellationId + " 현재 상태: " + cancellation.getCancelStatus().getStatus());
         }
 
         if(payment.getStatus() != PaymentStatus.PAID)
-            throw new PaymentException("결제가 완료된 건만 취소 요청을 보낼 수 있습니다.");
+            throw new PaymentException("[환불 준비] 원결제가 결제 완료 상태가 아닙니다.");
 
         // 환불 정보 생성
         Refund refund = refundService.createRefund(cancellation, payment);

@@ -171,7 +171,7 @@ public class OutboundService {
     public void updateOutboundStatusCancel(String cancelReason, Long orderId) {
         Orders order = orderService.validateOrderWithLock(orderId);
         Outbound outbound = outboundRepository.findByOrderIdForUpdate(order.getId())
-                .orElseThrow(() -> new OutboundException("해당 주문 번호에 일치하는 출고 정보가 존재하지 않습니다. 주문번호 : " + order.getId()));
+                .orElseThrow(() -> new OutboundException("[출고 취소 완료] 주문에 해당하는 출고 정보가 없습니다. | 주문 ID: " + order.getId()));
 
         OutboundStatus previousStatus = outbound.getOutBoundStatus();
 
@@ -179,18 +179,18 @@ public class OutboundService {
 
         if(order.getStatus() == OrderStatus.CANCELED){
             log.warn("[주문 취소 처리] 해당 주문건 취소 상태 변경 불가 주문 번호 : {}", order.getId());
-            throw new OrderException("이미 취소처리 된 주문 요청입니다. 관리자에게 문의해주세요. 주문번호 : " + order.getId());
+            throw new OrderException("[출고 취소 완료] 주문이 이미 취소 완료 상태입니다. | 주문 ID: " + order.getId());
         }
 
         if (outbound.getOutBoundStatus() == OutboundStatus.CANCELED) {
             throw new OutboundException(
-                    "이미 취소 완료된 출고입니다. 출고번호: " + outbound.getId()
+                    "[출고 취소 완료] 출고가 이미 취소 완료 상태입니다. | 출고 ID: " + outbound.getId()
             );
         }
 
         if (!outbound.isCancellationRequest()) {
             throw new OutboundException(
-                    "취소 요청이 없는 출고입니다. 출고번호: " + outbound.getId()
+                    "[출고 취소 완료] 출고에 취소 요청이 접수되지 않았습니다. | 출고 ID: " + outbound.getId()
             );
         }
 

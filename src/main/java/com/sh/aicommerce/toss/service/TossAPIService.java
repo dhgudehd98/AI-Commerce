@@ -5,6 +5,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sh.aicommerce.common.exception.orderCancellation.OrderCancellationException;
 import com.sh.aicommerce.common.exception.payment.PaymentException;
+import com.sh.aicommerce.common.exception.refund.RefundException;
 import com.sh.aicommerce.common.exception.toss.TossCancelException;
 import com.sh.aicommerce.common.exception.toss.TossRestClientException;
 import com.sh.aicommerce.entity.OrderCancellation;
@@ -114,7 +115,12 @@ public class TossAPIService {
         } catch (RuntimeException e) {
             try {
                 cancellationService.paymentCancelFailedCheck(
-                        "PG 호출 이후 응답 검증 또는 내부 반영 실패: 결제 취소 결과 확인 필요",
+                        // 검증 원인은 보존하되 DB 오류 전문 등은 관리자 사유에 노출하지 않는다.
+                        (e instanceof PaymentException || e instanceof RefundException
+                                || e instanceof OrderCancellationException)
+                                ? e.getMessage()
+                                : "[결제 취소 내부 처리] 응답 처리 또는 DB 반영 중 오류가 발생했습니다. PG 결과 확인이 필요합니다."
+                                        + " | 취소 ID: " + cancellationId,
                         cancellationId
                 );
             } catch (RuntimeException saveException) {
