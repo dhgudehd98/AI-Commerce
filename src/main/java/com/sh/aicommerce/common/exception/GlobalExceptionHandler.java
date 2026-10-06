@@ -16,6 +16,7 @@ import com.sh.aicommerce.common.exception.refund.RefundException;
 import com.sh.aicommerce.common.exception.review.ReviewException;
 import com.sh.aicommerce.common.exception.search.SearchException;
 import com.sh.aicommerce.common.exception.search.WeatherException;
+import com.sh.aicommerce.common.exception.toss.TossPaymentException;
 import com.sh.aicommerce.common.exception.toss.TossRestClientException;
 import com.sh.aicommerce.common.exception.wms.InventoryException;
 import com.sh.aicommerce.common.exception.wms.OutboundException;
@@ -36,6 +37,11 @@ import java.util.Map;
 @Slf4j
 public class GlobalExceptionHandler {
 
+    @ExceptionHandler(TossPaymentException.class)
+    public ResponseEntity<?> handleTossPaymentException(TossPaymentException e) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("result", "N", "message", e.getMessage()));
+    }
     @ExceptionHandler(RefundException.class)
     public ResponseEntity<?> handleRefundException(RefundException e) {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)

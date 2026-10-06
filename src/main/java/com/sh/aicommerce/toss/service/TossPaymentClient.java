@@ -5,6 +5,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sh.aicommerce.common.exception.payment.PaymentException;
 import com.sh.aicommerce.common.exception.toss.TossCancelException;
+import com.sh.aicommerce.common.exception.toss.TossPaymentException;
 import com.sh.aicommerce.common.exception.toss.TossRestClientException;
 import com.sh.aicommerce.payment.service.PaymentTransactionService;
 import com.sh.aicommerce.toss.dto.request.TossBillingPaymentRequestDto;
@@ -38,6 +39,19 @@ public class TossPaymentClient {
             "INVALID_REFUND_ACCOUNT_INFO",
             "INVALID_REFUND_ACCOUNT_NUMBER",
             "INVALID_BANK"
+    );
+
+    private static final Set<String> PAYMENT_REJECTION_CODES = Set.of(
+            "INVALID_STOPPED_CARD",               // 정지 카드
+            "EXCEED_MAX_PAYMENT_AMOUNT",           // 일일 결제 금액 초과
+            "EXCEED_MAX_AMOUNT",                   // 거래 금액 한도 초과
+            "EXCEED_MAX_MONTHLY_PAYMENT_AMOUNT",   // 월 결제 한도 100만원 초과
+            "REJECT_ACCOUNT_PAYMENT",             // 잔액 부족
+            "REJECT_CARD_PAYMENT",                // 한도 초과 또는 잔액 부족
+            "REJECT_CARD_COMPANY",                // 승인 거절
+            "FORBIDDEN_REQUEST",                  // 요청 불허
+            "EXCEED_MAX_ONE_DAY_AMOUNT",           // 일일 한도 초과
+            "INVALID_PASSWORD"                    // 결제 비밀번호 불일치
     );
 
     @Value("${toss.payment.widget.secretKey}")
@@ -86,16 +100,11 @@ public class TossPaymentClient {
             // 결제 승인이 성공적으로 완료되었다면 , DB에 저장된 Payment, Order에 대한 값 업데이트
             return response.getBody();
         } catch (HttpStatusCodeException e) {
-            TossPaymentErrorResponseDto errorResponse = objectMapper.readValue(e.getResponseBodyAsString(), TossPaymentErrorResponseDto.class);
-            log.warn("[토스페이먼츠 결제 승인 요청 실패] code : {}, message : {} ", errorResponse.getCode(), errorResponse.getMessage());
+            throw convertException(e);
+        } catch (RestClientException e) {
+            log.warn("[결제 승인 결과 확인 필요] 통슨 또는 응답 변환 오류 확인 필요", e);
 
-//            paymentTransactionService.payFailTossPayment(request.getOrderId());
-            throw new PaymentException("토스페이먼츠 결제가 실패하였습니다. 실패 사유 : " + errorResponse.getMessage());
-        } catch (Exception e) {
-            log.warn("[토스페이먼츠 결제 승인 실패] 에러 메세지 : " + e.getMessage());
-//            paymentTransactionService.payFailTossPayment(request.getOrderId());
-
-            throw e;
+            throw new TossRestClientException("[결제 승인 결과 확인필요] 통신 또는 응답 변환 오류 발생", e);
         }
     }
 
@@ -177,15 +186,10 @@ public class TossPaymentClient {
             return response.getBody();
 
         } catch (HttpStatusCodeException e) {
-            TossPaymentErrorResponseDto errorResponse = objectMapper.readValue(e.getResponseBodyAsString(), TossPaymentErrorResponseDto.class);
-            log.warn("[토스페이먼츠 자동결제 승인 실패] code : {}, message : {} ", errorResponse.getCode(), errorResponse.getMessage());
-
-//            paymentTransactionService.payFailTossPayment(orderNumber);
-            throw new PaymentException("자동 결제 승인에 실패 했습니다. 실패 사유 : " + errorResponse.getMessage());
-        } catch (Exception e) {
-            log.warn("[토스페이먼츠 자동결제 승인 에러] 에러 메세지 : {}", e.getMessage());
-//            paymentTransactionService.payFailTossPayment(orderNumber);
-            throw e;
+            throw convertException(e);
+        } catch (RestClientException e) {
+            log.warn("[결제 승인 결과 확인 필요] 통슨 또는 응답 변환 오류 확인 필요", e);
+            throw new TossRestClientException("[결제 승인 결과 확인필요] 통신 또는 응답 변환 오류 발생", e);
         }
     }
 
@@ -353,5 +357,38 @@ public class TossPaymentClient {
                     e
             );
         }
+    }
+
+    private RuntimeException convertException(HttpStatusCodeException codeException) {
+
+        if (codeException.getStatusCode().is5xxServerError()) {
+            return new TossRestClientException(
+                    "[결제 승인 결과 확인 필요] PG 서버 오류",codeException);
+        }
+
+        TossPaymentErrorResponseDto errorResponse ;
+
+        try {
+            errorResponse = objectMapper
+                    .readValue(codeException.getResponseBodyAsString(), TossPaymentErrorResponseDto.class);
+        } catch (JsonProcessingException e) {
+            codeException.addSuppressed(e);
+
+            return new TossRestClientException(
+                    "[결제 승인 결과 확인 필요] 오류 응답 해석 실패",
+                    codeException
+            );
+        }
+
+        if (errorResponse == null || errorResponse.getCode() == null) {
+            throw new RestClientException("[결제 승인 요청 결과 확인필요] 오류 코드 누락");
+        }
+
+        if (codeException.getStatusCode().is4xxClientError()
+                && PAYMENT_REJECTION_CODES.contains(errorResponse.getCode())) {
+            throw new TossPaymentException("결제 요청이 실패 했습니다. 결제 실패 에러 코드 : " + errorResponse.getCode() + " 메세지 : " + errorResponse.getMessage());
+        }
+
+        return new TossRestClientException("[결제 승인 결과 확인 필요] 에러 코드 : " + errorResponse.getCode() + " 에러 메세지 : " + errorResponse.getMessage());
     }
 }
