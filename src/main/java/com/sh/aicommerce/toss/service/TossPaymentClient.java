@@ -50,7 +50,6 @@ public class TossPaymentClient {
     private final RestTemplate tossRestTemplate;
 
     private final ObjectMapper objectMapper;
-    private final PaymentTransactionService paymentTransactionService;
 
     public TossPaymentSuccessResponseDto confirm(TossPaymentRequestDto request) throws JsonProcessingException {
         try {
@@ -90,11 +89,11 @@ public class TossPaymentClient {
             TossPaymentErrorResponseDto errorResponse = objectMapper.readValue(e.getResponseBodyAsString(), TossPaymentErrorResponseDto.class);
             log.warn("[토스페이먼츠 결제 승인 요청 실패] code : {}, message : {} ", errorResponse.getCode(), errorResponse.getMessage());
 
-            paymentTransactionService.payFailTossPayment(request.getOrderId());
+//            paymentTransactionService.payFailTossPayment(request.getOrderId());
             throw new PaymentException("토스페이먼츠 결제가 실패하였습니다. 실패 사유 : " + errorResponse.getMessage());
         } catch (Exception e) {
             log.warn("[토스페이먼츠 결제 승인 실패] 에러 메세지 : " + e.getMessage());
-            paymentTransactionService.payFailTossPayment(request.getOrderId());
+//            paymentTransactionService.payFailTossPayment(request.getOrderId());
 
             throw e;
         }
@@ -181,11 +180,11 @@ public class TossPaymentClient {
             TossPaymentErrorResponseDto errorResponse = objectMapper.readValue(e.getResponseBodyAsString(), TossPaymentErrorResponseDto.class);
             log.warn("[토스페이먼츠 자동결제 승인 실패] code : {}, message : {} ", errorResponse.getCode(), errorResponse.getMessage());
 
-            paymentTransactionService.payFailTossPayment(orderNumber);
+//            paymentTransactionService.payFailTossPayment(orderNumber);
             throw new PaymentException("자동 결제 승인에 실패 했습니다. 실패 사유 : " + errorResponse.getMessage());
         } catch (Exception e) {
             log.warn("[토스페이먼츠 자동결제 승인 에러] 에러 메세지 : {}", e.getMessage());
-            paymentTransactionService.payFailTossPayment(orderNumber);
+//            paymentTransactionService.payFailTossPayment(orderNumber);
             throw e;
         }
     }
@@ -303,6 +302,46 @@ public class TossPaymentClient {
                     || response.getBody() == null) {
                 throw new TossRestClientException(
                         "[PG 결제 결과 조회] 이미 취소된 결제의 유효한 조회 응답이 없습니다."
+                );
+            }
+
+            return response.getBody();
+
+        } catch (RestClientException e) {
+            throw new TossRestClientException(
+                    "[PG 결제 결과 조회] 통신 또는 응답 변환 오류로 조회 결과를 확인하지 못했습니다.",
+                    e
+            );
+        }
+    }
+
+    public TossPaymentRequestHistoryResponseDto getPaymentRequestHistory(String paymentKey) {
+        String encodedSecretKey = Base64.getEncoder()
+                .encodeToString(
+                        (tossBillingSecretKey + ":")
+                                .getBytes(StandardCharsets.UTF_8)
+                );
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBasicAuth(encodedSecretKey);
+
+        HttpEntity<Void> httpEntity = new HttpEntity<>(headers);
+
+        try {
+            ResponseEntity<TossPaymentRequestHistoryResponseDto> response =
+                    tossRestTemplate.exchange(
+
+                            "https://api.tosspayments.com/v1/payments/{paymentKey}",
+                            HttpMethod.GET,
+                            httpEntity,
+                            TossPaymentRequestHistoryResponseDto.class,
+                            paymentKey
+                    );
+
+            if (!response.getStatusCode().is2xxSuccessful()
+                    || response.getBody() == null) {
+                throw new TossRestClientException(
+                        "[PG 결제 결과 조회]  결제의 유효한 조회 응답이 없습니다."
                 );
             }
 

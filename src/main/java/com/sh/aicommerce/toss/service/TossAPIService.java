@@ -21,9 +21,7 @@ import com.sh.aicommerce.payment.repository.PaymentRepository;
 import com.sh.aicommerce.payment.service.PaymentTransactionService;
 import com.sh.aicommerce.toss.dto.request.TossPaymentBillingRequestDto;
 import com.sh.aicommerce.toss.dto.request.TossPaymentRequestDto;
-import com.sh.aicommerce.toss.dto.response.TossPaymentBillingResponseDto;
-import com.sh.aicommerce.toss.dto.response.TossPaymentCancelResponseDto;
-import com.sh.aicommerce.toss.dto.response.TossPaymentSuccessResponseDto;
+import com.sh.aicommerce.toss.dto.response.*;
 import com.sh.aicommerce.toss.repository.TossPaymentLogRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,6 +30,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 import javax.management.RuntimeMBeanException;

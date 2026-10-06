@@ -39,6 +39,7 @@ public class PaymentService {
     private final ProductOptionRepository productOptionRepository;
     private final OrderRepository orderRepository;
     private final ProductInventoryRepository inventoryRepository;
+    private final PaymentRepository paymentRepository;
 
     private final CardRepository cardRepository;
     private final AccountRepository accountRepository;
@@ -247,6 +248,12 @@ public class PaymentService {
         } else {
             return 5000;
         }
+    }
+
+    @Transactional
+    public Payment validatePaymentByPaymentKey(String paymentKey) {
+        return paymentRepository.findPaymentByPaymentKey(paymentKey)
+                .orElseThrow(() -> new PaymentException("PaymentKey에 일치하는 Payment 내역이 존재하지 않습니다."));
     }
 
 }

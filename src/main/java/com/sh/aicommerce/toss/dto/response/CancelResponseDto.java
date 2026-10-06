@@ -18,6 +18,7 @@ public class CancelResponseDto {
     private Integer taxFreeAmount;
     private Integer taxExemptionAmount;
     private Integer refundableAmount;
+    private Integer cardDiscountAmount;
     private Integer transferDiscountAmount;
     private Integer easyPayDiscountAmount;
     private String transactionKey;

@@ -72,11 +72,12 @@ public class OrderCancellationController {
         return ResponseEntity.ok(orderCancellationService.orderCancelFailedDetail(memberId, cancellationId));
     }
 
+    // PG 요청 내역 조회 API
     @GetMapping("fail/{cancellationId}/pgPayment")
     public ResponseEntity<?> requestPaymentHistory(
             @PathVariable Long cancellationId
     ) {
         Long memberId = 3L;
-        return ResponseEntity.ok(orderCancellationService.requestPaymentHistory(memberId, cancellationId));
+        return ResponseEntity.ok(orderCancellationService.getPaymentRequestHistory(memberId, cancellationId));
     }
 }

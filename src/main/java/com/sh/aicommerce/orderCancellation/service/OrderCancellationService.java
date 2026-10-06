@@ -4,6 +4,7 @@ import com.sh.aicommerce.admin.service.AdminService;
 import com.sh.aicommerce.common.exception.orderCancellation.OrderCancellationException;
 import com.sh.aicommerce.common.exception.payment.PaymentException;
 import com.sh.aicommerce.common.exception.refund.RefundException;
+import com.sh.aicommerce.common.exception.toss.TossRestClientException;
 import com.sh.aicommerce.common.exception.wms.InventoryException;
 import com.sh.aicommerce.entity.*;
 import com.sh.aicommerce.enums.order.OrderCancelStatus;
@@ -18,7 +19,10 @@ import com.sh.aicommerce.orderCancellation.repository.OrderCancellationRepositor
 import com.sh.aicommerce.orderItem.repository.OrderItemRepository;
 import com.sh.aicommerce.payment.repository.PaymentRepository;
 import com.sh.aicommerce.refund.service.RefundService;
-import com.sh.aicommerce.toss.dto.response.TossRequestHistoryResponseDto;
+import com.sh.aicommerce.toss.dto.response.PgPaymentHistoryDetailResponseDto;
+import com.sh.aicommerce.toss.dto.response.TossPaymentRequestHistoryResponseDto;
+import com.sh.aicommerce.toss.service.TossAPIService;
+import com.sh.aicommerce.toss.service.TossPaymentClient;
 import com.sh.aicommerce.wms.inventory.repository.ProductInventoryRepository;
 import com.sh.aicommerce.wms.outbound.service.OutboundService;
 import lombok.RequiredArgsConstructor;
@@ -42,9 +46,12 @@ public class OrderCancellationService {
     private final OrderItemRepository orderItemRepository;
     private final OrderCancellationRepository orderCancellationRepository;
     private final PaymentRepository paymentRepository;
+
     private final AdminService adminService;
     private final OutboundService outboundService;
     private final RefundService refundService;
+
+    private final TossPaymentClient client;
 
 
     @Transactional
@@ -409,16 +416,48 @@ public class OrderCancellationService {
         }
     }
 
-    public TossRequestHistoryResponseDto requestPaymentHistory(Long memberId, Long cancellationId) {
+    public PgPaymentHistoryDetailResponseDto getPaymentRequestHistory(Long memberId, Long cancellationId) {
+        log.info("[PG Payment 요청 내역 조회] 주문 취소 번호 : {}", cancellationId);
         adminService.validateAdminMemberByMemberId(memberId);
-        String paymentKey = validateAndGetPaymentKey(cancellationId);
+        Payment payment = validateAndGetPaymentKey(cancellationId);
 
         //토스 요청 내역 조회
+        log.info(
+                "[PG 결제 조회] 조회 시작 | 결제 ID: {}",
+                payment.getId()
+        );
 
+        // 실제 Toss API 연동
+        try {
+            TossPaymentRequestHistoryResponseDto response =
+                    client.getPaymentRequestHistory(payment.getPaymentKey());
+
+            log.info(
+                    "[PG 결제 조회] 조회 성공 | 결제 ID: {}, PG 상태: {}, "
+                            + "원결제 금액: {}, 취소 가능 잔액: {}",
+                    payment.getId(),
+                    response.getStatus(),
+                    response.getTotalAmount(),
+                    response.getBalanceAmount()
+            );
+
+            return new PgPaymentHistoryDetailResponseDto(response);
+
+        } catch (TossRestClientException e) {
+            log.error(
+                    "[PG 결제 조회] 조회 실패 | 결제 ID: {}, 사유: {}",
+                    payment.getId(),
+                    e.getMessage(),
+                    e
+            );
+
+            throw e;
+        }
     }
 
-    private String validateAndGetPaymentKey(Long cancellationId) {
+    @Transactional
+    public Payment validateAndGetPaymentKey(Long cancellationId) {
         OrderCancellation cancellation = validateOrderCancellationById(cancellationId);
-        return cancellation.getOrder().getPayment().getPaymentKey();
+        return cancellation.getOrder().getPayment();
     }
 }
