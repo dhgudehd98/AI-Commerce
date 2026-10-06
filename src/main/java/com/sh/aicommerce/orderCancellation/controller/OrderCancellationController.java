@@ -1,5 +1,6 @@
 package com.sh.aicommerce.orderCancellation.controller;
 
+import com.sh.aicommerce.orderCancellation.dto.response.OrderCancelDetailResponseDto;
 import com.sh.aicommerce.orderCancellation.dto.response.OrderCancelFailResponseDto;
 import com.sh.aicommerce.orderCancellation.dto.response.OrderCancelListResponseDto;
 import com.sh.aicommerce.orderCancellation.service.OrderCancellationService;
@@ -31,7 +32,7 @@ public class OrderCancellationController {
     }
 
     // 주문 취소 상세 정보 API
-    @PostMapping("/detail/{cancelId}")
+    @GetMapping("/detail/{cancelId}")
     public ResponseEntity<?> orderCancellationDetail(
             @PathVariable Long cancelId
     ) {
@@ -61,5 +62,21 @@ public class OrderCancellationController {
 
         return "orderCancellation/orderCancelFailList";
 
+    }
+
+    @GetMapping("fail/{cancellationId}")
+    public ResponseEntity<?> orderCancelFailedDetail(
+            @PathVariable(name = "cancellationId") Long cancellationId
+    ) {
+        Long memberId = 3L;
+        return ResponseEntity.ok(orderCancellationService.orderCancelFailedDetail(memberId, cancellationId));
+    }
+
+    @GetMapping("fail/{cancellationId}/pgPayment")
+    public ResponseEntity<?> requestPaymentHistory(
+            @PathVariable Long cancellationId
+    ) {
+        Long memberId = 3L;
+        return ResponseEntity.ok(orderCancellationService.requestPaymentHistory(memberId, cancellationId));
     }
 }

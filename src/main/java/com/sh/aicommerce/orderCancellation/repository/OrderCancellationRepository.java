@@ -3,7 +3,7 @@ package com.sh.aicommerce.orderCancellation.repository;
 import com.sh.aicommerce.entity.OrderCancellation;
 import com.sh.aicommerce.enums.order.OrderCancelStatus;
 import com.sh.aicommerce.orderCancellation.dto.record.OrderCancellationDetailRecord;
-import com.sh.aicommerce.orderCancellation.dto.record.OrderCancellationProcessCancelRecord;
+import com.sh.aicommerce.orderCancellation.dto.record.OrderCancellationFailedDetailResponseRecord;
 import com.sh.aicommerce.orderCancellation.dto.record.OrderCancellationWithOutbound;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
@@ -48,24 +48,54 @@ public interface OrderCancellationRepository extends JpaRepository<OrderCancella
     )
     Page<OrderCancellationWithOutbound> findOrderCancellationAll(Pageable pageable);
 
+    // 주문 취소 실패 리스트 조회
     @Query(
             value = """
-    select new com.sh.aicommerce.orderCancellation.dto.record.OrderCancellationWithOutbound(
-       oc,
-       ob,
-       oc.order.id,
-       oc.order.orderNumber
-    )
-    from OrderCancellation oc 
-    join Outbound ob on ob.order=  oc.order
-    """,
+        select new com.sh.aicommerce.orderCancellation.dto.record.OrderCancellationWithOutbound(
+            oc,
+            ob,
+            oc.order.id,
+            oc.order.orderNumber
+        )
+        from OrderCancellation oc
+        join Outbound ob on ob.order = oc.order
+        where oc.cancelStatus in :statuses
+        """,
             countQuery = """
-    select count(oc)
-    from OrderCancellation  oc
-    join Outbound ob on ob.order= oc.order
-    """
+        select count(oc)
+        from OrderCancellation oc
+        join Outbound ob on ob.order = oc.order
+        where oc.cancelStatus in :statuses
+        """
     )
-    Page<OrderCancellationWithOutbound> findFailedOrderCancels(Pageable pageable, List<OrderCancelStatus> statuses);
+    Page<OrderCancellationWithOutbound> findFailedOrderCancellations(
+            @Param("statuses") List<OrderCancelStatus> statuses,
+            Pageable pageable
+    );
+
+    // 특정 주문 취소 요청 실패 상세 요청
+    @Query("""
+    select new com.sh.aicommerce.orderCancellation.dto.record.OrderCancellationFailedDetailResponseRecord(
+        oc,
+        o,
+        p,
+        ob,
+        m,
+        d,
+        r
+    )
+    from OrderCancellation oc
+    left join oc.order o
+    left join o.member m
+    left join Payment p on p.order = o
+    left join Outbound ob on ob.order = o
+    left join Delivery d on d.order = o
+    left join Refund r on r.orderCancellation = oc
+    where oc.id = :cancellationId
+    """)
+    Optional<OrderCancellationFailedDetailResponseRecord> findFailureOrderCancellationDetailById(
+            @Param("cancellationId") Long cancellationId
+    );
 
 
     @Query(
@@ -143,5 +173,7 @@ public interface OrderCancellationRepository extends JpaRepository<OrderCancella
             """
     )
     List<Long> findTargetOrderCancellationFailed();
+
+    Optional<OrderCancellation> findOrderCancellationById(Long cancellationId);
 
 }

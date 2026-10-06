@@ -32,6 +32,7 @@ public class OrderCancellation {
     private String cancelReason; // 취소 사유
     private String failReason; // 실패 사유
     private String admin; // 관리자
+    private String paymentKey; // PG 결제 취소 요처
 
     private boolean itemReturnRequired; // 상품 복귀 확인 필요 여부
     private LocalDateTime itemReturnedAt; // 상품 복귀 시간

@@ -10,7 +10,7 @@ import com.sh.aicommerce.enums.order.OrderCancelStatus;
 import com.sh.aicommerce.enums.payment.PaymentStatus;
 import com.sh.aicommerce.enums.refund.RefundStatus;
 import com.sh.aicommerce.orderCancellation.dto.record.OrderCancellationDetailRecord;
-import com.sh.aicommerce.orderCancellation.dto.record.OrderCancellationProcessCancelRecord;
+import com.sh.aicommerce.orderCancellation.dto.record.OrderCancellationFailedDetailResponseRecord;
 import com.sh.aicommerce.orderCancellation.dto.response.OrderCancelDetailResponseDto;
 import com.sh.aicommerce.orderCancellation.dto.response.OrderCancelFailResponseDto;
 import com.sh.aicommerce.orderCancellation.dto.response.OrderCancelListResponseDto;
@@ -18,6 +18,7 @@ import com.sh.aicommerce.orderCancellation.repository.OrderCancellationRepositor
 import com.sh.aicommerce.orderItem.repository.OrderItemRepository;
 import com.sh.aicommerce.payment.repository.PaymentRepository;
 import com.sh.aicommerce.refund.service.RefundService;
+import com.sh.aicommerce.toss.dto.response.TossRequestHistoryResponseDto;
 import com.sh.aicommerce.wms.inventory.repository.ProductInventoryRepository;
 import com.sh.aicommerce.wms.outbound.service.OutboundService;
 import lombok.RequiredArgsConstructor;
@@ -74,6 +75,34 @@ public class OrderCancellationService {
     }
 
     @Transactional
+    public OrderCancelDetailResponseDto orderCancelFailedDetail(Long memberId, Long cancellationId) {
+        adminService.validateAdminMemberByMemberId(memberId);
+
+        OrderCancellationFailedDetailResponseRecord data =
+                orderCancellationRepository
+                        .findFailureOrderCancellationDetailById(cancellationId)
+                        .orElseThrow(() -> new OrderCancellationException(
+                                "[취소 실패 상세 조회] 주문 취소 정보가 없습니다."
+                                        + " | 취소 ID: " + cancellationId
+                        ));
+
+        if (data.order() == null
+                || data.member() == null
+                || data.payment() == null
+                || data.outbound() == null) {
+            throw new OrderCancellationException(
+                    "[취소 실패 상세 조회] 필수 연결 정보가 누락되었습니다."
+                            + " | 취소 ID: " + cancellationId
+            );
+        }
+
+        List<OrderItem> orderItems =
+                orderItemRepository.findByOrderId(data.order().getId());
+
+        return new OrderCancelDetailResponseDto(data, orderItems);
+    }
+
+    @Transactional
     public Map<String, String> cancel(Long memberId, Long cancelId) {
 
         try {
@@ -121,7 +150,7 @@ public class OrderCancellationService {
         );
 
         return orderCancellationRepository
-                .findFailedOrderCancels(pageable, statuses)
+                .findFailedOrderCancellations(statuses,pageable)
                 .map(OrderCancelFailResponseDto::new);
 
     }
@@ -378,5 +407,18 @@ public class OrderCancellationService {
                 (cancellation.isItemReturnRequired() && cancellation.getItemReturnedAt() == null)) {
             throw new OrderCancellationException("[주문 취소 완료 검증] 선점 해제 또는 필요한 상품 복귀가 완료되지 않았습니다.");
         }
+    }
+
+    public TossRequestHistoryResponseDto requestPaymentHistory(Long memberId, Long cancellationId) {
+        adminService.validateAdminMemberByMemberId(memberId);
+        String paymentKey = validateAndGetPaymentKey(cancellationId);
+
+        //토스 요청 내역 조회
+
+    }
+
+    private String validateAndGetPaymentKey(Long cancellationId) {
+        OrderCancellation cancellation = validateOrderCancellationById(cancellationId);
+        return cancellation.getOrder().getPayment().getPaymentKey();
     }
 }
