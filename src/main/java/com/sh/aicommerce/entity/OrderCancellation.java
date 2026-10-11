@@ -95,6 +95,7 @@ public class OrderCancellation {
 
     //실제 주문취소의 모든 상태가 완료된 경우 CANCELED로 상태 변경 처리
     public void updateCancelStatusCanceled() {
+        this.failReason = null;
         this.updatedAt = LocalDateTime.now();
         this.completedAt = LocalDateTime.now();
         this.cancelStatus = OrderCancelStatus.CANCELED; //

@@ -3,6 +3,7 @@ package com.sh.aicommerce.orderCancellation.dto.response;
 import com.sh.aicommerce.entity.OrderCancellation;
 import com.sh.aicommerce.entity.OrderItem;
 import com.sh.aicommerce.entity.Refund;
+import com.sh.aicommerce.enums.order.OrderCancelStatus;
 import com.sh.aicommerce.enums.order.OrderStatus;
 import com.sh.aicommerce.orderCancellation.dto.record.OrderCancellationDetailRecord;
 import com.sh.aicommerce.orderCancellation.dto.record.OrderCancellationFailedDetailResponseRecord;
@@ -26,6 +27,7 @@ public class OrderCancelDetailResponseDto {
     private String orderStatus;
     private String outboundStatus;
     private String cancelStatus;
+    private OrderCancelStatus cancelStatusCode;
     private String cancelReason;
     private String failReason;
     private LocalDateTime requestedAt;
@@ -78,6 +80,7 @@ public class OrderCancelDetailResponseDto {
         this.orderStatus = data.order().getStatus().getStatus();
         this.outboundStatus = data.outbound().getOutBoundStatus().getStatus();
         this.cancelStatus = cancellation.getCancelStatus().getStatus();
+        this.cancelStatusCode = data.cancellation().getCancelStatus();
 
         this.cancelReason = cancellation.getCancelReason();
         this.failReason = cancellation.getFailReason();

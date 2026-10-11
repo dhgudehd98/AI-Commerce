@@ -67,5 +67,5 @@ public interface OutboundRepository extends JpaRepository<Outbound, Long> {
     from Outbound ob
     where ob.order.id = :orderId
     """)
-    Optional<Outbound> findByOrderIdForUpdate(@Param("orderId")Long orderId);
+    Optional<Outbound> findOutboundByOrderIdWithLock(@Param("orderId")Long orderId);
 }

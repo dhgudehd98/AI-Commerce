@@ -208,7 +208,7 @@ public class PaymentTransactionService {
         Orders order = cancellation.getOrder();
 
         Payment payment = paymentRepository
-                .findByOrderIdForUpdate(order.getId())
+                .findPaymentByOrderIdWithLock(order.getId())
                 .orElseThrow(() -> new PaymentException(
                         "[결제 취소 결과 반영] 취소 대상 결제 정보가 없습니다."
                 ));
@@ -272,7 +272,7 @@ public class PaymentTransactionService {
         payment.updateCancelStatus();
         cancellation.updateCancelStatusToCancelFailCompleted();
 
-        TossPaymentLog tossPaymentLog = TossPaymentLog.cancelSuccess(payment, response, cancellationId);
+        TossPaymentLog tossPaymentLog = TossPaymentLog.createStatusToCancelSuccess(payment, response, cancellationId);
         logRepository.save(tossPaymentLog);
 
         log.info(
@@ -421,7 +421,7 @@ public class PaymentTransactionService {
             throw new OrderCancellationException("[환불 준비] 필요한 상품 복귀가 확인되지 않았습니다.");
 
         Payment payment = paymentRepository
-                .findByOrderIdForUpdate(cancellation.getOrder().getId())
+                .findPaymentByOrderIdWithLock(cancellation.getOrder().getId())
                 .orElseThrow(() -> new PaymentException("[환불 준비] 주문에 해당하는 결제 정보가 없습니다."));
 
         if (status != OrderCancelStatus.PRODUCT_RESERVATION_RELEASED

@@ -235,6 +235,12 @@
     }
 
     function addPgLookup(detail) {
+        // PG 결제 취소 실패 또는 결과 확인이 필요한 건에서만 조회 버튼을 표시한다.
+        if (detail.cancelStatusCode !== 'PAYMENT_CANCEL_FAILED_CHECK'
+                && detail.cancelStatusCode !== 'PAYMENT_CANCEL_FAILED') {
+            return;
+        }
+
         const panel = document.createElement('section');
         const heading = document.createElement('h3');
         heading.textContent = 'PG 결제·취소 내역';

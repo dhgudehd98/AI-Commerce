@@ -1,5 +1,6 @@
 package com.sh.aicommerce.entity;
 
+import com.sh.aicommerce.toss.dto.response.TossPaymentRequestHistoryResponseDto;
 import com.sh.aicommerce.toss.dto.response.TossPaymentSuccessResponseDto;
 import com.sh.aicommerce.toss.dto.response.TossPaymentCancelResponseDto;
 import com.sh.aicommerce.toss.dto.response.CancelResponseDto;
@@ -171,7 +172,7 @@ public class TossPaymentLog {
      * 승인 로그 필드는 유지하고, 취소 거래는 별도 필드에 기록한다.
      * 원문 응답·HTTP 상태·요청 시각은 이 DTO만으로 확정할 수 없어 임의로 채우지 않는다.
      */
-    public static TossPaymentLog cancelSuccess(Payment payment,
+    public static TossPaymentLog createStatusToCancelSuccess(Payment payment,
             TossPaymentCancelResponseDto response, Long cancellationId) {
         if (response == null || response.getCancels() == null
                 || response.getCancels().size() != 1 || response.getCancels().get(0) == null) {
@@ -221,5 +222,45 @@ public class TossPaymentLog {
             return null;
         }
         return OffsetDateTime.parse(value).toLocalDateTime();
+    }
+
+    public static TossPaymentLog createStatusToCancelSuccessInRetry(Long cancellationId, Payment payment, TossPaymentRequestHistoryResponseDto historyResponse) {
+        TossPaymentLog log = new TossPaymentLog();
+        CancelResponseDto cancel = historyResponse.getCancels().get(0);
+
+        log.payment = payment;
+        log.cancellationId = cancellationId;
+        log.requestType = "CANCEL";
+        log.mid = historyResponse.getMId();
+        log.paymentKey = historyResponse.getPaymentKey();
+        log.orderNumber = historyResponse.getOrderId();
+        log.orderName = historyResponse.getOrderName();
+        log.lastTransactionKey = historyResponse.getLastTransactionKey();
+        log.tossStatus = historyResponse.getStatus();
+        log.method = historyResponse.getMethod();
+        log.currency = historyResponse.getCurrency();
+        log.amount = historyResponse.getTotalAmount();
+        log.balanceAmount = historyResponse.getBalanceAmount();
+        log.suppliedAmount = historyResponse.getSuppliedAmount();
+        log.vat = historyResponse.getVat();
+        log.taxFreeAmount = historyResponse.getTaxFreeAmount();
+        if (historyResponse.getEasyPay() != null) {
+            log.easyPayProvider = historyResponse.getEasyPay().getProvider();
+        }
+
+        log.cancelTransactionKey = cancel.getTransactionKey();
+        log.cancelStatus = cancel.getCancelStatus();
+        log.cancelReason = cancel.getCancelReason();
+        log.cancelAmount = cancel.getCancelAmount();
+        log.canceledAt = cancel.getCanceledAt();
+        log.cancelTaxFreeAmount = cancel.getTaxFreeAmount();
+        log.cancelTaxExemptionAmount = cancel.getTaxExemptionAmount();
+        log.refundableAmount = cancel.getRefundableAmount();
+        log.transferDiscountAmount = cancel.getTransferDiscountAmount();
+        log.easyPayDiscountAmount = cancel.getEasyPayDiscountAmount();
+        log.cancelReceiptKey = cancel.getReceiptKey();
+        log.cancelRequestId = cancel.getCancelRequestId();
+        log.createdAt = LocalDateTime.now();
+        return log;
     }
 }

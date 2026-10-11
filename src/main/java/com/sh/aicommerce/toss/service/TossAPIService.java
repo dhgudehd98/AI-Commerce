@@ -86,6 +86,7 @@ public class TossAPIService {
                 // 카드 정지나 TossAPI에서 설정된 에러 코드를 보내주는 경우에 Failed로 작성
                 cancellationService.paymentCancelFailed(
                         cancellationId,
+                        payment.getPaymentKey(),
                         e.getErrorCode(),
                         e.getMessage());
 
@@ -99,7 +100,7 @@ public class TossAPIService {
 
             try {
                 // 타임아웃 외부 API의 연결에 실패한 경우 해당 내역을 확인할 수 있도록 상태 업데이트
-                cancellationService.paymentCancelFailedCheck(e.getMessage(), cancellationId);
+                cancellationService.paymentCancelFailedCheck(payment.getPaymentKey(), e.getMessage(), cancellationId);
             } catch (RuntimeException saveException) {
                 e.addSuppressed(saveException);
 
@@ -113,7 +114,7 @@ public class TossAPIService {
             throw e;
         } catch (RuntimeException e) {
             try {
-                cancellationService.paymentCancelFailedCheck(
+                cancellationService.paymentCancelFailedCheck(payment.getPaymentKey(),
                         // 검증 원인은 보존하되 DB 오류 전문 등은 관리자 사유에 노출하지 않는다.
                         (e instanceof PaymentException || e instanceof RefundException
                                 || e instanceof OrderCancellationException)

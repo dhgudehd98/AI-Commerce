@@ -1,29 +1,37 @@
 package com.sh.aicommerce.orderCancellation.service;
 
 import com.sh.aicommerce.admin.service.AdminService;
+import com.sh.aicommerce.common.exception.order.OrderException;
 import com.sh.aicommerce.common.exception.orderCancellation.OrderCancellationException;
 import com.sh.aicommerce.common.exception.payment.PaymentException;
 import com.sh.aicommerce.common.exception.refund.RefundException;
+import com.sh.aicommerce.common.exception.toss.TossPaymentException;
 import com.sh.aicommerce.common.exception.toss.TossRestClientException;
 import com.sh.aicommerce.common.exception.wms.InventoryException;
+import com.sh.aicommerce.common.exception.wms.OutboundException;
 import com.sh.aicommerce.entity.*;
 import com.sh.aicommerce.enums.order.OrderCancelStatus;
+import com.sh.aicommerce.enums.order.OrderStatus;
 import com.sh.aicommerce.enums.payment.PaymentStatus;
 import com.sh.aicommerce.enums.refund.RefundStatus;
 import com.sh.aicommerce.orderCancellation.dto.record.OrderCancellationDetailRecord;
 import com.sh.aicommerce.orderCancellation.dto.record.OrderCancellationFailedDetailResponseRecord;
+import com.sh.aicommerce.orderCancellation.dto.record.OrderCancellationRetryRecord;
 import com.sh.aicommerce.orderCancellation.dto.response.OrderCancelDetailResponseDto;
 import com.sh.aicommerce.orderCancellation.dto.response.OrderCancelFailResponseDto;
 import com.sh.aicommerce.orderCancellation.dto.response.OrderCancelListResponseDto;
 import com.sh.aicommerce.orderCancellation.repository.OrderCancellationRepository;
 import com.sh.aicommerce.orderItem.repository.OrderItemRepository;
 import com.sh.aicommerce.payment.repository.PaymentRepository;
+import com.sh.aicommerce.payment.service.PaymentService;
+import com.sh.aicommerce.payment.service.PaymentTransactionService;
 import com.sh.aicommerce.refund.service.RefundService;
 import com.sh.aicommerce.toss.dto.response.PgPaymentHistoryDetailResponseDto;
 import com.sh.aicommerce.toss.dto.response.TossPaymentRequestHistoryResponseDto;
 import com.sh.aicommerce.toss.service.TossAPIService;
 import com.sh.aicommerce.toss.service.TossPaymentClient;
 import com.sh.aicommerce.wms.inventory.repository.ProductInventoryRepository;
+import com.sh.aicommerce.wms.outbound.enums.OutboundStatus;
 import com.sh.aicommerce.wms.outbound.service.OutboundService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -47,9 +55,12 @@ public class OrderCancellationService {
     private final OrderCancellationRepository orderCancellationRepository;
     private final PaymentRepository paymentRepository;
 
+
     private final AdminService adminService;
     private final OutboundService outboundService;
     private final RefundService refundService;
+    private final PaymentService paymentService;
+    private final OrderCancellationTxService cancellationTxService;
 
     private final TossPaymentClient client;
 
@@ -278,11 +289,14 @@ public class OrderCancellationService {
     }
 
     @Transactional
-    public void paymentCancelFailed(Long cancellationId,String errorCode, String failReason) {
+    public void paymentCancelFailed(Long cancellationId,String paymentKey, String errorCode, String failReason) {
 
         log.info("[주문 취소 결제 취소 요청 실패] 주문 취소 번호 : {}, 에러코드 : {}, 에러 메세지 : {}", cancellationId, errorCode, failReason);
         OrderCancellation cancellation =
                 validateOrderCancellationByIdWithLock(cancellationId);
+
+        Payment payment = paymentRepository.findByPaymentKeyForUpdate(paymentKey)
+                .orElseThrow(() -> new PaymentException("PaymentKey에 일치하는 Payment 내역이 존재하지 않습니다."));
 
         Refund refund = refundService.findRefundByCancellationIdWithLock(cancellation.getId());
 
@@ -303,6 +317,8 @@ public class OrderCancellationService {
                 OrderCancelStatus.PAYMENT_CANCEL_FAILED
         );
 
+        payment.updatePaymentStatusToCancelFailed();
+
         // 환불도 실패 상태로 변경
         refund.updateStatusToFailed(errorCode, failReason);
 
@@ -313,7 +329,7 @@ public class OrderCancellationService {
     }
 
     @Transactional
-    public void paymentCancelFailedCheck(String failReason, Long cancellationId) {
+    public void paymentCancelFailedCheck(String paymentKey, String failReason, Long cancellationId) {
 
         log.info("[주문 취소 결제 취소 요청 실패] 실패 사유 확인 필요, 실패 사유 : {}", failReason);
         OrderCancellation cancellation =
@@ -321,6 +337,10 @@ public class OrderCancellationService {
 
         Refund refund = refundService.findRefundByCancellationIdWithLock(cancellation.getId());
         // 신규 결과는 취소 건과 환불 건이 모두 처리 중일 때만 반영한다.
+
+        Payment payment = paymentRepository.findByPaymentKeyForUpdate(paymentKey)
+                .orElseThrow(() -> new PaymentException("PaymentKey에 일치하는 지불 내역이 존재하지 않습니다."));
+
         if (refund.getRefundStatus() != RefundStatus.PROCESSING) {
             log.error("[결제 취소 요청 실패 반영 불가: 환불 상태] cancellationId: {}, refundId: {}, refundStatus: {}",
                     cancellationId, refund.getId(), refund.getRefundStatus());
@@ -337,6 +357,7 @@ public class OrderCancellationService {
                 OrderCancelStatus.PAYMENT_CANCEL_FAILED_CHECK
         );
 
+        payment.updatePaymentStatusToCancelFailed();
         refund.updateStatusToFailedCheck(failReason);
 
         log.warn(
@@ -460,4 +481,85 @@ public class OrderCancellationService {
         OrderCancellation cancellation = validateOrderCancellationById(cancellationId);
         return cancellation.getOrder().getPayment();
     }
+
+    public void retry(Long memberId, Long cancellationId) {
+        adminService.validateAdminMemberByMemberId(memberId);
+
+        log.info("[실패 된 주문 취소 요청 재처리] 주문 취소 번호 : {}", cancellationId);
+        OrderCancellationRetryRecord data = cancellationTxService.validateRetryDataForCancel(cancellationId);
+        log.info("[주문 취소 재처리 검증 완료] 주문 취소 번호 : {}", cancellationId);
+
+        pgPaymentRequestRetry(cancellationId, data);
+
+    }
+
+    public void pgPaymentRequestRetry(Long cancellationId, OrderCancellationRetryRecord data) {
+
+        OrderCancellation cancellation = data.cancellation();
+        Orders order = data.order();
+        Payment payment = data.payment();
+        String paymentKey = payment.getPaymentKey();
+
+        if(cancellation.getCancelStatus().equals(OrderCancelStatus.PAYMENT_CANCEL_FAILED))
+            return;
+
+        // PG 결과 재조회 - PAYMENT_CANCEL_FAILED_CHECK인 경우, TossAPI 재요청
+        try {
+            log.info("[주문 취소 재처리 요청] PG 결과 재조회");
+            //TossAPI 요청 결제 내역 / 취소 내역 요청 후 응답 데이터 검증
+            validatePgResponseWithPayment(cancellationId, data, client.getPaymentRequestHistory(paymentKey));
+        } catch (Exception e) {
+            log.error("[주문 취소 재처리 검증 실패] PG 요청 내역이 존재하지 않습니다.", e);
+        }
+    }
+
+    /**
+     * PG 재조회 했을 때 검증 할 데이터
+     * - paymentHistory에 대한값이 null 값인지 확인
+     * - paymentKey 대한 값이 동일한지 확인
+     * - 주문번호(orderId = orderNumber)에 대한 값이 동일한지 확인
+     * - 결제금액이 동일한지 확인 history.getTotalAmount = payment.getAmount
+     * - 취소 가능한 잔액이 0이 아니여야함. 취소 가능한 잔액이 0원이면 이미 취소된건으로 보기
+     * - 현재는 전액 취소만 가능하니까 cancels에 대한 내역이 있는지 확인(cancels.size() >= 1) 해당 조건에 미충족 하면 실패
+     *  - 결제 취소 내역 자체가 존재하면 이미 취소가 된건이니까
+     */
+    private void validatePgResponseWithPayment(Long cancellationId, OrderCancellationRetryRecord data, TossPaymentRequestHistoryResponseDto paymentRequestHistory) {
+
+        Orders order = data.order();
+        Payment payment = data.payment();
+
+        // 정합성 검사에 실패한 경우
+        if(paymentRequestHistory == null){
+            throw new TossPaymentException("[주문 취소 재처리 요청 실패] PG 요청 내역이 존재하지 않습니다.");
+        }
+
+        if(!paymentRequestHistory.getPaymentKey().equals(payment.getPaymentKey())) {
+            throw new OrderCancellationException("[주문 취소 재처리 요청 실패] PG 결제 내역과 지불 내역 값이 일치하지 않습니다.");
+        }
+
+        if(!paymentRequestHistory.getOrderId().equals(order.getOrderNumber())) {
+            throw new PaymentException("[주문 취소 재처리 요청 실패] 결제 시, 주문 번호에 대한 내역이 다릅니다.");
+        }
+
+        if(!paymentRequestHistory.getTotalAmount().equals(payment.getAmount())) {
+            throw new PaymentException("[주문 취소 재처리 요청 실패] 실제 결제 금액과 과거 결제 금액 내역이 다릅니다.");
+        }
+
+        // 현재 부분 취소에 대한 부분은 없기 때문에 토스 API에서 응답한 상태 값이 CANCELD면 전액 취소가 된건이므로, 결제 취소가 됐는지 안됐는제 확인은
+        // status.equals("CANCELED")로 확인하기
+        if (paymentRequestHistory.getStatus().equals("CANCELED")) {
+            // 현재 취소 요청 처리를 하고 있는 로직으로 처리하기에는 매개변수가 다르고, PaymentTransactionService를 또 하면 순환참조 일어나는데
+            // 별도의 로직으로 접수하는게 나은거 같은데 기존에 있던 취소 요청 로직을 타기보다는
+            cancellationTxService.applyRecoveredUpdateStatus(cancellationId, paymentRequestHistory);
+            return;
+        }
+
+        // 취소에 대한 내역이 존재하지 않는 경우
+        if (paymentRequestHistory.getCancels().get(0) == null) {
+            // TossAPI 요청을 보내거나 OrderCancellation의 상태를 변경해서 스케줄러를 다시 타게 하던가
+            cancellationTxService.cancelRetry(cancellationId, data);
+        }
+
+    }
+
 }

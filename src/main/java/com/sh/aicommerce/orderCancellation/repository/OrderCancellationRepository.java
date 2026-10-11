@@ -4,6 +4,7 @@ import com.sh.aicommerce.entity.OrderCancellation;
 import com.sh.aicommerce.enums.order.OrderCancelStatus;
 import com.sh.aicommerce.orderCancellation.dto.record.OrderCancellationDetailRecord;
 import com.sh.aicommerce.orderCancellation.dto.record.OrderCancellationFailedDetailResponseRecord;
+import com.sh.aicommerce.orderCancellation.dto.record.OrderCancellationRetryRecord;
 import com.sh.aicommerce.orderCancellation.dto.record.OrderCancellationWithOutbound;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
@@ -176,4 +177,21 @@ public interface OrderCancellationRepository extends JpaRepository<OrderCancella
 
     Optional<OrderCancellation> findOrderCancellationById(Long cancellationId);
 
+
+    @Query("""
+    select new com.sh.aicommerce.orderCancellation.dto.record.OrderCancellationRetryRecord(
+        oc,
+        o,
+        p,
+        r,
+        ob
+    )
+    from OrderCancellation oc
+    left join oc.order o
+    left join o.payment p
+    left join Outbound ob on ob.order = o
+    left join Refund r on r.orderCancellation = oc
+    where oc.id = :cancellationId
+    """)
+    Optional<OrderCancellationRetryRecord> findOrderCancellationForCancelRetry(Long cancellationId);
 }

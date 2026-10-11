@@ -285,4 +285,13 @@ public class PaymentService {
                 .orElseThrow(() -> new PaymentException("PaymentKey에 일치하는 Payment 내역이 존재하지 않습니다."));
     }
 
+    public Payment findPaymentByOrderIdWithLock(Long orderId) {
+        return paymentRepository.findPaymentByOrderIdWithLock(orderId)
+                .orElseThrow(() -> new PaymentException("주문 번호에 해당하는 지불 내역이 존재하지 않습니다. 주문 번호 : " + orderId));
+    }
+
+    public Payment findByOrderId(Long orderId) {
+        return paymentRepository.findByOrderId(orderId)
+                .orElseThrow(() -> new PaymentException("주문 번호에 일치하는 결제 내역이 존재하지 않습니다. 주문 번호 : " + orderId));
+    }
 }

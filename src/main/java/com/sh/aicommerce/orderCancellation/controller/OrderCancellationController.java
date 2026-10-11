@@ -80,4 +80,14 @@ public class OrderCancellationController {
         Long memberId = 3L;
         return ResponseEntity.ok(orderCancellationService.getPaymentRequestHistory(memberId, cancellationId));
     }
+
+    // 주문 취소 요청 재처리
+    @PostMapping("fail/{cancellationId}/retry")
+    public ResponseEntity<?> retry(
+            @PathVariable Long cancellationId
+    ) {
+        Long memberId = 3L;
+        return null;
+//        return ResponseEntity.ok(orderCancellationService.retry(memberId, cancellationId));
+    }
 }

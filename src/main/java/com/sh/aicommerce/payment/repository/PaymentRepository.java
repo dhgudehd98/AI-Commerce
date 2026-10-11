@@ -164,7 +164,7 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     where p.order.id = :orderId
     """
     )
-    Optional<Payment> findByOrderIdForUpdate(@Param("orderId") Long orderId);
+    Optional<Payment> findPaymentByOrderIdWithLock(@Param("orderId") Long orderId);
 
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
@@ -183,4 +183,5 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     where p.paymentKey = :paymentKey
     """)
     Optional<Payment> findPaymentByPaymentKey(@Param("paymentKey")String paymentKey);
+
 }

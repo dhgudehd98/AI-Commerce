@@ -41,4 +41,9 @@ public class RefundService {
                                 + cancellationId
                 ));
     }
+
+    public Refund validateRefundWithLock(Long refundId) {
+        return null;
+    }
+
 }

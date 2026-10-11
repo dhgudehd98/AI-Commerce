@@ -3,6 +3,7 @@ package com.sh.aicommerce.entity;
 
 import com.sh.aicommerce.enums.refund.RefundStatus;
 import com.sh.aicommerce.toss.dto.response.TossPaymentCancelResponseDto;
+import com.sh.aicommerce.toss.dto.response.TossPaymentRequestHistoryResponseDto;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -94,5 +95,18 @@ public class Refund {
         this.failureReason = failReason;
         this.updatedAt = LocalDateTime.now();
         this.refundStatus = RefundStatus.FAILED_CHECK;
+    }
+
+    public void retryUpdateStatusToComplete(TossPaymentRequestHistoryResponseDto response) {
+        this.failureCode = null;
+        this.failureReason = null;
+        LocalDateTime now = LocalDateTime.now();
+
+        this.transactionKey = response.getCancels().get(0).getTransactionKey();
+        this.refundedAmount = response.getCancels().get(0).getCancelAmount();
+        this.refundStatus = RefundStatus.COMPLETED;
+        this.completedAt = now;
+        this.updatedAt = now;
+        this.canceledAt = response.getCancels().get(0).getCanceledAt();
     }
 }

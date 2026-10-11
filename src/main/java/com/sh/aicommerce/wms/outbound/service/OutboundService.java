@@ -170,7 +170,7 @@ public class OutboundService {
 
     public void updateOutboundStatusCancel(String cancelReason, Long orderId) {
         Orders order = orderService.validateOrderWithLock(orderId);
-        Outbound outbound = outboundRepository.findByOrderIdForUpdate(order.getId())
+        Outbound outbound = outboundRepository.findOutboundByOrderIdWithLock(order.getId())
                 .orElseThrow(() -> new OutboundException("[출고 취소 완료] 주문에 해당하는 출고 정보가 없습니다. | 주문 ID: " + order.getId()));
 
         OutboundStatus previousStatus = outbound.getOutBoundStatus();
@@ -201,5 +201,10 @@ public class OutboundService {
         OutboundHistory outboundHistory = OutboundHistory.createForCancellationCompleted(outbound, previousStatus, cancelReason);
         historyRepository.save(outboundHistory);
 
+    }
+
+    public Outbound findOutboundByOrderIdWithLock(Long orderId) {
+        return outboundRepository.findOutboundByOrderIdWithLock(orderId)
+                .orElseThrow(() -> new OutboundException("현재 주문번호에 해당 하는 출고 내역이 존재하지 않습니다. 주문 번호 : " + orderId));
     }
 }
