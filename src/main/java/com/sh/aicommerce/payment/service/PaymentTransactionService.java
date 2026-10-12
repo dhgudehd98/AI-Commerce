@@ -35,7 +35,7 @@ import java.util.Objects;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class PaymentTxService {
+public class PaymentTransactionService {
 
     private final PaymentRepository paymentRepository;
     private final ProductInventoryRepository inventoryRepository;

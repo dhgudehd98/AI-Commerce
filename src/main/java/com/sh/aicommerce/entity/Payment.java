@@ -72,14 +72,14 @@ public class Payment {
 
         if (dto.getPaymentMethod() == PaymentMethod.SAVED_CARD) {
             payment.savedCardId = dto.getSavedCardId();
-            payment.paymentProvider = "PG_BILLING";
+            payment.paymentProvider = "PG_BILLING_CARD";
             payment.paymentMethodLabel = "등록 카드 간편결제";
             return payment;
         }
 
         if (dto.getPaymentMethod() == PaymentMethod.SAVED_ACCOUNT) {
             payment.savedAccountId = dto.getSavedAccountId();
-            payment.paymentProvider = "PG_BILLING";
+            payment.paymentProvider = "PG_BILLING_ACCOUNT";
             payment.paymentMethodLabel = "등록 계좌 간편결제";
             return payment;
         }

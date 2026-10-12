@@ -8,7 +8,7 @@ import com.sh.aicommerce.common.exception.toss.TossCancelException;
 import com.sh.aicommerce.common.exception.toss.TossRestClientException;
 import com.sh.aicommerce.entity.Payment;
 import com.sh.aicommerce.orderCancellation.service.OrderCancellationService;
-import com.sh.aicommerce.payment.service.PaymentTxService;
+import com.sh.aicommerce.payment.service.PaymentTransactionService;
 import com.sh.aicommerce.toss.dto.request.TossPaymentBillingRequestDto;
 import com.sh.aicommerce.toss.dto.response.*;
 import lombok.RequiredArgsConstructor;
@@ -21,7 +21,7 @@ import org.springframework.stereotype.Service;
 public class TossAPIService {
 
 
-    private final PaymentTxService paymentTxService;
+    private final PaymentTransactionService paymentTransactionService;
     private final TossTransactionService transactionService;
     private final TossPaymentClient client;
     private final OrderCancellationService cancellationService;
@@ -44,19 +44,19 @@ public class TossAPIService {
     public void payFail(String orderNumber, String errorCode, String errorMessage) {
         log.error("[토스페이먼츠 결제 위젯 오류 발생] 에러 코드 : {}, 에러 메세지 : {}", errorCode, errorMessage);
 
-        paymentTxService.payFailTossPayment(orderNumber);
+        paymentTransactionService.payFailTossPayment(orderNumber);
     }
 
     public void cancel(Long cancellationId) {
         log.info("[토스페이먼츠 결제 취소 요청]");
         TossPaymentCancelResponseDto response;
-        Payment payment = paymentTxService.prepareRefund(cancellationId);
+        Payment payment = paymentTransactionService.prepareRefund(cancellationId);
 
         try {
             // TossAPI 결제 취소 요청
             response = client.cancel(payment.getPaymentKey());
             // 결제 실패 요청이 성공적으로 완료 처리
-            paymentTxService.cancel(response, cancellationId);
+            paymentTransactionService.cancel(response, cancellationId);
         } catch (TossCancelException e) {
             log.error("[토스페이먼츠 결제 취소 요청 처리 실패] 에러 메세지 : {}", e.getMessage());
 

@@ -3,7 +3,7 @@ package com.sh.aicommerce.batch.config;
 import com.sh.aicommerce.batch.listener.JobListener;
 import com.sh.aicommerce.batch.reader.ExpiredPaymentReader;
 import com.sh.aicommerce.batch.writer.ExpiredPaymentWriter;
-import com.sh.aicommerce.payment.service.PaymentTxService;
+import com.sh.aicommerce.payment.service.PaymentTransactionService;
 import jakarta.persistence.EntityManagerFactory;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,7 +30,7 @@ import java.time.LocalDateTime;
 @RequiredArgsConstructor
 public class ExpiredPaymentBatchConfig {
 
-    private final PaymentTxService transactionService;
+    private final PaymentTransactionService transactionService;
     private final PlatformTransactionManager transaction;
     private final JobListener jobListener;
     private final JobRepository jobRepository;

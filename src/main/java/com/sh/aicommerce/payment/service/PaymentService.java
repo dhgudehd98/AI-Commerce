@@ -41,7 +41,7 @@ public class PaymentService {
 
     private final CardRepository cardRepository;
     private final AccountRepository accountRepository;
-    private final PaymentTxService paymentTxService;
+    private final PaymentTransactionService paymentTransactionService;
 
     private final TossPaymentClient client;
 
@@ -157,11 +157,11 @@ public class PaymentService {
         log.info("[토스 페이먼츠 결제 승인 요청] : 주문번호(orderId) : {}", orderNumber);
         TossPaymentRequestDto request = new TossPaymentRequestDto(paymentKey, amount, orderNumber);
         // PG 요청 전 검증은 승인 거절 처리 범위에서 제외한다.
-        if (paymentTxService.isPaidTossWidgetPayment(orderNumber, paymentKey, amount)) {
-            Payment payment = paymentTxService.findPaidTossWidgetPayment(orderNumber, paymentKey, amount);
+        if (paymentTransactionService.isPaidTossWidgetPayment(orderNumber, paymentKey, amount)) {
+            Payment payment = paymentTransactionService.findPaidTossWidgetPayment(orderNumber, paymentKey, amount);
             return new TossPaymentSuccessResponseDto(payment);
         }
-        paymentTxService.validatePaymentByTossWidget(request);
+        paymentTransactionService.validatePaymentByTossWidget(request);
 
         TossPaymentSuccessResponseDto response;
         try {
@@ -176,25 +176,25 @@ public class PaymentService {
         }
 
         // PG 승인 후 DB 반영 오류를 결제 거절로 처리하지 않는다.
-        paymentTxService.applyPaymentByTossWidget(response, request);
+        paymentTransactionService.applyPaymentByTossWidget(response, request);
         return response;
     }
 
     public TossPaymentSuccessResponseDto payByTossBillingCard(Long memberId, String orderNumber) throws JsonProcessingException {
 
         // 해당 주문번호가 이미 결제되어 있는 정보인지 확인
-        if(paymentTxService.isPaidBillingCardPayment(orderNumber)) {
-            Payment payment = paymentTxService.findPaidBillingCardPayment(orderNumber);
+        if(paymentTransactionService.isPaidBillingCardPayment(orderNumber)) {
+            Payment payment = paymentTransactionService.findPaidBillingCardPayment(orderNumber);
 
             return new TossPaymentSuccessResponseDto(payment);
         }
 
         log.info("[토스페이먼츠 자동 결제(Billing) 요청] 주문번호 : {}", orderNumber);
-        Member member = paymentTxService.validateMember(memberId);
-        Payment payment = paymentTxService.validatePaymentByBillingCard(orderNumber, memberId);
+        Member member = paymentTransactionService.validateMember(memberId);
+        Payment payment = paymentTransactionService.validatePaymentByBillingCard(orderNumber, memberId);
         Orders order = payment.getOrder();
 
-        Card card = paymentTxService.validateCard(payment.getSavedCardId(), memberId);
+        Card card = paymentTransactionService.validateCard(payment.getSavedCardId(), memberId);
 
         if(!order.getMember().getId().equals(member.getId())) throw new OrderException("주문 하려는 사용자의 정보가 일치하지 않습니다.");
 
@@ -213,7 +213,7 @@ public class PaymentService {
         }
 
         // 결제 완료시 Payment 및 Order 내역 업데이트
-        paymentTxService.applyPaymentByTossBillingCard(memberId, orderNumber, response);
+        paymentTransactionService.applyPaymentByTossBillingCard(memberId, orderNumber, response);
         log.info("[토스 페이먼츠 카드 결제 완료] 결제 번호 : " + orderNumber);
 
         return response;
@@ -225,7 +225,7 @@ public class PaymentService {
                 orderNumber, e.getErrorCode(), e.getMessage());
         try {
             // 명확한 승인 거절일 때만 실패 저장 및 예약 재고 해제
-            paymentTxService.payFailTossPayment(orderNumber);
+            paymentTransactionService.payFailTossPayment(orderNumber);
         } catch (RuntimeException saveException) {
             // 실패 저장 오류가 원래 PG 거절 예외를 덮어쓰지 않도록 보존
             e.addSuppressed(saveException);
