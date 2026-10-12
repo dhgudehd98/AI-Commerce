@@ -225,7 +225,7 @@ public class OrderCancellationTxService {
         }
         historyRepository.save(OutboundHistory.createForCancellationRecovered(
                 outbound, previousStatus, cancellation.getCancelReason()));
-        log.info("[취소 복구 완료] 취소 ID: {}, 주문 ID: {}, 결제 ID: {}, 환불 금액: {}",
+        log.info("[취소 복구 반영 준비 완료] 취소 ID: {}, 주문 ID: {}, 결제 ID: {}, 환불 금액: {}",
                 cancellationId, order.getId(), payment.getId(), cancel.getCancelAmount());
     }
 

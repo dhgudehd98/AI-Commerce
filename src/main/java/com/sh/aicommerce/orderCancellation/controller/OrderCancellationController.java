@@ -87,7 +87,6 @@ public class OrderCancellationController {
             @PathVariable Long cancellationId
     ) {
         Long memberId = 3L;
-        return null;
-//        return ResponseEntity.ok(orderCancellationService.retry(memberId, cancellationId));
+        return ResponseEntity.ok(orderCancellationService.retry(memberId, cancellationId));
     }
 }

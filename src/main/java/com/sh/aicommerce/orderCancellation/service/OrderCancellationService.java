@@ -482,48 +482,52 @@ public class OrderCancellationService {
         return cancellation.getOrder().getPayment();
     }
 
-    public void retry(Long memberId, Long cancellationId) {
-        adminService.validateAdminMemberByMemberId(memberId);
-
-        log.info("[실패 된 주문 취소 요청 재처리] 주문 취소 번호 : {}", cancellationId);
-        OrderCancellationRetryRecord data = cancellationTxService.validateRetryDataForCancel(cancellationId);
-        log.info("[주문 취소 재처리 검증 완료] 주문 취소 번호 : {}", cancellationId);
-
-        pgPaymentRequestRetry(cancellationId, data);
-
+    public Map<String, String> retry(Long memberId, Long cancellationId) {
+        String stage = "관리자 권한 확인";
+        Long paymentId = null;
+        try {
+            adminService.validateAdminMemberByMemberId(memberId);
+            stage = "사전 데이터 검증";
+            log.info("[주문 취소 복구 시작] 취소 ID: {}, 관리자 ID: {}", cancellationId, memberId);
+            OrderCancellationRetryRecord data = cancellationTxService.validateRetryDataForCancel(cancellationId);
+            paymentId = data.payment().getId();
+            stage = "PG 조회 및 내부 결과 복구";
+            return pgPaymentRequestRetry(cancellationId, data);
+        } catch (RuntimeException e) {
+            log.error("[주문 취소 복구 실패] 단계: {}, 취소 ID: {}, 결제 ID: {}, 관리자 ID: {}, 사유: {}",
+                    stage, cancellationId, paymentId, memberId, e.getMessage(), e);
+            throw e;
+        }
     }
 
-    public void pgPaymentRequestRetry(Long cancellationId, OrderCancellationRetryRecord data) {
+    public Map<String, String> pgPaymentRequestRetry(Long cancellationId, OrderCancellationRetryRecord data) {
 
         OrderCancellation cancellation = data.cancellation();
         Orders order = data.order();
         Payment payment = data.payment();
         String paymentKey = payment.getPaymentKey();
 
+        /**
+         * 관리자가 주문 취소 재처리 요청을 진행했을 떄, 자동으로 주문 취소 재처리가 가능한 상태 : PAYMENT_CANCEL_FAILED_CHECKED
+         * - PAYMENT_CANCEL_FAILED에 대한 경우에는 에러코드가 발생했기 때문에 실제로 해당 에러 메세지에 대한 값을 확인하고, 관리자가 직접 처리해야됨.
+         */
+        // 관리자가 주문 취소 재처리 요청을 진행했을 때, 자동으로 주문 취소 재처리가 가능한 상태는 PAYMENT_CANCEL_FAILED_CHECKED에 대한 상태만 가능하ㄷ
         if(cancellation.getCancelStatus().equals(OrderCancelStatus.PAYMENT_CANCEL_FAILED))
-            return;
+            throw new OrderCancellationException("[주문 취소 재처리 요청 실패] 현재 주문 취소 재처리가 가능한 상태가 아닙니다. 관리자에게 문의해주세요.");
 
-        // PG 결과 재조회 - PAYMENT_CANCEL_FAILED_CHECK인 경우, TossAPI 재요청
-        try {
-            log.info("[주문 취소 재처리 요청] PG 결과 재조회");
-            //TossAPI 요청 결제 내역 / 취소 내역 요청 후 응답 데이터 검증
-            validatePgResponseWithPayment(cancellationId, data, client.getPaymentRequestHistory(paymentKey));
-        } catch (Exception e) {
-            log.error("[주문 취소 재처리 검증 실패] PG 요청 내역이 존재하지 않습니다.", e);
-        }
+        log.info("[주문 취소 PG 조회 시작] 취소 ID: {}, 결제 ID: {}", cancellationId, payment.getId());
+        TossPaymentRequestHistoryResponseDto response = client.getPaymentRequestHistory(paymentKey);
+        log.info("[주문 취소 PG 조회 응답] 취소 ID: {}, 결제 ID: {}, PG 상태: {}",
+                cancellationId, payment.getId(), response == null ? null : response.getStatus());
+        return validatePgResponseWithPayment(cancellationId, data, response);
     }
 
     /**
-     * PG 재조회 했을 때 검증 할 데이터
-     * - paymentHistory에 대한값이 null 값인지 확인
-     * - paymentKey 대한 값이 동일한지 확인
-     * - 주문번호(orderId = orderNumber)에 대한 값이 동일한지 확인
-     * - 결제금액이 동일한지 확인 history.getTotalAmount = payment.getAmount
-     * - 취소 가능한 잔액이 0이 아니여야함. 취소 가능한 잔액이 0원이면 이미 취소된건으로 보기
-     * - 현재는 전액 취소만 가능하니까 cancels에 대한 내역이 있는지 확인(cancels.size() >= 1) 해당 조건에 미충족 하면 실패
-     *  - 결제 취소 내역 자체가 존재하면 이미 취소가 된건이니까
+     * 조회된 대상 결제와 전액 취소 상태를 확인한 뒤 내부 결과를 복구한다.
+     * 취소 상세·금액·잔액·거래 식별자는 TxService에서 최신 데이터로 재검증한다.
+     * 복구 트랜잭션이 정상 반환한 경우에만 성공 응답을 생성한다.
      */
-    private void validatePgResponseWithPayment(Long cancellationId, OrderCancellationRetryRecord data, TossPaymentRequestHistoryResponseDto paymentRequestHistory) {
+    private Map<String, String> validatePgResponseWithPayment(Long cancellationId, OrderCancellationRetryRecord data, TossPaymentRequestHistoryResponseDto paymentRequestHistory) {
 
         Orders order = data.order();
         Payment payment = data.payment();
@@ -533,33 +537,30 @@ public class OrderCancellationService {
             throw new TossPaymentException("[주문 취소 재처리 요청 실패] PG 요청 내역이 존재하지 않습니다.");
         }
 
-        if(!paymentRequestHistory.getPaymentKey().equals(payment.getPaymentKey())) {
+        if(paymentRequestHistory.getPaymentKey() == null || !paymentRequestHistory.getPaymentKey().equals(payment.getPaymentKey())) {
             throw new OrderCancellationException("[주문 취소 재처리 요청 실패] PG 결제 내역과 지불 내역 값이 일치하지 않습니다.");
         }
 
-        if(!paymentRequestHistory.getOrderId().equals(order.getOrderNumber())) {
+        if(paymentRequestHistory.getOrderId() == null || !paymentRequestHistory.getOrderId().equals(order.getOrderNumber())) {
             throw new PaymentException("[주문 취소 재처리 요청 실패] 결제 시, 주문 번호에 대한 내역이 다릅니다.");
         }
 
-        if(!paymentRequestHistory.getTotalAmount().equals(payment.getAmount())) {
+        if(paymentRequestHistory.getTotalAmount() == null || !paymentRequestHistory.getTotalAmount().equals(payment.getAmount())) {
             throw new PaymentException("[주문 취소 재처리 요청 실패] 실제 결제 금액과 과거 결제 금액 내역이 다릅니다.");
         }
 
-        // 현재 부분 취소에 대한 부분은 없기 때문에 토스 API에서 응답한 상태 값이 CANCELD면 전액 취소가 된건이므로, 결제 취소가 됐는지 안됐는제 확인은
-        // status.equals("CANCELED")로 확인하기
-        if (paymentRequestHistory.getStatus().equals("CANCELED")) {
-            // 현재 취소 요청 처리를 하고 있는 로직으로 처리하기에는 매개변수가 다르고, PaymentTransactionService를 또 하면 순환참조 일어나는데
-            // 별도의 로직으로 접수하는게 나은거 같은데 기존에 있던 취소 요청 로직을 타기보다는
-            cancellationTxService.applyRecoveredUpdateStatus(cancellationId, paymentRequestHistory);
-            return;
+        if (!"CANCELED".equals(paymentRequestHistory.getStatus())) {
+            throw new OrderCancellationException(
+                    "[주문 취소 복구 불가] PG 전액 취소 완료가 확인되지 않았습니다. 취소 ID: " + cancellationId);
         }
 
-        // 취소에 대한 내역이 존재하지 않는 경우
-        if (paymentRequestHistory.getCancels().get(0) == null) {
-            // TossAPI 요청을 보내거나 OrderCancellation의 상태를 변경해서 스케줄러를 다시 타게 하던가
-            cancellationTxService.cancelRetry(cancellationId, data);
-        }
-
+        // 상세 거래 검증과 저장은 TxService에서 수행하며 정상 반환 이후 커밋이 완료된다.
+        cancellationTxService.applyRecoveredUpdateStatus(cancellationId, paymentRequestHistory);
+        log.info("[주문 취소 복구 완료] 취소 ID: {}, 주문 ID: {}, 결제 ID: {}",
+                cancellationId, order.getId(), payment.getId());
+        return Map.of(
+                "result", "Y",
+                "message", "PG 취소 결과를 반영하여 주문 취소 처리가 완료되었습니다. 취소 ID: " + cancellationId
+        );
     }
-
 }
