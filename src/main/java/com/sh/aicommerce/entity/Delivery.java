@@ -44,6 +44,8 @@ public class Delivery {
     @Column(nullable = false)
     private String addressDetail;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
     private DeliveryCompany deliveryCompany;
 
     private String trackingNumber;
@@ -60,6 +62,7 @@ public class Delivery {
 
     public static Delivery createDelivery(Receiver receiver) {
         Delivery delivery = new Delivery();
+        delivery.deliveryCompany = DeliveryCompany.CJ;
         delivery.deliveryStatus = DeliveryStatus.CREATE;
         delivery.recipientName = receiver.getName();
         delivery.recipientPhone = receiver.getPhone();

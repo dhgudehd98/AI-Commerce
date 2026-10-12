@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/admin/inBound")
+@RequestMapping("/api/admin/inbound")
 @Slf4j
 public class InBoundController {
 

@@ -21,16 +21,19 @@ public class OutboundItem {
     private Outbound outbound;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "product_option_id", nullable = false)
-    private ProductOption productOption;
-
-    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "order_item_id")
     private OrderItem orderItem;
 
     @Column(nullable = false)
     private Integer quantity; // 출고 수
 
-    @Column(nullable = false)
-    private LocalDateTime outboundTime;
+
+    public static OutboundItem create(OrderItem orderItem, Outbound outbound) {
+        OutboundItem outboundItem = new OutboundItem();
+        outboundItem.outbound = outbound;
+        outboundItem.orderItem = orderItem;
+        outboundItem.quantity = orderItem.getQuantity();
+
+        return outboundItem;
+    }
 }

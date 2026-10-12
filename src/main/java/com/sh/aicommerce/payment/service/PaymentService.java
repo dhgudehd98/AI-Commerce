@@ -11,6 +11,8 @@ import com.sh.aicommerce.common.exception.member.MemberException;
 import com.sh.aicommerce.common.exception.order.OrderException;
 import com.sh.aicommerce.common.exception.payment.PaymentException;
 import com.sh.aicommerce.common.exception.product.ProductException;
+import com.sh.aicommerce.common.exception.toss.TossPaymentException;
+import com.sh.aicommerce.common.exception.toss.TossRestClientException;
 import com.sh.aicommerce.entity.*;
 import com.sh.aicommerce.enums.payment.PaymentMethod;
 import com.sh.aicommerce.order.orderRepository.OrderRepository;
@@ -39,6 +41,7 @@ public class PaymentService {
     private final ProductOptionRepository productOptionRepository;
     private final OrderRepository orderRepository;
     private final ProductInventoryRepository inventoryRepository;
+    private final PaymentRepository paymentRepository;
 
     private final CardRepository cardRepository;
     private final AccountRepository accountRepository;
@@ -109,8 +112,7 @@ public class PaymentService {
              * 재고가 존재하면 -> 수량 변경
              * reservedQuantity += 1
              */
-
-            //! 현재는 비관적 락으로 설정되어 있지만 나중에는 Redis 분산락으로 변경
+            
             ProductInventory productInventory = inventoryRepository.findByProductOptionIdForUpdate(option.getId()).orElseThrow(() -> new ProductException("현재 재고가 존재하지 않는 상품입니다."));
 
             // 실제로 재고가 존재하면 수량 변경 설정
@@ -157,27 +159,29 @@ public class PaymentService {
 
     public TossPaymentSuccessResponseDto payByTossWidget(String orderNumber, String paymentKey, Integer amount) throws JsonProcessingException {
         log.info("[토스 페이먼츠 결제 승인 요청] : 주문번호(orderId) : {}", orderNumber);
+        TossPaymentRequestDto request = new TossPaymentRequestDto(paymentKey, amount, orderNumber);
+        // PG 요청 전 검증은 승인 거절 처리 범위에서 제외한다.
+        if (paymentTransactionService.isPaidTossWidgetPayment(orderNumber, paymentKey, amount)) {
+            Payment payment = paymentTransactionService.findPaidTossWidgetPayment(orderNumber, paymentKey, amount);
+            return new TossPaymentSuccessResponseDto(payment);
+        }
+        paymentTransactionService.validatePaymentByTossWidget(request);
 
-        // 결제 승인요청 -> 결제가 토스페이먼츠 결제 위젯을 사용하는 경우(일반 결제)
+        TossPaymentSuccessResponseDto response;
         try {
-            // 결제 완료 멱등성 분리 추가
-            if (paymentTransactionService.isPaidTossWidgetPayment(orderNumber, paymentKey, amount)) {
-                Payment payment = paymentTransactionService.findPaidTossWidgetPayment(orderNumber, paymentKey, amount);
-
-                return new TossPaymentSuccessResponseDto(payment);
-            }
-            TossPaymentRequestDto request = new TossPaymentRequestDto(paymentKey, amount, orderNumber);
-            // 토스페이먼츠 결제 승인 요청 전에 Payment에 대한 값 유효성 검사
-            paymentTransactionService.validatePaymentByTossWidget(request);
-            // 결제 승인 요청 -> 토스 외부 API 연동
-            TossPaymentSuccessResponseDto response = client.confirm(request);
-            // 결제 승인 완료시 Payment, Order에 대한 값 업데이트 설정
-            paymentTransactionService.applyPaymentByTossWidget(response, request);
-            return response;
-        } catch (Exception e) {
-            log.error("[토스페이먼츠 결제 위젯] 결제중 에러 발생 에러메세지 : {}",e.getMessage());
+            response = client.confirm(request);
+        } catch (TossPaymentException e) {
+            handlePaymentRejected(orderNumber, e);
+            throw e;
+        } catch (TossRestClientException e) {
+            // 실제 승인됐을 수 있으므로 실패 확정 및 예약 해제를 하지 않는다.
+            log.error("[위젯 결제 결과 확인 필요] 주문번호: {}, 결제금액: {}", orderNumber, amount, e);
             throw e;
         }
+
+        // PG 승인 후 DB 반영 오류를 결제 거절로 처리하지 않는다.
+        paymentTransactionService.applyPaymentByTossWidget(response, request);
+        return response;
     }
 
     public TossPaymentSuccessResponseDto payByTossBillingCard(Long memberId, String orderNumber) throws JsonProcessingException {
@@ -199,10 +203,38 @@ public class PaymentService {
         if(!order.getMember().getId().equals(member.getId())) throw new OrderException("주문 하려는 사용자의 정보가 일치하지 않습니다.");
 
         String orderName = "아이앱 스튜디오 후드 라이트 그레이";
-        TossPaymentSuccessResponseDto response = client.cardBilling(card.getBillingKey(), member.getCustomerKey(), payment.getAmount(), orderNumber, orderName, member.getEmail(), member.getMemberName(), 0);
+        TossPaymentSuccessResponseDto response;
+        try {
+            response = client.cardBilling(card.getBillingKey(), member.getCustomerKey(), payment.getAmount(), orderNumber, orderName, member.getEmail(), member.getMemberName(), 0);
+        } catch (TossPaymentException e) {
+            handlePaymentRejected(orderNumber, e);
+            throw e;
+        } catch (TossRestClientException e) {
+            // 결과 확인 전에는 예약 재고를 유지한다.
+            log.error("[카드 자동결제 결과 확인 필요] 주문번호: {}, PaymentId: {}, 결제금액: {}",
+                    orderNumber, payment.getId(), payment.getAmount(), e);
+            throw e;
+        }
+
+        // 결제 완료시 Payment 및 Order 내역 업데이트
         paymentTransactionService.applyPaymentByTossBillingCard(memberId, orderNumber, response);
+        log.info("[토스 페이먼츠 카드 결제 완료] 결제 번호 : " + orderNumber);
 
         return response;
+    }
+
+
+    private void handlePaymentRejected(String orderNumber, TossPaymentException e) {
+        log.warn("[결제 승인 거절] 주문번호: {}, 오류코드: {}, 사유: {}",
+                orderNumber, e.getErrorCode(), e.getMessage());
+        try {
+            // 명확한 승인 거절일 때만 실패 저장 및 예약 재고 해제
+            paymentTransactionService.payFailTossPayment(orderNumber);
+        } catch (RuntimeException saveException) {
+            // 실패 저장 오류가 원래 PG 거절 예외를 덮어쓰지 않도록 보존
+            e.addSuppressed(saveException);
+            log.error("[결제 실패 반영 오류] 주문번호: {}", orderNumber, saveException);
+        }
     }
 
 
@@ -247,4 +279,19 @@ public class PaymentService {
         }
     }
 
+    @Transactional
+    public Payment validatePaymentByPaymentKey(String paymentKey) {
+        return paymentRepository.findPaymentByPaymentKey(paymentKey)
+                .orElseThrow(() -> new PaymentException("PaymentKey에 일치하는 Payment 내역이 존재하지 않습니다."));
+    }
+
+    public Payment findPaymentByOrderIdWithLock(Long orderId) {
+        return paymentRepository.findPaymentByOrderIdWithLock(orderId)
+                .orElseThrow(() -> new PaymentException("주문 번호에 해당하는 지불 내역이 존재하지 않습니다. 주문 번호 : " + orderId));
+    }
+
+    public Payment findByOrderId(Long orderId) {
+        return paymentRepository.findByOrderId(orderId)
+                .orElseThrow(() -> new PaymentException("주문 번호에 일치하는 결제 내역이 존재하지 않습니다. 주문 번호 : " + orderId));
+    }
 }

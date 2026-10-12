@@ -7,15 +7,22 @@ import com.sh.aicommerce.common.exception.card.CardException;
 import com.sh.aicommerce.common.exception.delivery.DeliveryException;
 import com.sh.aicommerce.common.exception.member.MemberException;
 import com.sh.aicommerce.common.exception.order.OrderException;
+import com.sh.aicommerce.common.exception.orderCancellation.OrderCancellationException;
 import com.sh.aicommerce.common.exception.orderItem.OrderItemException;
 import com.sh.aicommerce.common.exception.outbox.OutboxException;
 import com.sh.aicommerce.common.exception.payment.PaymentException;
 import com.sh.aicommerce.common.exception.product.ProductException;
+import com.sh.aicommerce.common.exception.refund.RefundException;
 import com.sh.aicommerce.common.exception.review.ReviewException;
 import com.sh.aicommerce.common.exception.search.SearchException;
 import com.sh.aicommerce.common.exception.search.WeatherException;
+import com.sh.aicommerce.common.exception.toss.TossPaymentException;
+import com.sh.aicommerce.common.exception.toss.TossRestClientException;
 import com.sh.aicommerce.common.exception.wms.InventoryException;
+import com.sh.aicommerce.common.exception.wms.OutboundException;
+import com.sh.aicommerce.common.exception.wms.OutboundNotFoundException;
 import com.sh.aicommerce.common.exception.wms.WarehouseException;
+import com.sh.aicommerce.entity.Outbound;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -29,6 +36,38 @@ import java.util.Map;
 @RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(TossPaymentException.class)
+    public ResponseEntity<?> handleTossPaymentException(TossPaymentException e) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("result", "N", "message", e.getMessage()));
+    }
+    @ExceptionHandler(RefundException.class)
+    public ResponseEntity<?> handleRefundException(RefundException e) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("result", "N", "message", e.getMessage()));
+    }
+    @ExceptionHandler(TossRestClientException.class)
+    public ResponseEntity<?> handleTossRestClientException(TossRestClientException e) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(Map.of("result", "N", "message", e.getMessage()));
+    }
+
+    @ExceptionHandler(OrderCancellationException.class)
+    public ResponseEntity<?> handleOrderCancellationException(OrderCancellationException e) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(Map.of("result", "N", "message", e.getMessage()));
+    }
+    @ExceptionHandler(OutboundNotFoundException.class)
+    public ResponseEntity<?> handleOutboundNotFoundException(OutboundNotFoundException e) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(Map.of("result", "N", "message", e.getMessage()));
+    }
+    @ExceptionHandler(OutboundException.class)
+    public ResponseEntity<?> handleOutboundException(OutboundException e) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("result", "N", "message", e.getMessage()));
+    }
 
     @ExceptionHandler(OutboxException.class)
     public ResponseEntity<?> handleOutboxException(OutboxException e) {

@@ -5,6 +5,7 @@ import com.sh.aicommerce.wms.outbound.enums.OutboundType;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.query.Order;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -37,8 +38,8 @@ public class Outbound {
     @Column(nullable = false)
     private OutboundStatus outBoundStatus;
 
-    @ManyToOne(fetch =  FetchType.LAZY)
-    @JoinColumn(name = "order_id")
+    @OneToOne(fetch =  FetchType.LAZY)
+    @JoinColumn(name = "order_id", nullable = false, unique = true)
     private Orders order;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -49,9 +50,49 @@ public class Outbound {
     private List<OutboundItem> outBoundItems = new ArrayList<>();
 
     @Column(nullable = false)
-    private LocalDateTime createdAt;
+    private LocalDateTime createdAt; // 출고 요청 생성 시간
 
-    private LocalDateTime completedAt;
+    private LocalDateTime updatedAt;
 
-    private String createdBy;
+    private LocalDateTime deliveryRequestedAt; // 택배 인계 요청 시간 -> PACKING까지 완료하면 자동으로 택배 인계 요청하기
+
+    private LocalDateTime completedAt; // 출고 완료 시간 -> 실제로 택배 인계 완료까지에 대한 시간
+
+    @Column(nullable = false)
+    private boolean cancellationRequest;
+
+    private String outboundHoldReason;
+
+
+    public static Outbound createOutboundByOrder(String outboundNumber, Orders order, Warehouse warehouse) {
+        Outbound outbound = new Outbound();
+        outbound.outboundNumber = outboundNumber;
+        outbound.outBoundType = OutboundType.ORDER;
+        outbound.outBoundStatus = OutboundStatus.PENDING;
+        outbound.createdAt = LocalDateTime.now();
+        outbound.warehouse = warehouse;
+        outbound.cancellationRequest = false;
+        outbound.order = order;
+
+        for (OrderItem orderItem : order.getOrderItems()) {
+            OutboundItem outboundItem = OutboundItem.create(orderItem, outbound);
+            outbound.outBoundItems.add(outboundItem);
+        }
+
+        return outbound;
+    }
+
+    public void changeOutboundStatus(OutboundStatus outBoundStatus) {
+        this.outBoundStatus = outBoundStatus;
+    }
+
+    public void updateStatusToCancelRequest() {
+        this.cancellationRequest = true;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public void updateStatusToCancelled() {
+        this.outBoundStatus = OutboundStatus.CANCELED;
+        this.updatedAt = LocalDateTime.now();
+    }
 }

@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>주문 취소 실패 목록</title>
+    <meta th:if="${_csrf != null}" name="_csrf" th:content="${_csrf.token}">
+    <meta th:if="${_csrf != null}" name="_csrf_header" th:content="${_csrf.headerName}">
+    <style>
+        * { box-sizing: border-box; }
+        body { margin: 0; background: #f5f6f8; color: #253041; font-family: system-ui, sans-serif; }
+        main { max-width: 1500px; margin: 40px auto; padding: 0 20px; }
+        h1 { font-size: 26px; margin: 0 0 8px; }
+        .description { color: #667085; margin: 0 0 24px; }
+        .panel { border: 1px solid #e1e5eb; border-radius: 10px; background: white; overflow: hidden; }
+        .toolbar, .pagination { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; padding: 20px; }
+        form, .links { display: flex; align-items: center; gap: 8px; }
+        input, button, .links a, .disabled { font: inherit; padding: 8px 12px; border: 1px solid #d6dce5; border-radius: 6px; background: white; color: inherit; }
+        input { width: 80px; }
+        button, .links a { cursor: pointer; text-decoration: none; }
+        button:hover, .links a:hover { background: #f0f3f8; }
+        .disabled { color: #9299a5; background: #f7f8fa; }
+        .table-wrap { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; font-size: 14px; white-space: nowrap; }
+        th, td { padding: 16px; text-align: left; border-bottom: 1px solid #edf0f4; }
+        th { background: #f8f9fb; color: #667085; font-weight: 600; }
+        .reason { min-width: 180px; max-width: 300px; white-space: normal; overflow-wrap: anywhere; }
+        .badge { display: inline-block; padding: 5px 9px; border-radius: 5px; background: #eef2f7; }
+        .badge.failed { color: #b42318; background: #fef3f2; }
+        .badge.check { color: #92400e; background: #fffbeb; }
+        .empty { padding: 56px 16px; text-align: center; color: #667085; }
+        .page-info { color: #667085; font-size: 14px; }
+        .detail-button:disabled { cursor: not-allowed; color: #9299a5; background: #f7f8fa; }
+        .detail-note { margin: 6px 0 0; color: #667085; font-size: 12px; }
+        @media (max-width: 600px) { main { margin: 24px auto; padding: 0 12px; } .toolbar, .pagination { padding: 16px; } }
+        dialog { width: min(1000px, 94vw); max-height: 88vh; border: 0; border-radius: 12px; padding: 24px; color: #253041; }
+        dialog::backdrop { background: rgb(0 0 0 / 40%); }
+        .dialog-header { display: flex; justify-content: space-between; align-items: center; gap: 20px; }
+        dialog h2 { margin: 0; font-size: 22px; }
+        dialog h3 { margin: 24px 0 14px; font-size: 17px; }
+        .detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+        .detail-grid dt { color: #667085; font-size: 13px; margin-bottom: 5px; }
+        .detail-grid dd { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+        [hidden] { display: none !important; }
+    </style>
+</head>
+<body>
+<main>
+    <h1>주문 취소 실패 목록</h1>
+    <p class="description">처리에 실패했거나 결제 취소 결과 확인이 필요한 주문을 확인합니다.</p>
+    <p class="links"><a th:href="@{/api/admin/cancel}">전체 취소 목록</a></p>
+    <section class="panel" aria-label="주문 취소 실패 목록">
+        <div class="toolbar">
+            <div>전체 <strong th:text="${cancelFailPages.totalElements}">0</strong>건</div>
+            <form method="get" th:action="@{/api/admin/cancel/fail}">
+                <input type="hidden" name="page" value="0">
+                <label for="size">페이지당</label>
+                <input id="size" name="size" type="number" min="1" max="100" required th:value="${cancelFailPages.size}">
+                <span>건</span>
+                <button type="submit">조회</button>
+            </form>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th scope="col">취소 ID</th>
+                    <th scope="col">주문번호</th>
+                    <th scope="col">출고번호</th>
+                    <th scope="col">취소 상태</th>
+                    <th scope="col">실패 사유</th>
+                    <th scope="col">요청 시간</th>
+                    <th scope="col">최근 변경 시간</th>
+                    <th scope="col">처리 관리자</th>
+                    <th scope="col">상세정보</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="cancel : ${cancelFailPages.content}">
+                    <td th:text="${cancel.orderCancellationId}">-</td>
+                    <td th:text="${cancel.orderNumber}">-</td>
+                    <td th:text="${cancel.outboundNumber}">-</td>
+                    <td><span class="badge" th:text="${cancel.cancellationStatus}"
+                              th:classappend="${cancel.statusCode != null and cancel.statusCode.name() == 'PAYMENT_CANCEL_FAILED_CHECK' ? 'check' : 'failed'}">-</span></td>
+                    <td class="reason" th:text="${#strings.isEmpty(cancel.failReason) ? '실패 사유 미기록' : cancel.failReason}">-</td>
+                    <td th:text="${cancel.requestedAt != null ? #temporals.format(cancel.requestedAt, 'yyyy-MM-dd HH:mm:ss') : '-'}">-</td>
+                    <td th:text="${cancel.updatedAt != null ? #temporals.format(cancel.updatedAt, 'yyyy-MM-dd HH:mm:ss') : '-'}">-</td>
+                    <td th:text="${#strings.isEmpty(cancel.admin) ? '미배정' : cancel.admin}">-</td>
+                    <td>
+                        <button type="button" class="detail-button"
+                                th:data-cancel-id="${cancel.orderCancellationId}"
+                                th:data-pg-url="@{/api/admin/cancel/fail/{id}/pgPayment(id=${cancel.orderCancellationId})}"
+                                th:data-detail-url="@{/api/admin/cancel/fail/{id}(id=${cancel.orderCancellationId})}"
+                                th:attr="aria-label=|취소 요청 ${cancel.orderCancellationId} 상세보기|">상세보기</button>
+
+                    </td>
+                </tr>
+                <tr th:if="${cancelFailPages.empty}">
+                    <td colspan="9" class="empty">이 페이지에 표시할 취소 실패 내역이 없습니다.</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+        <nav class="pagination" aria-label="취소 실패 목록 페이지 이동">
+            <span class="page-info" th:text="|현재 ${cancelFailPages.totalPages == 0 ? 0 : cancelFailPages.number + 1} / 전체 ${cancelFailPages.totalPages}페이지|">현재 0 / 전체 0페이지</span>
+            <div class="links">
+                <a th:if="${cancelFailPages.hasPrevious()}" th:href="@{/api/admin/cancel/fail(page=0, size=${cancelFailPages.size})}">처음</a>
+                <a th:if="${cancelFailPages.hasPrevious()}" th:href="@{/api/admin/cancel/fail(page=${cancelFailPages.number - 1}, size=${cancelFailPages.size})}">이전</a>
+                <span th:unless="${cancelFailPages.hasPrevious()}" class="disabled" aria-disabled="true">이전</span>
+                <a th:if="${cancelFailPages.hasNext()}" th:href="@{/api/admin/cancel/fail(page=${cancelFailPages.number + 1}, size=${cancelFailPages.size})}">다음</a>
+                <span th:unless="${cancelFailPages.hasNext()}" class="disabled" aria-disabled="true">다음</span>
+            </div>
+        </nav>
+    </section>
+</main>
+<dialog id="cancel-detail" aria-labelledby="detail-title">
+    <div class="dialog-header">
+        <h2 id="detail-title">주문 취소 상세정보 · 현재 상태 확인</h2>
+        <form method="dialog"><button type="submit" autofocus>닫기</button></form>
+    </div>
+    <p id="detail-message" role="status" aria-live="polite"></p>
+    <button id="detail-retry" type="button" hidden>다시 조회</button>
+    <div id="detail-content"></div>
+</dialog>
+<script th:inline="none">
+    const dialog = document.getElementById('cancel-detail');
+    const content = document.getElementById('detail-content');
+    const message = document.getElementById('detail-message');
+    const retry = document.getElementById('detail-retry');
+    let activeButton;
+    let requestController;
+    let pgController;
+    const display = value => value == null || value === '' ? '-' : String(value);
+    const date = value => value ? String(value).replace('T', ' ') : '-';
+    const money = value => value == null ? '미확인' : Number(value).toLocaleString('ko-KR') + '원';
+    function section(title, fields, target = content) {
+        const section = document.createElement('section');
+        const heading = document.createElement('h3');
+        heading.textContent = title;
+        const list = document.createElement('dl');
+        list.className = 'detail-grid';
+        fields.forEach(([label, value]) => {
+            const wrapper = document.createElement('div');
+            const term = document.createElement('dt');
+            const description = document.createElement('dd');
+            term.textContent = label;
+            description.textContent = display(value);
+            wrapper.append(term, description);
+            list.append(wrapper);
+        });
+        section.append(heading, list);
+        target.append(section);
+    }
+    function render(data) {
+        addPgLookup(data);
+        section('실패 및 현재 처리 상태', [
+            ['현재 취소 상태', data.cancelStatus],
+            ['실패 사유', data.failReason || '실패 사유 미기록'],
+            ['최근 변경 시간', date(data.updatedAt)],
+            ['처리 관리자', data.admin || '미배정']
+        ]);
+        section('취소 처리 정보', [
+            ['취소 ID', data.cancelId], ['주문 ID', data.orderId], ['주문번호', data.orderNumber], ['출고 ID', data.outboundId], ['출고번호', data.outboundNumber],
+            ['주문 상태', data.orderStatus], ['출고 상태', data.outboundStatus], ['취소 상태', data.cancelStatus],
+            ['고객 취소 사유', data.cancelReason],
+            ['요청 시간', date(data.requestedAt)], ['완료 시간', data.completedAt ? date(data.completedAt) : '미완료'],
+            ['상품 복귀', data.itemReturnRequired ? (data.itemReturnedAt ? '복귀 확인 완료' : '복귀 확인 대기') : '복귀 확인 불필요'],
+            ['복귀 확인 시간', date(data.itemReturnedAt)], ['선점 해제 시간', data.reservationReleasedAt ? date(data.reservationReleasedAt) : '선점 해제 미확인']
+        ]);
+        section('회원 및 주문', [
+            ['회원 ID', data.member?.memberId], ['회원 이름', data.member?.memberName],
+            ['주문 시간', date(data.order?.orderedAt)], ['주문 총금액', money(data.order?.totalPrice)]
+        ]);
+        const heading = document.createElement('h3');
+        heading.textContent = '주문 상품';
+        const wrap = document.createElement('div');
+        wrap.className = 'table-wrap';
+        const table = document.createElement('table');
+        const head = table.createTHead().insertRow();
+        ['상품명', '브랜드', 'SKU', '수량', '단가', '합계'].forEach(label => {
+            const th = document.createElement('th'); th.scope = 'col'; th.textContent = label; head.append(th);
+        });
+        const body = table.createTBody();
+        const items = data.order?.items || [];
+        items.forEach(item => {
+            const row = body.insertRow();
+            [item.productName, item.brandName, item.sku, item.quantity, money(item.unitPrice), money(item.totalPrice)]
+                .forEach(value => { row.insertCell().textContent = display(value); });
+        });
+        if (!items.length) { const cell = body.insertRow().insertCell(); cell.colSpan = 6; cell.textContent = '표시할 상품이 없습니다.'; }
+        wrap.append(table); content.append(heading, wrap);
+        const delivery = data.delivery || {};
+        section('수령인 및 배송지', [
+            ['수령인', delivery.recipientName], ['연락처', delivery.recipientPhone], ['우편번호', delivery.zipCode],
+            ['주소', delivery.address], ['상세 주소', delivery.addressDetail],
+            ['택배사', delivery.deliveryCompany === 'CJ' ? 'CJ대한통운' : delivery.deliveryCompany], ['운송장', delivery.trackingNumber]
+        ]);
+        const payment = data.payment || {};
+        section('원결제 정보', [
+            ['결제 ID', payment.paymentId], ['결제 상태', payment.paymentStatus],
+            ['결제 수단', payment.paymentMethodLabel ?? '미확인'],
+            ['결제 금액', money(payment.paidAmount)], ['결제 처리 시간', date(payment.paidAt)]
+        ]);
+        const refund = data.refund;
+        if (refund == null) {
+            section('결제 취소 및 환불', [
+                ['환불 작업', '환불 작업 미생성']
+            ]);
+        } else {
+            const refundStatusLabels = {
+                PROCESSING: '처리 중', COMPLETED: '결제 취소 완료',
+                FAILED: '결제 취소 실패', FAILED_CHECK: 'PG 결과 확인 필요'
+            };
+            section('결제 취소 및 환불', [
+                ['환불 ID', refund.refundId],
+                ['환불 상태', refundStatusLabels[refund.statusCode] ?? refund.statusCode ?? '미확인'],
+                ['환불 요청 금액', money(refund.requestedAmount)],
+                ['실제 취소 금액', money(refund.refundedAmount)],
+                ['PG 오류 코드', refund.failureCode ?? '기록 없음'],
+                ['환불 실패 사유', refund.failureReason ?? '기록 없음'],
+                ['작업 시도 횟수', refund.attemptCount ?? '미확인'],
+                ['마지막 시도 시간', date(refund.lastAttemptedAt)],
+                ['환불 작업 생성 시간', date(refund.createdAt)],
+                ['환불 최근 변경 시간', date(refund.updatedAt)],
+                ['PG 취소 시간', refund.canceledAt ? date(refund.canceledAt) : '미확인'],
+                ['내부 환불 완료 시간', refund.completedAt ? date(refund.completedAt) : '미완료']
+            ]);
+            if (refund.statusCode === 'FAILED_CHECK') {
+                const note = document.createElement('p');
+                note.className = 'detail-note';
+                note.textContent = 'PG의 실제 취소 결과가 확인되지 않은 상태입니다. 취소 금액이 없다고 취소되지 않은 것으로 판단하지 마세요.';
+                content.append(note);
+            }
+        }
+    }
+
+    function addPgLookup(detail) {
+        // PG 결제 취소 실패 또는 결과 확인이 필요한 건에서만 조회 버튼을 표시한다.
+        if (detail.cancelStatusCode !== 'PAYMENT_CANCEL_FAILED_CHECK'
+                && detail.cancelStatusCode !== 'PAYMENT_CANCEL_FAILED') {
+            return;
+        }
+
+        const panel = document.createElement('section');
+        const heading = document.createElement('h3');
+        heading.textContent = 'PG 결제·취소 내역';
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = 'PG 현재 결과 조회';
+        const notice = document.createElement('p');
+        notice.className = 'detail-note';
+        notice.textContent = '버튼을 누르면 PG의 현재 결제 정보와 취소 이력을 조회합니다.';
+        const status = document.createElement('p');
+        status.setAttribute('role', 'status');
+        status.setAttribute('aria-live', 'polite');
+        const result = document.createElement('div');
+        const url = activeButton.dataset.pgUrl;
+        const pgDialog = document.createElement('dialog');
+        pgDialog.setAttribute('aria-label', 'PG 결제 및 취소 조회 결과');
+        const header = document.createElement('div');
+        header.className = 'dialog-header';
+        const title = document.createElement('h2');
+        title.textContent = 'PG 결제·취소 내역 · ' + display(detail.orderNumber);
+        const close = document.createElement('button');
+        close.type = 'button';
+        close.textContent = '닫기';
+        close.autofocus = true;
+        close.addEventListener('click', () => pgDialog.close());
+        const refresh = document.createElement('button');
+        refresh.type = 'button';
+        refresh.textContent = 'PG 결과 다시 조회';
+        header.append(title, close);
+        pgDialog.append(header, status, refresh, result);
+        document.body.append(pgDialog);
+        pgDialog.addEventListener('close', () => {
+            pgController?.abort();
+            button.disabled = false;
+            refresh.disabled = false;
+            result.setAttribute('aria-busy', 'false');
+            button.focus();
+        });
+        // 상세 팝업을 닫거나 다시 조회할 때 연결된 PG 팝업도 정리한다.
+        requestController?.signal.addEventListener('abort', () => {
+            pgController?.abort();
+            pgDialog.remove();
+        }, {once: true});
+        panel.append(heading, notice, button);
+        content.append(panel);
+        const loadPg = async () => {
+            if (!pgDialog.open) pgDialog.showModal();
+            pgController?.abort();
+            const controller = new AbortController();
+            pgController = controller;
+            button.disabled = true;
+            refresh.disabled = true;
+            result.replaceChildren();
+            result.setAttribute('aria-busy', 'true');
+            status.textContent = 'PG 결과를 조회하고 있습니다.';
+            try {
+                const response = await fetch(url, {
+                    method: 'GET', headers: {Accept: 'application/json'},
+                    credentials: 'same-origin', cache: 'no-store', signal: controller.signal
+                });
+                if (response.redirected || response.status === 401 || response.status === 403)
+                    throw new Error('로그인 상태와 관리자 권한을 확인해주세요.');
+                const data = (response.headers.get('content-type') || '').includes('application/json')
+                    ? await response.json() : null;
+                if (!response.ok || data?.result === 'N')
+                    throw new Error(data?.message || 'PG 결과 조회에 실패했습니다.');
+                if (!data?.payment || !Array.isArray(data.cancels)
+                        || data.payment.orderNumber !== detail.orderNumber)
+                    throw new Error('해당 주문의 PG 조회 응답인지 확인할 수 없습니다.');
+                if (controller.signal.aborted) return;
+                renderPg(data, result);
+                status.textContent = '조회 시각: ' + date(data.queriedAt);
+            } catch (error) {
+                if (controller.signal.aborted) return;
+                result.replaceChildren();
+                status.textContent = error instanceof TypeError
+                    ? 'PG 조회 응답을 확인할 수 없습니다. 다시 조회해주세요.' : error.message;
+            } finally {
+                if (!controller.signal.aborted) {
+                    button.disabled = false;
+                    refresh.disabled = false;
+                    result.setAttribute('aria-busy', 'false');
+                }
+            }
+        };
+        button.addEventListener('click', loadPg);
+        refresh.addEventListener('click', loadPg);
+    }
+    function renderPg(data, target) {
+        const p = data.payment;
+        const amount = value => value == null ? '미확인'
+            : Number(value).toLocaleString('ko-KR') + ' ' + (p.currency || '');
+        const yesNo = value => value == null ? '미확인' : value ? '예' : '아니오';
+        section('PG 결제 정보', [
+            ['주문번호', p.orderNumber], ['상품명', p.orderName], ['결제 유형', p.type],
+            ['결제수단', p.method], ['PG 현재 상태', p.status],
+            ['원결제 금액', amount(p.totalAmount)], ['취소 가능 잔액', amount(p.balanceAmount)],
+            ['요청 시간', date(p.requestedAt)], ['승인 시간', date(p.approvedAt)],
+            ['부분 취소 가능', yesNo(p.partialCancelable)]
+        ], target);
+        if (p.failure) section('PG 승인 실패 정보', [
+            ['오류 코드', p.failure.code], ['사유', p.failure.message]
+        ], target);
+        const m = data.paymentMethod || {};
+        if (m.card) {
+            const c = m.card;
+            section('카드 정보', [
+                ['발급사 코드', c.issuerCode], ['매입사 코드', c.acquirerCode],
+                ['카드번호', c.maskedNumber], ['카드 종류', c.cardType], ['소유자 유형', c.ownerType],
+                ['할부 개월', c.installmentPlanMonths === 0 ? '일시불' : c.installmentPlanMonths],
+                ['무이자', yesNo(c.interestFree)], ['승인번호', c.approveNo],
+                ['매입 상태', c.acquireStatus], ['카드 금액', amount(c.amount)]
+            ], target);
+        }
+        if (m.easyPay) section('간편결제 정보', [
+            ['간편결제사', m.easyPay.provider], ['결제 금액', amount(m.easyPay.amount)],
+            ['할인 금액', amount(m.easyPay.discountAmount)]
+        ], target);
+        if (m.transfer) section('계좌이체 정보', [
+            ['은행 코드', m.transfer.bankCode], ['정산 상태', m.transfer.settlementStatus]
+        ], target);
+        if (m.virtualAccount) {
+            const a = m.virtualAccount;
+            section('가상계좌 정보', [
+                ['계좌 유형', a.accountType], ['은행 코드', a.bankCode], ['계좌번호', a.maskedAccountNumber],
+                ['입금 기한', date(a.dueDate)], ['환불 상태', a.refundStatus],
+                ['만료 여부', yesNo(a.expired)], ['정산 상태', a.settlementStatus]
+            ], target);
+        }
+        if (m.mobilePhone) section('휴대폰 결제 정보', [
+            ['전화번호', m.mobilePhone.maskedPhoneNumber], ['정산 상태', m.mobilePhone.settlementStatus]
+        ], target);
+        if (m.giftCertificate) section('상품권 결제 정보', [
+            ['승인번호', m.giftCertificate.approveNo], ['정산 상태', m.giftCertificate.settlementStatus]
+        ], target);
+        if (!data.cancels.length) {
+            const empty = document.createElement('p');
+            empty.textContent = 'PG 조회 결과에 취소 이력이 없습니다.';
+            target.append(empty);
+        }
+        data.cancels.forEach((c, index) => section('PG 취소 이력 ' + (index + 1), [
+            ['거래 식별자', c.transactionKey], ['취소 상태', c.status],
+            ['취소 금액', amount(c.amount)], ['취소 사유', c.reason], ['취소 시간', date(c.canceledAt)],
+            ['취소 후 환불 가능 잔액', amount(c.refundableAmount)], ['면세 금액', amount(c.taxFreeAmount)],
+            ['과세 제외 금액', amount(c.taxExemptionAmount)], ['카드 할인 취소 금액', amount(c.cardDiscountAmount)],
+            ['계좌이체 할인 취소 금액', amount(c.transferDiscountAmount)],
+            ['간편결제 할인 취소 금액', amount(c.easyPayDiscountAmount)]
+        ], target));
+    }
+
+    function requestHeaders() {
+        const headers = {Accept: 'application/json'};
+        const token = document.querySelector('meta[name="_csrf"]')?.content;
+        const header = document.querySelector('meta[name="_csrf_header"]')?.content;
+        if (token && header) headers[header] = token;
+        return headers;
+    }
+    async function loadDetail() {
+        pgController?.abort();
+        requestController?.abort();
+        const controller = new AbortController();
+        requestController = controller;
+        content.replaceChildren(); retry.hidden = true;
+        message.textContent = '상세정보를 불러오는 중입니다.';
+        content.setAttribute('aria-busy', 'true');
+        try {
+            const response = await fetch(activeButton.dataset.detailUrl, {
+                method: 'GET', headers: requestHeaders(), credentials: 'same-origin',
+                cache: 'no-store', signal: controller.signal
+            });
+            if (response.redirected || response.status === 401 || response.status === 403) {
+                throw new Error('로그인 상태와 관리자 권한을 확인해주세요.');
+            }
+            const data = (response.headers.get('content-type') || '').includes('application/json') ? await response.json() : null;
+            if (!response.ok || data?.result === 'N') throw new Error(data?.message || '상세 조회에 실패했습니다.');
+            if (!data || String(data.cancelId) !== activeButton.dataset.cancelId) throw new Error('상세정보 응답을 확인할 수 없습니다.');
+            if (controller.signal.aborted) return;
+            render(data); message.textContent = '';
+        } catch (error) {
+            if (controller.signal.aborted) return;
+            content.replaceChildren();
+            message.textContent = error instanceof TypeError ? '서버 연결 또는 응답을 확인할 수 없습니다.' : error.message;
+            retry.hidden = false;
+        } finally {
+            if (!controller.signal.aborted) content.setAttribute('aria-busy', 'false');
+        }
+    }
+    document.querySelectorAll('.detail-button').forEach(button => {
+        button.addEventListener('click', () => { activeButton = button; dialog.showModal(); loadDetail(); });
+    });
+    retry.addEventListener('click', loadDetail);
+    dialog.addEventListener('close', () => { pgController?.abort(); requestController?.abort(); content.replaceChildren(); activeButton?.focus(); });
+</script>
+</body>
+</html>

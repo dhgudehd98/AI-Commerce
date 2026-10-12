@@ -8,6 +8,7 @@ import com.sh.aicommerce.common.exception.member.MemberException;
 import com.sh.aicommerce.common.exception.payment.PaymentException;
 import com.sh.aicommerce.entity.*;
 import com.sh.aicommerce.payment.repository.PaymentRepository;
+import com.sh.aicommerce.payment.service.PaymentService;
 import com.sh.aicommerce.toss.dto.request.TossPaymentRequestDto;
 import com.sh.aicommerce.toss.dto.response.TossPaymentBillingResponseDto;
 import com.sh.aicommerce.toss.dto.response.TossPaymentSuccessResponseDto;
@@ -29,6 +30,8 @@ public class TossTransactionService {
     private final TossPaymentLogRepository logRepository;
     private final CardRepository cardRepository;
     private final AuthRepository authRepository;
+
+    private final PaymentService paymentService;
 
     @Transactional(readOnly = true)
     public void validateCard(TossPaymentBillingResponseDto response) {
@@ -56,4 +59,11 @@ public class TossTransactionService {
     }
 
 
+    @Transactional
+    public Payment validatePayment(String paymentKey) {
+        log.info("[토스 페이먼츠 요청 내역 조회] Payment 검증 : {}", paymentKey);
+        Payment payment = paymentService.validatePaymentByPaymentKey(paymentKey);
+
+        return paymentService.validatePaymentByPaymentKey(paymentKey);
+    }
 }

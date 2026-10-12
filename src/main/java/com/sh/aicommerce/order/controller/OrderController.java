@@ -1,6 +1,7 @@
 package com.sh.aicommerce.order.controller;
 
 
+import com.sh.aicommerce.order.dto.OrderCancelRequestDto;
 import com.sh.aicommerce.order.dto.OrderSheetResponseDto;
 import com.sh.aicommerce.order.service.OrderService;
 import lombok.RequiredArgsConstructor;
@@ -66,6 +67,15 @@ public class OrderController {
         model.addAttribute("orderSheet", orderSheetResponseDto);
 
         return "order/order-sheet-widget";
+    }
+
+    @PostMapping("cancel/{orderId}")
+    public ResponseEntity<?> cancel(
+            @RequestBody OrderCancelRequestDto requestDto,
+            @PathVariable Long orderId
+    ) {
+        Long memberId = 1L;
+        return ResponseEntity.ok(orderService.cancel(memberId, orderId, requestDto));
     }
 
 }
