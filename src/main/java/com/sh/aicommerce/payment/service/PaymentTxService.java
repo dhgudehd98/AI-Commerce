@@ -5,17 +5,14 @@ import com.sh.aicommerce.auth.repository.AuthRepository;
 import com.sh.aicommerce.card.repository.CardRepository;
 import com.sh.aicommerce.common.exception.card.CardException;
 import com.sh.aicommerce.common.exception.member.MemberException;
-import com.sh.aicommerce.common.exception.order.OrderException;
 import com.sh.aicommerce.common.exception.orderCancellation.OrderCancellationException;
 import com.sh.aicommerce.common.exception.payment.PaymentException;
 import com.sh.aicommerce.common.exception.product.ProductException;
 import com.sh.aicommerce.common.exception.refund.RefundException;
-import com.sh.aicommerce.common.exception.toss.TossCancelException;
 import com.sh.aicommerce.entity.*;
 import com.sh.aicommerce.enums.order.OrderCancelStatus;
 import com.sh.aicommerce.enums.payment.PaymentStatus;
 import com.sh.aicommerce.enums.refund.RefundStatus;
-import com.sh.aicommerce.order.orderRepository.OrderRepository;
 import com.sh.aicommerce.orderCancellation.repository.OrderCancellationRepository;
 import com.sh.aicommerce.orderCancellation.service.OrderCancellationService;
 import com.sh.aicommerce.payment.repository.PaymentRepository;
@@ -38,7 +35,7 @@ import java.util.Objects;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class PaymentTransactionService {
+public class PaymentTxService {
 
     private final PaymentRepository paymentRepository;
     private final ProductInventoryRepository inventoryRepository;

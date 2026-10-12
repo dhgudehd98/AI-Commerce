@@ -1,41 +1,19 @@
 package com.sh.aicommerce.toss.service;
 
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sh.aicommerce.common.exception.orderCancellation.OrderCancellationException;
 import com.sh.aicommerce.common.exception.payment.PaymentException;
 import com.sh.aicommerce.common.exception.refund.RefundException;
 import com.sh.aicommerce.common.exception.toss.TossCancelException;
 import com.sh.aicommerce.common.exception.toss.TossRestClientException;
-import com.sh.aicommerce.entity.OrderCancellation;
-import com.sh.aicommerce.entity.Orders;
 import com.sh.aicommerce.entity.Payment;
-import com.sh.aicommerce.entity.TossPaymentLog;
-import com.sh.aicommerce.enums.order.OrderCancelStatus;
-import com.sh.aicommerce.enums.payment.CardCompany;
-import com.sh.aicommerce.enums.payment.PaymentStatus;
-import com.sh.aicommerce.order.service.OrderService;
 import com.sh.aicommerce.orderCancellation.service.OrderCancellationService;
-import com.sh.aicommerce.payment.repository.PaymentRepository;
-import com.sh.aicommerce.payment.service.PaymentTransactionService;
+import com.sh.aicommerce.payment.service.PaymentTxService;
 import com.sh.aicommerce.toss.dto.request.TossPaymentBillingRequestDto;
-import com.sh.aicommerce.toss.dto.request.TossPaymentRequestDto;
 import com.sh.aicommerce.toss.dto.response.*;
-import com.sh.aicommerce.toss.repository.TossPaymentLogRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.*;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.client.RestClientException;
-import org.springframework.web.client.RestTemplate;
-
-import javax.management.RuntimeMBeanException;
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
 
 @Service
 @RequiredArgsConstructor
@@ -43,7 +21,7 @@ import java.util.Base64;
 public class TossAPIService {
 
 
-    private final PaymentTransactionService paymentTransactionService;
+    private final PaymentTxService paymentTxService;
     private final TossTransactionService transactionService;
     private final TossPaymentClient client;
     private final OrderCancellationService cancellationService;
@@ -66,19 +44,19 @@ public class TossAPIService {
     public void payFail(String orderNumber, String errorCode, String errorMessage) {
         log.error("[토스페이먼츠 결제 위젯 오류 발생] 에러 코드 : {}, 에러 메세지 : {}", errorCode, errorMessage);
 
-        paymentTransactionService.payFailTossPayment(orderNumber);
+        paymentTxService.payFailTossPayment(orderNumber);
     }
 
     public void cancel(Long cancellationId) {
         log.info("[토스페이먼츠 결제 취소 요청]");
         TossPaymentCancelResponseDto response;
-        Payment payment = paymentTransactionService.prepareRefund(cancellationId);
+        Payment payment = paymentTxService.prepareRefund(cancellationId);
 
         try {
             // TossAPI 결제 취소 요청
             response = client.cancel(payment.getPaymentKey());
             // 결제 실패 요청이 성공적으로 완료 처리
-            paymentTransactionService.cancel(response, cancellationId);
+            paymentTxService.cancel(response, cancellationId);
         } catch (TossCancelException e) {
             log.error("[토스페이먼츠 결제 취소 요청 처리 실패] 에러 메세지 : {}", e.getMessage());
 

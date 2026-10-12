@@ -7,7 +7,6 @@ import com.sh.aicommerce.common.exception.payment.PaymentException;
 import com.sh.aicommerce.common.exception.toss.TossCancelException;
 import com.sh.aicommerce.common.exception.toss.TossPaymentException;
 import com.sh.aicommerce.common.exception.toss.TossRestClientException;
-import com.sh.aicommerce.payment.service.PaymentTransactionService;
 import com.sh.aicommerce.toss.dto.request.TossBillingPaymentRequestDto;
 import com.sh.aicommerce.toss.dto.request.TossCancelRequestDto;
 import com.sh.aicommerce.toss.dto.request.TossPaymentBillingRequestDto;
@@ -20,7 +19,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpStatusCodeException;
-import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
