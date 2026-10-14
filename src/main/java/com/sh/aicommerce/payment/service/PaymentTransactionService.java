@@ -70,8 +70,7 @@ public class PaymentTransactionService {
         // 금액에 대한 부분 한번 더 검증
         if(!amount.equals(payment.getAmount())) throw new PaymentException("실제 결제 금액과 저장되어 있는 결제 금액이 일치하지 않습니다.");
 
-        // 검증 통과하면 Status에 대한 부분 중복 방지 및 멱등성 처리를 위해 PaymentStatus를 CONFIRMING으로 변경
-        payment.setStatusConfirmingInWidget(paymentDto.getPaymentKey());
+        payment.updatePaymentStatusToProcessingByWidget(paymentDto.getPaymentKey());
         log.info("[토스페이먼츠 결제 검증 통과 및 결제 상태 CONFIRM 변경] : 주문번호(orderId) : {}", paymentDto.getOrderId());
     }
 
@@ -101,48 +100,6 @@ public class PaymentTransactionService {
         log.info("[토스 페이먼츠] Payment 및 Order 업데이트 완료 업데이트 정보 paymentId : {} , orderId : {}",payment.getId(), order.getId());
     }
 
-    @Transactional
-    public Payment validatePaymentByBillingCard(String orderNumber, Long memberId) {
-        Payment payment = paymentRepository.findPaymentForUpdatePaymentStatusCardForUpdateInBillingCard(orderNumber, memberId).orElseThrow(() -> new PaymentException("해당 결제 정보가 존재하지 않습니다."));
-        payment.setStatusConfirmingInBillingCard();
-
-        return payment;
-    }
-
-    @Transactional
-    public void applyPaymentByTossBillingCard(Long memberId, String orderNumber,TossPaymentSuccessResponseDto response) {
-        Payment payment = paymentRepository.findConfirmingPaymentForUpdatePaymentStatusCardForUpdateInBillingCard(orderNumber, memberId).orElseThrow(() -> new PaymentException("해당 결제 정보가 존재하지 않습니다."));
-        Orders order = payment.getOrder();
-        payment.updateCardByBillingCard(response);
-
-        if(payment.getStatus().equals(PaymentStatus.PAID)) order.updateStatusToPaid();
-
-        // 결제 완료 시, 출고 요청 처리
-        outboundService.createOutbound(order);
-
-    }
-
-
-
-    @Transactional(readOnly = true)
-    public Member validateMember(Long memberId) {
-        return authRepository.findById(memberId).orElseThrow(() -> new MemberException("존재하지 않는 회원입니다."));
-    }
-
-    @Transactional(readOnly = true)
-    public Card validateCard(Long savedCardId, Long memberId) {
-        return cardRepository.findByIdAndMemberId(savedCardId, memberId).orElseThrow(() -> new CardException("현재 저장되어 있는 카드 정보가 없습니다."));
-    }
-
-    @Transactional(readOnly = true)
-    public boolean isPaidBillingCardPayment(String orderNumber) {
-        return paymentRepository.existsPaidBillingCardPayment(orderNumber);
-    }
-
-    @Transactional(readOnly = true)
-    public Payment findPaidBillingCardPayment(String orderNumber) {
-        return paymentRepository.findPaidBillingCardPayment(orderNumber).orElseThrow(() -> new PaymentException("이미 결제된 주문정보가 존재하지 않습니다."));
-    }
 
     @Transactional(readOnly = true)
     public boolean isPaidTossWidgetPayment(String orderNumber, String paymentKey, Integer amount) {

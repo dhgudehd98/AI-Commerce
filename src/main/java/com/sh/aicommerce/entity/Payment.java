@@ -94,23 +94,42 @@ public class Payment {
 
         return payment;
     }
+    // 결제 관련 상태 값 변경 - 자동Billing(카드 / 계좌)
+    public void updatePaymentStatusToProcessingByBilling() {
+        if(this.status == PaymentStatus.PAID)
+            throw new PaymentException("결제 승인 가능한 상태가 아닙니다.");
+        this.status = PaymentStatus.PROCESSING;
+        this.updatedAt = LocalDateTime.now();
+    }
 
-    public void setStatusConfirmingInWidget(String paymentKey) {
+    public void updatePaymentByBillingCard(TossPaymentSuccessResponseDto response) {
+        if (response == null) {
+            throw new PaymentException("토스 결제 승인 응답이 존재하지 않습니다.");
+        }
+        if (!"DONE".equals(response.getStatus())) {
+            throw new PaymentException("토스 자동결제 승인이 완료되지 않았 습니다.");
+        }
+
+        this.paidAt = LocalDateTime.now();
+        this.paymentKey = response.getPaymentKey();
+        this.provider = response.getMethod(); // "카드"
+        this.approvedNumber = response.getCard().getApproveNo();
+        this.cardCode = response.getCard().getIssuerCode();
+        this.cardCompany = CardCompany.fromCode(response.getCard().getIssuerCode());
+        this.installmentMonths = response.getCard().getInstallmentPlanMonths();
+        this.updatedAt = LocalDateTime.now();
+        this.status = PaymentStatus.PAID;
+    }
+    // 결제 관련 상태 값 변경 - 토스 위젯 결제
+    public void updatePaymentStatusToProcessingByWidget(String paymentKey) {
         if (this.status != PaymentStatus.READY) {
             throw new PaymentException("결제 승인 가능한 상태가 아닙니다.");
         }
         this.paymentKey = paymentKey;
         this.updatedAt = LocalDateTime.now();
-        this.status = PaymentStatus.CONFIRMING;
+        this.status = PaymentStatus.PROCESSING;
     }
 
-    public void setStatusConfirmingInBillingCard() {
-        if (this.status != PaymentStatus.READY) {
-            throw new PaymentException("결제 승인 가능한 상태가 아닙니다.");
-        }
-        this.status = PaymentStatus.CONFIRMING;
-        this.updatedAt = LocalDateTime.now();
-    }
 
     public void updateCardPaymentByTossWidget(TossPaymentRequestDto request, TossPaymentSuccessResponseDto response) {
         if (response == null) {
@@ -147,24 +166,7 @@ public class Payment {
     }
 
 
-    public void updateCardByBillingCard(TossPaymentSuccessResponseDto response) {
-        if (response == null) {
-            throw new PaymentException("토스 결제 승인 응답이 존재하지 않습니다.");
-        }
-        if (!"DONE".equals(response.getStatus())) {
-            throw new PaymentException("토스 자동결제 승인이 완료되지 않았 습니다.");
-        }
 
-        this.paidAt = LocalDateTime.now();
-        this.paymentKey = response.getPaymentKey();
-        this.provider = response.getMethod(); // "카드"
-        this.approvedNumber = response.getCard().getApproveNo();
-        this.cardCode = response.getCard().getIssuerCode();
-        this.cardCompany = CardCompany.fromCode(response.getCard().getIssuerCode());
-        this.installmentMonths = response.getCard().getInstallmentPlanMonths();
-        this.updatedAt = LocalDateTime.now();
-        this.status = PaymentStatus.PAID;
-    }
 
     public void setOrder(Orders orders) {
         this.order = orders;
@@ -191,4 +193,5 @@ public class Payment {
         this.updatedAt = LocalDateTime.now();
         this.status = PaymentStatus.CANCEL_FAILED;
     }
+
 }

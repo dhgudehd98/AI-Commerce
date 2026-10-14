@@ -64,14 +64,13 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     from Payment p
     join fetch p.order o
     where
-    p.status = 'CONFIRMING' and
+    p.status = 'PROCESSING' and
     p.paymentMethod = 'SAVED_CARD' and
     o.orderNumber = :orderNumber and
-    o.status = 'CREATED' and
+    o.status = 'PENDING_PAYMENT' and
     o.member.id = :memberId
     """)
-    Optional<Payment> findConfirmingPaymentForUpdatePaymentStatusCardForUpdateInBillingCard(@Param("orderNumber")String orderNumber, @Param("memberId") Long memberId);
-
+    Optional<Payment> findPaymentByOrderNumberForUpdate(@Param("orderNumber")String orderNumber, @Param("memberId") Long memberId);
 
     @Query("""
   select count(p) > 0
@@ -134,8 +133,8 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     from Payment p
     join fetch p.order o
     where
-    (p.status = 'READY' or p.status = 'CONFIRMING')
-    and o.status = 'CREATED'
+    (p.status = 'READY' or p.status = 'PROCESSING')
+    and o.status = 'PENDING_PAYMENT'
     and o.orderNumber = :orderNumber
     """
     )
@@ -183,5 +182,17 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     where p.paymentKey = :paymentKey
     """)
     Optional<Payment> findPaymentByPaymentKey(@Param("paymentKey")String paymentKey);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+    select p
+    from Payment p
+    join p.order o on p.order.id = o.id
+    where p.id = :paymentId
+    and o.orderNumber = :orderNumber
+   
+    """)
+    Optional<Payment> findPaymentByIdWithOrderForUpdate(@Param("paymentId")Long paymentId, @Param("orderNumber")String orderNumber);
+
 
 }

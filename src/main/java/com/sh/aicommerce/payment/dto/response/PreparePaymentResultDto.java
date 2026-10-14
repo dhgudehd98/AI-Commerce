@@ -29,4 +29,6 @@ public class PreparePaymentResultDto {
     @JsonIgnore
     private String customerKey;
 
+    private Long attemptId;
+
 }

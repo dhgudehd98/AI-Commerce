@@ -15,9 +15,12 @@ import com.sh.aicommerce.common.exception.toss.TossRestClientException;
 import com.sh.aicommerce.entity.*;
 import com.sh.aicommerce.enums.payment.PaymentMethod;
 import com.sh.aicommerce.order.orderRepository.OrderRepository;
+import com.sh.aicommerce.payment.dto.request.CardBillingPaymentRequestDto;
+import com.sh.aicommerce.payment.dto.request.PaymentBillingCardRequestDto;
 import com.sh.aicommerce.payment.dto.request.PaymentRequestDto;
 import com.sh.aicommerce.payment.dto.response.PreparePaymentResultDto;
 import com.sh.aicommerce.payment.repository.PaymentRepository;
+import com.sh.aicommerce.paymentAttempt.repository.PaymentAttemptRepository;
 import com.sh.aicommerce.productOption.repository.ProductOptionRepository;
 import com.sh.aicommerce.toss.dto.request.TossPaymentRequestDto;
 import com.sh.aicommerce.toss.dto.response.TossPaymentSuccessResponseDto;
@@ -38,119 +41,154 @@ public class PaymentService {
     private final OrderRepository orderRepository;
     private final ProductInventoryRepository inventoryRepository;
     private final PaymentRepository paymentRepository;
-
     private final CardRepository cardRepository;
     private final AccountRepository accountRepository;
-    private final PaymentTransactionService paymentTransactionService;
+    private final PaymentAttemptRepository attemptRepository;
 
     private final TossPaymentClient client;
 
+    private final PaymentTransactionService paymentTransactionService;
+    private final PaymentTxService paymentTxService;
+
     /**
-     * 결제 FLow
-     * 1. 실제 결제를 하기 전에 호출 -> 사용자가 선택한 결제 정보에 따라서 결제 준비 설정
-     * 2.
-     * @param memberId
-     * @param variantId
-     * @param optionId
-     * @param paymentRequestDto
-     * @return
+     * 결제 Flow
+     * 1. 실제 결제를 하기전 주문 시트지 생성(preparePay)
+     * a. 주문 시트지에 필요한 사항
+     * - 주문자 정보(배송지)
+     * - 상품 정보(variantId, optionId)
+     * - 결제 수단
+     * - 정책 수단
+     * -
+     * 2. 금액 결정
+     *  - 상품 기본 금액
+     *  - 상품 옵션별 추가 금액
+     *  - 상품 가격에 따른 배송비
+     *  - 쿠폰 금액
+     *  - 포인트 사용 금액
+     *  -> 총 결제 금액 = 상품 금액(기본금액 + 추가 금액) + 배송비 - (쿠폰 금액 + 포인트 사용금액)
+     *
+     * 3. 사용자가 결제 선택 수단에 따른 결제 방식 선택
+     * a. TossPayments 사용
+     * b. saved_account
+     * c. saved_card
+     *  => TossPayment 제외 saved에 대한 정보는 등록되어 있는 카드나 등록되어 있는 계좌를 사용하여 간편 결제
      */
+
     @Transactional
     public PreparePaymentResultDto preparePay(Long memberId, Long variantId, Long optionId, PaymentRequestDto paymentRequestDto) {
+
+        // 일단 동일 주문 생성 방지만 설정 - 중복 방지에 대한 코드 완성하고, 멱등성 로직 추가
+        if(orderRepository.existsByOrderNumber(paymentRequestDto.getOrderNumber()))
+            throw new OrderException("현재 진행중인 주문 정보가 존재합니다. 잠시 후에 다시 시도해주세요.");
+
+        return createPaymentAndOrder(memberId, variantId, optionId, paymentRequestDto);
+    }
+
+    private PreparePaymentResultDto createPaymentAndOrder(Long memberId, Long variantId, Long optionId, PaymentRequestDto paymentRequestDto) {
+        log.info("[결제 요청] 회원 번호 : {}, 상품번호 : {}, 옵션번호 : {}, 결제 방법 : {}", memberId, variantId, optionId, paymentRequestDto.getPaymentMethod());
+        Member member = validateMember(memberId);
+
+        // 상품 데이터 검증
+        ProductOption option = validateProduct(variantId, optionId);
+        ProductVariant variant = option.getProductVariant();
+
+        // 금액 검증 = 상품 기본 금액 + 옵션별 추가 금액 + 배송비 - (쿠폰 사용 금액 , 사용 포인트) -> 현재 쿠폰, 사용 포인트에 대한 값은 구현되어 있지 않음
+        Integer productTotalPrice = variant.getPrice() + option.getAdditionalPrice();
+        Integer totalPaymentPrice = productTotalPrice + setDeliveryPrice(productTotalPrice);
+
+        // 사용자 결제 수단 선택
+        PaymentMethod paymentMethod = paymentRequestDto.getPaymentMethod();
+        Card card = new Card();
+        Account account = new Account();
+
+        if(paymentMethod.equals(PaymentMethod.SAVED_CARD))
+            card = validateCard(memberId, paymentRequestDto.getSavedCardId());
+        if(paymentMethod.equals(PaymentMethod.SAVED_ACCOUNT))
+            account = validateAccount(memberId, paymentRequestDto.getSavedAccountId());
+
+
+        /**
+         * Inventory에 실제로 재고가 존재하지는지 확인하기
+         * 재고가 존재하면 -> 수량 변경
+         * reservedQuantity += 1
+         */
+        ProductInventory productInventory = inventoryRepository.findByProductOptionIdForUpdate(option.getId())
+                .orElseThrow(() -> new ProductException("현재 재고가 존재하지 않는 상품입니다."));
+        productInventory.reserve();
+
+        // OrderItem 생성
+        OrderItem item = OrderItem.createOrderItem(option);
+        // Order 생성
+        Orders order = Orders.createOrder(member, option.getId(), totalPaymentPrice, paymentRequestDto.getOrderNumber());
+        order.addOrderItem(item);
+
+        // Delivery 생성
+        Delivery delivery = Delivery.createDelivery(paymentRequestDto.getReceiver());
+        order.setDelivery(delivery);
+
+        // Payment 생성
+        Payment payment = Payment.createPayment(paymentRequestDto, totalPaymentPrice);
+        order.setPayment(payment);
+
+        orderRepository.saveAndFlush(order);
+
+        // PaymentAttempt 생성
+        PaymentAttempt attempt = PaymentAttempt.createPaymentAttempt(payment);
+        attemptRepository.save(attempt);
+
+
+        log.info("[주문 생성] 주문번호 : {}", order.getId());
+        log.info("[결제 준비 완료] 주문 번호 : {}, 결제번호 : {}", order.getId(), payment.getId());
+
+        return new PreparePaymentResultDto(
+                order.getId(),
+                order.getOrderNumber(),
+                variant.getVariantName(),
+                payment.getId(),
+                payment.getAmount(),
+                payment.getPaymentMethod(),
+                payment.getCardCompany(),
+                paymentRequestDto.getSavedCardId(),
+                paymentRequestDto.getSavedAccountId(),
+                card != null ? card.getBillingKey() : null,
+                member.getCustomerKey(),
+                attempt.getId()
+        );
+    }
+
+    public TossPaymentSuccessResponseDto payCard(Long memberId, CardBillingPaymentRequestDto cardBillingPaymentRequestDto) {
+
+        log.info("[결제 요청] PG사 자동 카드 결제 요청 회원번호 : {}, 주문번호 : {}, 결제 번호 : {}", memberId, cardBillingPaymentRequestDto.getOrderNumber(), cardBillingPaymentRequestDto.getPaymentId());
+
+        // PG 요청 전 데이터 검증 처리
+        log.info("[결제 요청] PG사 자동 카드 결제 요청전 데이터 검증 시작 회원번호 : {}, 주문번호 : {}, 결제 번호 : {}", memberId, cardBillingPaymentRequestDto.getOrderNumber(), cardBillingPaymentRequestDto.getPaymentId());
+        PaymentBillingCardRequestDto billingCardRequestDto = paymentTxService.validatePayment(memberId, cardBillingPaymentRequestDto);
+        log.info("[결제 요청] PG사 자동 카드 결제 요청전 데이터 검증 완료 회원번호 : {}, 주문번호 : {}, 결제 번호 : {}", memberId, cardBillingPaymentRequestDto.getOrderNumber(), cardBillingPaymentRequestDto.getPaymentId());
+
+
+        TossPaymentSuccessResponseDto responseDto = new TossPaymentSuccessResponseDto();
+        // PG 자동 카드 결제 요청
+        log.info("[결제 요청] PG사 자동 카드 결제 요청 시작 회원 번호 : {}, 주문 번호 : {}, 주문 상품 : {}", memberId, billingCardRequestDto.getOrderNumber(), billingCardRequestDto.getOrderName());
         try {
-            log.info("[상품 결제 요청] 상품 ID : {}", variantId);
-            log.info(paymentRequestDto.toString());
+            responseDto = client.cardBilling(billingCardRequestDto);
+            // 결제 요청이 성공적으로 진행되면 결제 내역 검증 후 저장
+            paymentTxService.validatePGResponseData(billingCardRequestDto, responseDto);
 
-            // 멤버 및 상품(재고) 검증
-            Member member = authRepository.findById(memberId).orElseThrow(() -> new MemberException("존재하지 않는 회원입니다. 로그인을 다시 시도해주세요."));
-
-            // 상품 요청 값 검증
-            ProductOption option = validateProduct(variantId, optionId);
-            ProductVariant variant = option.getProductVariant();
-
-            Integer productTotalPrice = variant.getPrice() + option.getAdditionalPrice();
-            Integer deliveryPrice = setDeliveryPrice(productTotalPrice);
-
-            // 최종 결제 금액 = 상품 Variant 가격 + 상품 옵션 추가 금액 + 배송비 - 사용 포인트 - 쿠폰이 있다면 쿠폰 금액
-            Integer totalPaymentPrice = productTotalPrice + deliveryPrice - paymentRequestDto.getUsedPoint();
-
-            //! Coupon에 대한 부분 구현하고 Coupon에 대한 가격 제외
-//        Coupon coupon = new Coupon();
-//        if (paymentRequestDto.getCouponId() != null) {
-//            coupon = validateCoupon(paymentRequestDto.getCouponId());
-//
-//            totalPaymentPrice -= coupon.getPrice();
-//        }
-
-
-            /**
-             * 결제 방법 -> 계좌 결제 || 카드 결제
-             * - 계좌 결제 -> 등록되어 있는 계좌 ID와 요청한 memberId에 대한 값이 일치하는지 확인
-             * - 카드 결제 -> 등록되어 있는 카드 ID와 요청한 memberId에 대한 값이 일치하는지 확인
-             *
-             * 현재 Card Entity, Account Entity에 대한 값은 구현되어 있지 않고 일단은 구현되어 있다고 가정한 후 검증 시도
-             */
-            Card card = new Card();
-            Account account = new Account();
-
-            // 결제 방법 -> 등록된 카드 결제 인 경우
-            if (paymentRequestDto.getPaymentMethod().equals(PaymentMethod.SAVED_CARD)) {
-                card = validateCard(memberId, paymentRequestDto.getSavedCardId());
-            }
-
-            if (paymentRequestDto.getPaymentMethod().equals(PaymentMethod.SAVED_ACCOUNT)) {
-                account = validateAccount(memberId, paymentRequestDto.getSavedAccountId());
-            }
-
-
-            /**
-             * Inventory에 실제로 재고가 존재하지는지 확인하기
-             * 재고가 존재하면 -> 수량 변경
-             * reservedQuantity += 1
-             */
-            
-            ProductInventory productInventory = inventoryRepository.findByProductOptionIdForUpdate(option.getId()).orElseThrow(() -> new ProductException("현재 재고가 존재하지 않는 상품입니다."));
-
-            // 실제로 재고가 존재하면 수량 변경 설정
-            productInventory.reserve();
-
-            // OrderItem 생성
-            OrderItem item = OrderItem.createOrderItem(option);
-            // Order 생성
-            Orders order = Orders.createOrder(member, option.getId(), totalPaymentPrice);
-            order.addOrderItem(item);
-
-            // Delivery 생성
-            Delivery delivery = Delivery.createDelivery(paymentRequestDto.getReceiver());
-            order.setDelivery(delivery);
-
-            // Payment 생성
-            Payment payment = Payment.createPayment(paymentRequestDto, totalPaymentPrice);
-            order.setPayment(payment);
-
-            orderRepository.saveAndFlush(order);
-            log.info("[주문 생성] 주문번호 : {}", order.getId());
-
-            log.info("[결제 준비 완료] 주문 번호 : {}, 결제번호 : {}", order.getId(), payment.getId());
-
-            return new PreparePaymentResultDto(
-                    order.getId(),
-                    order.getOrderNumber(),
-                    variant.getVariantName(),
-                    payment.getId(),
-                    payment.getAmount(),
-                    payment.getPaymentMethod(),
-                    payment.getCardCompany(),
-                    paymentRequestDto.getSavedCardId(),
-                    paymentRequestDto.getSavedAccountId(),
-                    card != null ? card.getBillingKey() : null,
-                    member.getCustomerKey()
-            );
-        } catch (Exception e) {
-            log.error("[결제 준비] : 에러 발생 에러메세지 : {}", e.getMessage());
+        }catch (TossPaymentException e) {
+//            handlePaymentRejected(orderNumber, e);
+            throw e;
+        } catch (TossRestClientException e) {
+            // 결과 확인 전에는 예약 재고를 유지한다.
+//            log.error("[카드 자동결제 결과 확인 필요] 주문번호: {}, PaymentId: {}, 결제금액: {}",
+//                    orderNumber, payment.getId(), payment.getAmount(), e);
             throw e;
         }
+        catch (Exception e) {
+            log.error("[PG사 결제 요청 실패]  회원 번호 : {} ", e);
+        }
 
+
+        return responseDto;
     }
 
     public TossPaymentSuccessResponseDto payByTossWidget(String orderNumber, String paymentKey, Integer amount) throws JsonProcessingException {
@@ -180,44 +218,7 @@ public class PaymentService {
         return response;
     }
 
-    public TossPaymentSuccessResponseDto payByTossBillingCard(Long memberId, String orderNumber) throws JsonProcessingException {
-
-        // 해당 주문번호가 이미 결제되어 있는 정보인지 확인
-        if(paymentTransactionService.isPaidBillingCardPayment(orderNumber)) {
-            Payment payment = paymentTransactionService.findPaidBillingCardPayment(orderNumber);
-
-            return new TossPaymentSuccessResponseDto(payment);
-        }
-
-        log.info("[토스페이먼츠 자동 결제(Billing) 요청] 주문번호 : {}", orderNumber);
-        Member member = paymentTransactionService.validateMember(memberId);
-        Payment payment = paymentTransactionService.validatePaymentByBillingCard(orderNumber, memberId);
-        Orders order = payment.getOrder();
-
-        Card card = paymentTransactionService.validateCard(payment.getSavedCardId(), memberId);
-
-        if(!order.getMember().getId().equals(member.getId())) throw new OrderException("주문 하려는 사용자의 정보가 일치하지 않습니다.");
-
-        String orderName = "아이앱 스튜디오 후드 라이트 그레이";
-        TossPaymentSuccessResponseDto response;
-        try {
-            response = client.cardBilling(card.getBillingKey(), member.getCustomerKey(), payment.getAmount(), orderNumber, orderName, member.getEmail(), member.getMemberName(), 0);
-        } catch (TossPaymentException e) {
-            handlePaymentRejected(orderNumber, e);
-            throw e;
-        } catch (TossRestClientException e) {
-            // 결과 확인 전에는 예약 재고를 유지한다.
-            log.error("[카드 자동결제 결과 확인 필요] 주문번호: {}, PaymentId: {}, 결제금액: {}",
-                    orderNumber, payment.getId(), payment.getAmount(), e);
-            throw e;
-        }
-
-        // 결제 완료시 Payment 및 Order 내역 업데이트
-        paymentTransactionService.applyPaymentByTossBillingCard(memberId, orderNumber, response);
-        log.info("[토스 페이먼츠 카드 결제 완료] 결제 번호 : " + orderNumber);
-
-        return response;
-    }
+//
 
 
     private void handlePaymentRejected(String orderNumber, TossPaymentException e) {
@@ -233,12 +234,10 @@ public class PaymentService {
         }
     }
 
-
-
-//    private Coupon validateCoupon(Long couponId) {
-//        return couponRepository.findById(couponId);
-//    }
-
+    private Member validateMember(Long memberId) {
+        return authRepository.findById(memberId)
+                .orElseThrow(() -> new MemberException("존재하지 않는 회원입니다. 로그인을 다시 시도해주세요."));
+    }
     private ProductOption validateProduct(Long variantId, Long optionId) {
         ProductOption option = productOptionRepository.findWithProductVariantByVariantIdAndOptionId(variantId, optionId).orElseThrow(() -> new ProductException("잘못된 상품 정보입니다. 상품정보를 다시 확인해주세요."));
 
@@ -250,8 +249,8 @@ public class PaymentService {
 
         return option;
     }
-
     // 등록된 카드
+
     private Card validateCard(Long memberId, Long cardId) {
         Card card = cardRepository.findByIdAndMemberId(cardId, memberId).orElseThrow(() -> new CardException("등록되어 있는 카드가 존재하지 않습니다. 카드 먼저 등록해주세요."));
 

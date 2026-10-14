@@ -1,9 +1,16 @@
 package com.sh.aicommerce.entity;
 
 import com.sh.aicommerce.enums.payment.PaymentAttemptStatus;
+import com.sh.aicommerce.toss.dto.response.TossPaymentSuccessResponseDto;
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(
@@ -13,6 +20,10 @@ import java.time.LocalDateTime;
                 columnNames = "idempotency_key"
         )
 )
+@Builder
+@AllArgsConstructor
+@NoArgsConstructor
+@Getter
 public class PaymentAttempt {
 
     @Id
@@ -39,7 +50,30 @@ public class PaymentAttempt {
 
     private String failureMessage; // 실패 사유
 
-    private LocalDateTime requestedAt; // 승인 시도 생성 시각
+    private LocalDateTime createdAt; // 승인 시도 생성 시각
 
     private LocalDateTime completedAt; // 승인 결과 확정 시각
+
+    public static PaymentAttempt createPaymentAttempt(Payment payment) {
+        return PaymentAttempt.builder()
+                .payment(payment)
+                .requestAmount(payment.getAmount())
+                .idempotencyKey(UUID.randomUUID().toString())
+                .status(PaymentAttemptStatus.READY)
+                .createdAt(LocalDateTime.now())
+                .build();
+    }
+
+    public void updateAttemptSuccessPay(TossPaymentSuccessResponseDto responseDto) {
+        this.requestAmount = responseDto.getTotalAmount();
+        this.status = PaymentAttemptStatus.SUCCESS;
+        this.paymentKey = responseDto.getPaymentKey();
+        this.completedAt = OffsetDateTime
+                .parse(responseDto.getApprovedAt())
+                .toLocalDateTime();
+    }
+
+    public void updateAttemptStatusToProcessing() {
+        this.status = PaymentAttemptStatus.PROCESSING;
+    }
 }

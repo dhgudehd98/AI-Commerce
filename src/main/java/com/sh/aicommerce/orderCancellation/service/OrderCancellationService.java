@@ -53,7 +53,6 @@ public class OrderCancellationService {
     private final AdminService adminService;
     private final OutboundService outboundService;
     private final RefundService refundService;
-    private final PaymentService paymentService;
     private final OrderCancellationTxService cancellationTxService;
 
     private final TossPaymentClient client;

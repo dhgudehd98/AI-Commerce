@@ -7,6 +7,7 @@ import com.sh.aicommerce.common.exception.payment.PaymentException;
 import com.sh.aicommerce.common.exception.toss.TossCancelException;
 import com.sh.aicommerce.common.exception.toss.TossPaymentException;
 import com.sh.aicommerce.common.exception.toss.TossRestClientException;
+import com.sh.aicommerce.payment.dto.request.PaymentBillingCardRequestDto;
 import com.sh.aicommerce.toss.dto.request.TossBillingPaymentRequestDto;
 import com.sh.aicommerce.toss.dto.request.TossCancelRequestDto;
 import com.sh.aicommerce.toss.dto.request.TossPaymentBillingRequestDto;
@@ -141,9 +142,9 @@ public class TossPaymentClient {
         return response.getBody();
     }
 
-    public TossPaymentSuccessResponseDto cardBilling(String billingKey, String customerKey, Integer amount, String orderNumber, String orderName, String customerEmail, String customerName, Integer taxFreeAmount) throws JsonProcessingException {
+    public TossPaymentSuccessResponseDto cardBilling(PaymentBillingCardRequestDto billingCardRequestDto) throws JsonProcessingException {
         try {
-            log.info("[토스페이먼츠 자동결제 승인 요청] 주문번호 : {}", orderNumber);
+            log.info("[토스페이먼츠 자동결제 승인 요청] 주문번호 : {}", billingCardRequestDto.getOrderNumber());
 
             String encodedSecretKey = Base64.getEncoder()
                     .encodeToString((tossBillingSecretKey +
@@ -153,22 +154,14 @@ public class TossPaymentClient {
             headers.setContentType(MediaType.APPLICATION_JSON);
             headers.set("Authorization", "Basic " + encodedSecretKey);
 
-            TossBillingPaymentRequestDto request = new TossBillingPaymentRequestDto(
-                    customerKey,
-                    amount,
-                    orderNumber,
-                    orderName,
-                    customerEmail,
-                    customerName,
-                    taxFreeAmount
-            );
+            TossBillingPaymentRequestDto request = new TossBillingPaymentRequestDto(billingCardRequestDto);
 
             HttpEntity<TossBillingPaymentRequestDto> httpEntity =
                     new HttpEntity<>(request, headers);
 
             ResponseEntity<TossPaymentSuccessResponseDto> response =
                     tossRestTemplate.exchange(
-                            "https://api.tosspayments.com/v1/billing/" + billingKey,
+                            "https://api.tosspayments.com/v1/billing/" + billingCardRequestDto.getCardBillingKey(),
                             HttpMethod.POST,
                             httpEntity,
                             TossPaymentSuccessResponseDto.class
@@ -179,7 +172,7 @@ public class TossPaymentClient {
                 throw new PaymentException("토스페이먼츠 자동결제 승인에 실패했습니다.");
             }
 
-            log.info("[토스페이먼츠 자동결제 승인 완료] 주문번호 : {}", orderNumber);
+            log.info("[토스페이먼츠 자동결제 승인 완료] 주문번호 : {}", billingCardRequestDto.getOrderNumber());
 
             return response.getBody();
 

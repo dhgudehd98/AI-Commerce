@@ -422,6 +422,7 @@
     const payment = billingTossPayments.payment({ customerKey });
 
 
+    const orderNumber = /*[[${orderSheet.orderNumber}]]*/ "";
     const variantId = [[${orderSheet.orderSheetProductDto.variantId}]];
     const optionId = [[${orderSheet.orderSheetProductDto.optionId}]];
     const initialPaymentAmount = [[${orderSheet.orderSheetPriceDto.paymentAmount}]];
@@ -654,6 +655,7 @@
 
     function buildPaymentRequestDto(extra) {
         return {
+            orderNumber: orderNumber,
             receiver: {
                 name: /*[[${orderSheet.receiver.name}]]*/ "구매자",
                 phone: /*[[${orderSheet.receiver.phone}]]*/ "01000000000",
@@ -742,8 +744,12 @@
 
         const billingResponse = await fetch("/api/pay/cardBilling", {
             method: "POST",
-            headers: { "Content-Type": "text/plain;charset=UTF-8" },
-            body: result.orderNumber
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                orderNumber: result.orderNumber,
+                paymentId: result.paymentId,
+                paymentAttemptId: result.attemptId
+            })
         });
 
         if (!billingResponse.ok) {
