@@ -20,4 +20,7 @@ public class CardBillingPaymentRequestDto {
     @NotNull
     @Positive
     private Long paymentAttemptId;
+
+    private Long savedCardId;
+    private Long savedAccountId;
 }

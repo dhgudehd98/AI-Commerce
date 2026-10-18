@@ -104,6 +104,9 @@ public class Orders {
         this.status = OrderStatus.CANCELED;
     }
 
+    public void updateOrderStatusToPaymentProcessing() {
+        this.status = OrderStatus.PAYMENT_PROCESSING;
+    }
     public void updateStatusToPaymentComplete() {
         this.status = OrderStatus.PAID;
     }

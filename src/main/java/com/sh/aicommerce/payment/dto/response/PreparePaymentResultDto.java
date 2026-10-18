@@ -24,9 +24,6 @@ public class PreparePaymentResultDto {
     private Long savedAccountId;
 
     @JsonIgnore
-    private String billingKey;
-
-    @JsonIgnore
     private String customerKey;
 
     private Long attemptId;

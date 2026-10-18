@@ -23,6 +23,7 @@ public class PaymentBillingCardRequestDto {
     private String customerEmail;
     private String customerName;
     private Integer taxFreeAmount = 0;
+    private String idempotencyKey;
 
     public PaymentBillingCardRequestDto(Payment payment, PaymentAttempt attempt, Orders order, Card card, Member member, String orderName) {
         this.memberId = member.getId();
@@ -37,5 +38,6 @@ public class PaymentBillingCardRequestDto {
         this.orderName = orderName;
         this.customerEmail = member.getEmail();
         this.customerName = member.getMemberName();
+        this.idempotencyKey = attempt.getIdempotencyKey();
     }
 }

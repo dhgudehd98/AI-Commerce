@@ -48,7 +48,7 @@ public interface OrderRepository extends JpaRepository<Orders, Long> {
      from Orders o
      where o.orderNumber = :orderNumber
      """)
-    boolean existsByOrderNumber(@Param("orderNumber")String orderNumber);
+    Optional<Orders> findOrderByOrderNumber(@Param("orderNumber")String orderNumber);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""

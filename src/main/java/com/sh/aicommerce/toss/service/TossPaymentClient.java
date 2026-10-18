@@ -153,6 +153,10 @@ public class TossPaymentClient {
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
             headers.set("Authorization", "Basic " + encodedSecretKey);
+            headers.set(
+                    "Idempotency-Key",
+                    billingCardRequestDto.getIdempotencyKey()
+            );
 
             TossBillingPaymentRequestDto request = new TossBillingPaymentRequestDto(billingCardRequestDto);
 

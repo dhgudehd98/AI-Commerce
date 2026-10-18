@@ -44,8 +44,6 @@ public class PaymentTxService {
      * - Payment, Order 존재 여부 확인
      * - 주문 소유자 확인(해당 주문이 로그인한 회원의 주문인지 확인)
      */
-
-    @Transactional
     public PaymentBillingCardRequestDto validatePayment(
             Long memberId,
             CardBillingPaymentRequestDto requestDto
@@ -61,7 +59,12 @@ public class PaymentTxService {
         ).orElseThrow(() ->
                 new PaymentException("주문과 일치하는 결제 정보가 없습니다."));
 
-        Orders order = payment.getOrder();
+        Orders order = orderRepository.findOrderByOrderNumberForUpdate(requestDto.getOrderNumber())
+                .orElseThrow(() -> new OrderException("주문 번호에 해당하는 주문 내역이 존재하지 않습니다."));
+
+        if(!order.getId().equals(payment.getOrder().getId()))
+            throw new OrderException("결제 내역에 저장된 주문 정보와 주문번호로 저장된 주문내역에 대한 정보가 다릅니다.");
+
         String orderName = orderItemRepository.findByOrderNumber(requestDto.getOrderNumber())
                 .stream()
                 .findFirst()
@@ -95,9 +98,14 @@ public class PaymentTxService {
             throw new PaymentException("결제할 카드 정보가 없습니다.");
         }
 
-        // 카드 존재 + 카드 소유자 검사
+        Long savedCardId = payment.getSavedCardId();
+
+        // 결제 내역에 저장된 카드 값 + 결제 요청한 카드 ID에 대한 값이 동일한지 확인
+        if(savedCardId == null || !savedCardId.equals(requestDto.getSavedCardId()))
+            throw new PaymentException("결제 내역에 저장된 카드 ID와 결제 요청한 카드 ID에 대한 값이 일치하지 않습니다.");
+
         Card card = cardRepository.findByIdAndMemberId(
-                payment.getSavedCardId(), memberId
+                savedCardId, memberId
         ).orElseThrow(() ->
                 new PaymentException("본인의 결제 카드가 존재하지 않습니다."));
 
@@ -131,6 +139,7 @@ public class PaymentTxService {
         // 객체별 상태 값 업데이트
         attempt.updateAttemptStatusToProcessing();
         payment.updatePaymentStatusToProcessingByBilling();
+        order.updateOrderStatusToPaymentProcessing();
 
         return new PaymentBillingCardRequestDto(
                 payment,
@@ -149,7 +158,6 @@ public class PaymentTxService {
      * - totalAmount(총 결제 완료 금액)과 amount 결제 내역이 동일한지 확인
      *
      */
-    @Transactional
     public void validatePGResponseData(PaymentBillingCardRequestDto billingCardRequestDto, TossPaymentSuccessResponseDto responseDto) {
         log.info("[결제 승인 요청 완료] 요청 데이터와 응답 데이터 검증 시작");
         Payment payment = paymentRepository.findPaymentWithOrderByOrderNumber(billingCardRequestDto.getOrderNumber())

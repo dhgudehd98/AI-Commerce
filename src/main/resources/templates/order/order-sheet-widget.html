@@ -748,7 +748,9 @@
             body: JSON.stringify({
                 orderNumber: result.orderNumber,
                 paymentId: result.paymentId,
-                paymentAttemptId: result.attemptId
+                paymentAttemptId: result.attemptId,
+                savedCardId: result.savedCardId ?? null,
+                savedAccountId: result.savedAccountId ?? null
             })
         });
 

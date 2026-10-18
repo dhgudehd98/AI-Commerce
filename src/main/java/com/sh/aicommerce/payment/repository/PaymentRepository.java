@@ -195,4 +195,10 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     Optional<Payment> findPaymentByIdWithOrderForUpdate(@Param("paymentId")Long paymentId, @Param("orderNumber")String orderNumber);
 
 
+    @Query("""
+    select p
+    from Payment p
+    where p.order.id = :orderId
+    """)
+    Optional<Payment> findPaymentByOrderId(@Param("orderId") Long orderId);
 }
