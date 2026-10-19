@@ -48,6 +48,6 @@ public class PaymentController {
             @Valid @RequestBody CardBillingPaymentRequestDto request
     ) {
         Long memberId = 1L;
-        return ResponseEntity.ok(paymentService.payCard(memberId, request));
+        return ResponseEntity.ok(paymentService.adjustPaymentResult(memberId, request));
     }
 }

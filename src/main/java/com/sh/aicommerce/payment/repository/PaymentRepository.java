@@ -67,7 +67,7 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     p.status = 'PROCESSING' and
     p.paymentMethod = 'SAVED_CARD' and
     o.orderNumber = :orderNumber and
-    o.status = 'PENDING_PAYMENT' and
+    o.status = 'PAYMENT_PROCESSING' and
     o.member.id = :memberId
     """)
     Optional<Payment> findPaymentByOrderNumberForUpdate(@Param("orderNumber")String orderNumber, @Param("memberId") Long memberId);
@@ -134,7 +134,7 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     join fetch p.order o
     where
     (p.status = 'READY' or p.status = 'PROCESSING')
-    and o.status = 'PENDING_PAYMENT'
+    and (o.status = 'PENDING_PAYMENT' or o.status = 'PAYMENT_PROCESSING')
     and o.orderNumber = :orderNumber
     """
     )
@@ -194,6 +194,13 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     """)
     Optional<Payment> findPaymentByIdWithOrderForUpdate(@Param("paymentId")Long paymentId, @Param("orderNumber")String orderNumber);
 
+    @Query("""
+    select p
+    from Payment p
+    join fetch p.order o
+    where p.id = :paymentId
+    """)
+    Optional<Payment> findPaymentByIdWithOrder(@Param("paymentId")Long paymentId);
 
     @Query("""
     select p

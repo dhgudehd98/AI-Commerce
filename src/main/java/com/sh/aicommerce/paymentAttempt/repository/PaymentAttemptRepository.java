@@ -22,4 +22,11 @@ public interface PaymentAttemptRepository extends JpaRepository<PaymentAttempt, 
     Optional<PaymentAttempt> findPaymentAttemptByAttemptIdForUpdate(@Param("paymentAttemptId")Long paymentAttemptId);
 
     Optional<PaymentAttempt> findFirstByPaymentIdOrderByIdDesc(Long id);
+
+    @Query("""
+    select pa
+    from PaymentAttempt pa
+    where pa.id = :paymentAttemptId
+    """)
+    Optional<PaymentAttempt> findPaymentAttemptByAttemptId(@Param("paymentAttemptId")Long paymentAttemptId);
 }

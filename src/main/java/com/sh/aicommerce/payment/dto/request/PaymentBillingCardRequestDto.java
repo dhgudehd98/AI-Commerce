@@ -2,6 +2,7 @@ package com.sh.aicommerce.payment.dto.request;
 
 
 import com.sh.aicommerce.entity.*;
+import com.sh.aicommerce.enums.payment.PaymentAction;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -24,6 +25,7 @@ public class PaymentBillingCardRequestDto {
     private String customerName;
     private Integer taxFreeAmount = 0;
     private String idempotencyKey;
+    private PaymentAction action;
 
     public PaymentBillingCardRequestDto(Payment payment, PaymentAttempt attempt, Orders order, Card card, Member member, String orderName) {
         this.memberId = member.getId();
