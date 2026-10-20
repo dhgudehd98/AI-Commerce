@@ -1,6 +1,5 @@
 package com.sh.aicommerce.entity;
 import com.sh.aicommerce.common.exception.product.ProductException;
-import com.sh.aicommerce.common.exception.productInventory.ProductInventoryException;
 import com.sh.aicommerce.common.exception.wms.InventoryException;
 import com.sh.aicommerce.entity.ProductOption;
 import com.sh.aicommerce.entity.StockMovement;

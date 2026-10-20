@@ -102,7 +102,7 @@ public class PaymentService {
             Long optionId,
             PaymentRequestDto request
     ) {
-        return withPaymentLock(request.getOrderNumber(), () ->
+        return withPaymentLock("PREPARE", request.getOrderNumber(), () ->
                 transactionTemplate.execute(status ->
                         preparePay(memberId, variantId, optionId, request)
                 )
@@ -111,10 +111,11 @@ public class PaymentService {
 
     // 2. 락 획득 → 전달받은 작업 실행 → 락 해제
     private <T> T withPaymentLock(
+            String stage,
             String orderNumber,
             Supplier<T> action
     ) {
-        log.info("[결제 요청전] 주문번호를 통해 분산 락 획득 요청 주문번호 : {}", orderNumber);
+        log.info("[PAYMENT] stage={} event=LOCK_REQUEST orderNumber={}", stage, orderNumber);
         String lockKey = PAYMENT_LOCK_KEY + orderNumber;
         String lockValue = UUID.randomUUID().toString();
 
@@ -123,13 +124,27 @@ public class PaymentService {
                 .setIfAbsent(lockKey, lockValue, PAYMENT_LOCK_TTL);
 
         if (!Boolean.TRUE.equals(acquired)) {
-            throw new PaymentException("현재 처리 중인 결제 요청입니다.");
+            log.warn("[PAYMENT] stage={} event=LOCK_BUSY orderNumber={}", stage, orderNumber);
+            throw new PaymentException("[결제/LOCK] 현재 처리 중인 결제 요청입니다.");
         }
 
         try {
             // TransactionTemplate 실행
-            log.info("[결제 요청 전 ] 주문번호를 통해 분산 락 획득  주문번호 : {}", orderNumber);
-            return action.get();
+            log.info("[PAYMENT] stage={} event=LOCK_ACQUIRED orderNumber={}", stage, orderNumber);
+            T result = action.get();
+            // 호출 대상의 트랜잭션 커밋이 완료된 이후에만 기록한다.
+            log.info("[PAYMENT] stage={} event=COMMITTED orderNumber={}", stage, orderNumber);
+            return result;
+        } catch (RuntimeException e) {
+            // 예외 전문에는 PG 응답/개인정보가 포함될 수 있으므로 기록하지 않는다.
+            String reason = e instanceof PaymentException || e instanceof OrderException
+                    || e instanceof PaymentAttemptException || e instanceof ProductException
+                    || e instanceof MemberException || e instanceof CardException
+                    || e instanceof AccountException || e instanceof OrderItemException
+                    ? e.getMessage() : "INTERNAL_ERROR";
+            log.error("[PAYMENT] stage={} event=FAILED orderNumber={} errorType={} outcome=CHECK_REQUIRED reason={}",
+                    stage, orderNumber, e.getClass().getSimpleName(), reason);
+            throw e;
         } finally {
             // 커밋 또는 롤백이 끝난 뒤 락 해제
             unLock(lockKey, lockValue);
@@ -149,11 +164,13 @@ public class PaymentService {
                 return 0
                 """;
 
-        paymentLockTemplate.execute(
+        Long released = paymentLockTemplate.execute(
                 new DefaultRedisScript<>(script, Long.class),
                 Collections.singletonList(lockKey),
                 lockValue
         );
+        log.info("[PAYMENT] stage=LOCK event=RELEASE_RESULT lockKey={} released={}",
+                lockKey, Long.valueOf(1L).equals(released));
     }
 
     public PreparePaymentResultDto preparePay(Long memberId, Long variantId, Long optionId, PaymentRequestDto paymentRequestDto) {
@@ -193,47 +210,47 @@ public class PaymentService {
      * - Payment에 대한 값이 존재하는지 확인하고, 승인 요청 상태에 대한 값을 확인을 해야하나 ?
      */
     private PreparePaymentResultDto existsOrderValidate(Member member, Long variantId, Long optionId, Orders order, PaymentRequestDto paymentRequestDto) {
-        log.info("[결제 요청] 기존에 존재하는 주문 정보가 있는 경우에 데이터 검증 시작");
+        log.info("[PAYMENT] stage=PREPARE_REUSE event=START orderNumber={} orderId={} memberId={}", order.getOrderNumber(), order.getId(), member.getId());
 
         // 주문 데이터 검증
         if (!order.getMember().getId().equals(member.getId()))
-            throw new OrderException("본인 주문 정보가 아닙니다.");
+            throw new OrderException("[결제/PREPARE_REUSE] 본인 주문 정보가 아닙니다.");
 
         // 기존 주문 상품 검증
         OrderItem orderItem = order.getOrderItems()
                 .stream()
                 .findFirst()
-                .orElseThrow(() -> new OrderItemException("주문 상품 정보가 존재하지 않습니다."));
+                .orElseThrow(() -> new OrderItemException("[결제/PREPARE_REUSE] 주문 상품 정보가 존재하지 않습니다."));
 
         if (!orderItem.getProductOption().getId().equals(optionId))
-            throw new OrderException("기존 주문과 요청 상품 옵션이 일치하지 않습니다.");
+            throw new OrderException("[결제/PREPARE_REUSE] 기존 주문과 요청 상품 옵션이 일치하지 않습니다.");
 
         if (!orderItem.getProductOption().getProductVariant().getId().equals(variantId))
-            throw new OrderException("기존 주문과 요청 상품이 일치하지 않습니다.");
+            throw new OrderException("[결제/PREPARE_REUSE] 기존 주문과 요청 상품이 일치하지 않습니다.");
 
         // 결제 내역 검증
         Payment payment = paymentRepository.findPaymentByOrderId(order.getId())
-                .orElseThrow(() -> new PaymentException("주문번호와 일치하는 결제 내역이 존재하지 않습니다."));
+                .orElseThrow(() -> new PaymentException("[결제/PREPARE_REUSE] 주문번호와 일치하는 결제 내역이 존재하지 않습니다."));
 
         if (payment.getPaymentMethod() != paymentRequestDto.getPaymentMethod())
-            throw new PaymentException("기존에 존재하는 결제 방식과 현재 요청한 결제 방식이 다릅니다. 현재 요청 결제 방식 : " + paymentRequestDto.getPaymentMethod());
+            throw new PaymentException("[결제/PREPARE_REUSE] 기존에 존재하는 결제 방식과 현재 요청한 결제 방식이 다릅니다. 현재 요청 결제 방식 : " + paymentRequestDto.getPaymentMethod());
 
         // 결제 수단 검증 - 카드
         if (PaymentMethod.SAVED_CARD == paymentRequestDto.getPaymentMethod()) {
             // 기존에 결제 내역에 존재하는 CardId에 대한 값과 선택한 CardId에 대한값이 일치해야함.
             if (!payment.getSavedCardId().equals(paymentRequestDto.getSavedCardId()))
-                throw new PaymentException("기존 주문과 결제 카드가 일치하지 않습니다.");
+                throw new PaymentException("[결제/PREPARE_REUSE] 기존 주문과 결제 카드가 일치하지 않습니다.");
 
         } else if (PaymentMethod.SAVED_ACCOUNT == paymentRequestDto.getPaymentMethod()) {
             // 기존에 결제 내역에 존재하는 AccountId에 대한 값과 선택한 AccountId에 대한 값이 일치해야 함.
             if (!payment.getSavedAccountId().equals(paymentRequestDto.getSavedAccountId())) {
-                throw new PaymentException("기준 주문과 결제 계좌가 일치하지 않습니다.");
+                throw new PaymentException("[결제/PREPARE_REUSE] 기준 주문과 결제 계좌가 일치하지 않습니다.");
             }
         }
 
         // 기존 결제 금액 정합성 검증
         if (!payment.getAmount().equals(order.getTotalPrice())) {
-            throw new PaymentException("주문 금액과 결제 금액이 일치하지 않습니다.");
+            throw new PaymentException("[결제/PREPARE_REUSE] 주문 금액과 결제 금액이 일치하지 않습니다.");
         }
 
         // 7. 기존 PaymentAttempt 조회
@@ -247,7 +264,7 @@ public class PaymentService {
 
         // 9. 기존 결제 준비 결과 반환
         log.info(
-                "[결제 준비 멱등성] 기존 결제 준비 결과 반환 주문번호 : {}",
+                "[PAYMENT] stage=PREPARE_REUSE event=REUSED orderNumber={}",
                 order.getOrderNumber()
         );
 
@@ -270,7 +287,7 @@ public class PaymentService {
     }
 
     private PreparePaymentResultDto createPaymentAndOrder(Member member, ProductVariant variant, ProductOption option, PaymentRequestDto paymentRequestDto) {
-        log.info("[결제 요청] 회원 번호 : {}, 상품번호 : {}, 옵션번호 : {}, 결제 방법 : {}", member.getId(), variant.getId(), option.getId(), paymentRequestDto.getPaymentMethod());
+        log.info("[PAYMENT] stage=PREPARE_CREATE event=START orderNumber={} memberId={} variantId={} optionId={} method={}", paymentRequestDto.getOrderNumber(), member.getId(), variant.getId(), option.getId(), paymentRequestDto.getPaymentMethod());
 
         // 금액 검증 = 상품 기본 금액 + 옵션별 추가 금액 + 배송비 - (쿠폰 사용 금액 , 사용 포인트) -> 현재 쿠폰, 사용 포인트에 대한 값은 구현되어 있지 않음
         Integer productTotalPrice = variant.getPrice() + option.getAdditionalPrice();
@@ -293,7 +310,7 @@ public class PaymentService {
          * reservedQuantity += 1
          */
         ProductInventory productInventory = inventoryRepository.findByProductOptionIdForUpdate(option.getId())
-                .orElseThrow(() -> new ProductException("현재 재고가 존재하지 않는 상품입니다."));
+                .orElseThrow(() -> new ProductException("[결제/PREPARE_CREATE] 현재 재고가 존재하지 않는 상품입니다."));
         productInventory.reserve();
 
         // OrderItem 생성
@@ -317,8 +334,7 @@ public class PaymentService {
         attemptRepository.save(attempt);
 
 
-        log.info("[주문 생성] 주문번호 : {}", order.getId());
-        log.info("[결제 준비 완료] 주문 번호 : {}, 결제번호 : {}", order.getId(), payment.getId());
+        log.info("[PAYMENT] stage=PREPARE_CREATE event=CREATED_PENDING_COMMIT orderNumber={} orderId={} paymentId={} attemptId={} amount={}", order.getOrderNumber(), order.getId(), payment.getId(), attempt.getId(), payment.getAmount());
 
         return new PreparePaymentResultDto(
                 order.getId(),
@@ -338,8 +354,9 @@ public class PaymentService {
 
     public PaymentCardResultDto adjustPaymentResult(Long memberId, CardBillingPaymentRequestDto cardBillingPaymentRequestDto) {
 
-        log.info("[결제 요청 전 결제 내역 상태 검증] 주문번호 : {}, 결제 번호 : {}", cardBillingPaymentRequestDto, cardBillingPaymentRequestDto.getPaymentId());
-        PaymentDecision decision = withPaymentLock(cardBillingPaymentRequestDto.getOrderNumber(),
+        log.info("[PAYMENT] stage=DECIDE event=START orderNumber={} paymentId={} attemptId={}",
+                cardBillingPaymentRequestDto.getOrderNumber(), cardBillingPaymentRequestDto.getPaymentId(), cardBillingPaymentRequestDto.getPaymentAttemptId());
+        PaymentDecision decision = withPaymentLock("APPROVAL_VALIDATE", cardBillingPaymentRequestDto.getOrderNumber(),
                 () -> paymentTxService.adjustPaymentAction(memberId, cardBillingPaymentRequestDto));
 //
 
@@ -364,18 +381,26 @@ public class PaymentService {
                     client.cardBilling(paymentBillingCardRequestDto);
 
             // PG사 외부 API 자동 결제 요청 후, 응답 데이터 저장 전 락 획득 후 데이터 저장 시작
-            return withPaymentLock(paymentBillingCardRequestDto.getOrderNumber(), () -> paymentTxService.validatePGResponseData(paymentBillingCardRequestDto, response));
+            return withPaymentLock("APPROVAL_APPLY", paymentBillingCardRequestDto.getOrderNumber(), () -> paymentTxService.validatePGResponseData(paymentBillingCardRequestDto, response));
 
-        } catch (TossPaymentException | TossRestClientException e) {
+        } catch (TossPaymentException e) {
+            log.warn("[PAYMENT] stage=PG_REQUEST event=REJECTED orderNumber={} paymentId={} attemptId={} pgCode={}",
+                    paymentBillingCardRequestDto.getOrderNumber(), paymentBillingCardRequestDto.getPaymentId(),
+                    paymentBillingCardRequestDto.getAttemptId(), e.getErrorCode());
+            throw e;
+        } catch (TossRestClientException e) {
+            log.warn("[PAYMENT] stage=PG_REQUEST event=RESULT_UNKNOWN orderNumber={} paymentId={} attemptId={}",
+                    paymentBillingCardRequestDto.getOrderNumber(), paymentBillingCardRequestDto.getPaymentId(),
+                    paymentBillingCardRequestDto.getAttemptId());
             throw e;
         } catch (JsonProcessingException e) {
-            log.error("[결제 응답 처리 실패] 주문번호: {}", paymentBillingCardRequestDto.getOrderNumber(), e);
-            throw new PaymentException("결제 결과 확인이 필요합니다.");
+            log.error("[PAYMENT] stage=PG_REQUEST event=RESULT_UNKNOWN orderNumber={} paymentId={} attemptId={} errorType={}", paymentBillingCardRequestDto.getOrderNumber(), paymentBillingCardRequestDto.getPaymentId(), paymentBillingCardRequestDto.getAttemptId(), e.getClass().getSimpleName());
+            throw new PaymentException("[결제/APPROVAL] 결제 결과 확인이 필요합니다.");
         }
     }
 
     public TossPaymentSuccessResponseDto payByTossWidget(String orderNumber, String paymentKey, Integer amount) throws JsonProcessingException {
-        log.info("[토스 페이먼츠 결제 승인 요청] : 주문번호(orderId) : {}", orderNumber);
+        log.info("[PAYMENT] stage=WIDGET_APPROVAL event=START orderNumber={} amount={}", orderNumber, amount);
         TossPaymentRequestDto request = new TossPaymentRequestDto(paymentKey, amount, orderNumber);
         // PG 요청 전 검증은 승인 거절 처리 범위에서 제외한다.
         if (paymentTransactionService.isPaidTossWidgetPayment(orderNumber, paymentKey, amount)) {
@@ -392,7 +417,7 @@ public class PaymentService {
             throw e;
         } catch (TossRestClientException e) {
             // 실제 승인됐을 수 있으므로 실패 확정 및 예약 해제를 하지 않는다.
-            log.error("[위젯 결제 결과 확인 필요] 주문번호: {}, 결제금액: {}", orderNumber, amount, e);
+            log.error("[PAYMENT] stage=WIDGET_APPROVAL event=RESULT_UNKNOWN orderNumber={} amount={} errorType={}", orderNumber, amount, e.getClass().getSimpleName());
             throw e;
         }
 
@@ -402,44 +427,44 @@ public class PaymentService {
     }
 
     private void handlePaymentRejected(String orderNumber, TossPaymentException e) {
-        log.warn("[결제 승인 거절] 주문번호: {}, 오류코드: {}, 사유: {}",
-                orderNumber, e.getErrorCode(), e.getMessage());
+        log.warn("[PAYMENT] stage=WIDGET_APPROVAL event=REJECTED orderNumber={} pgCode={}",
+                orderNumber, e.getErrorCode());
         try {
             // 명확한 승인 거절일 때만 실패 저장 및 예약 재고 해제
             paymentTransactionService.payFailTossPayment(orderNumber);
         } catch (RuntimeException saveException) {
             // 실패 저장 오류가 원래 PG 거절 예외를 덮어쓰지 않도록 보존
             e.addSuppressed(saveException);
-            log.error("[결제 실패 반영 오류] 주문번호: {}", orderNumber, saveException);
+            log.error("[PAYMENT] stage=REJECTION_APPLY event=FAILED orderNumber={} errorType={}", orderNumber, saveException.getClass().getSimpleName());
         }
     }
 
     private Member validateMember(Long memberId) {
         return authRepository.findById(memberId)
-                .orElseThrow(() -> new MemberException("존재하지 않는 회원입니다. 로그인을 다시 시도해주세요."));
+                .orElseThrow(() -> new MemberException("[결제/MEMBER_VALIDATE] 존재하지 않는 회원입니다. 로그인을 다시 시도해주세요."));
     }
     private ProductOption validateProduct(Long variantId, Long optionId) {
-        ProductOption option = productOptionRepository.findWithProductVariantByVariantIdAndOptionId(variantId, optionId).orElseThrow(() -> new ProductException("잘못된 상품 정보입니다. 상품정보를 다시 확인해주세요."));
+        ProductOption option = productOptionRepository.findWithProductVariantByVariantIdAndOptionId(variantId, optionId).orElseThrow(() -> new ProductException("[결제/PRODUCT_VALIDATE] 잘못된 상품 정보입니다. 상품정보를 다시 확인해주세요."));
 
         int availableQuantity = option.getInventories().stream()
                 .mapToInt(inventory -> inventory.getAvailableQuantity())
                 .sum();
 
-        if(availableQuantity <= 0) throw new ProductException("상품 재고가 존재하지 않습니다.");
+        if(availableQuantity <= 0) throw new ProductException("[결제/PRODUCT_VALIDATE] 상품 재고가 존재하지 않습니다.");
 
         return option;
     }
     // 등록된 카드
 
     private Card validateCard(Long memberId, Long cardId) {
-        Card card = cardRepository.findByIdAndMemberId(cardId, memberId).orElseThrow(() -> new CardException("등록되어 있는 카드가 존재하지 않습니다. 카드 먼저 등록해주세요."));
+        Card card = cardRepository.findByIdAndMemberId(cardId, memberId).orElseThrow(() -> new CardException("[결제/CARD_VALIDATE] 등록되어 있는 카드가 존재하지 않습니다. 카드 먼저 등록해주세요."));
 
         // 여기서 추가적으로 카드적으로 검증할거 있는지 체크 ? 뭐 만료날짜 같은거나
         return card;
     }
 
     private Account validateAccount(Long memberId, Long accountId) {
-        Account account = accountRepository.findByIdAndMemberId(accountId, memberId).orElseThrow(() -> new AccountException("등록되어 있는 카드가 존재하지 않습니다. 카드 먼저 등록해주세요."));
+        Account account = accountRepository.findByIdAndMemberId(accountId, memberId).orElseThrow(() -> new AccountException("[결제/ACCOUNT_VALIDATE] 등록되어 있는 카드가 존재하지 않습니다. 카드 먼저 등록해주세요."));
 
         return account;
     }
@@ -457,16 +482,16 @@ public class PaymentService {
     @Transactional
     public Payment validatePaymentByPaymentKey(String paymentKey) {
         return paymentRepository.findPaymentByPaymentKey(paymentKey)
-                .orElseThrow(() -> new PaymentException("PaymentKey에 일치하는 Payment 내역이 존재하지 않습니다."));
+                .orElseThrow(() -> new PaymentException("[결제/PAYMENT_READ] PaymentKey에 일치하는 Payment 내역이 존재하지 않습니다."));
     }
 
     public Payment findPaymentByOrderIdWithLock(Long orderId) {
         return paymentRepository.findPaymentByOrderIdWithLock(orderId)
-                .orElseThrow(() -> new PaymentException("주문 번호에 해당하는 지불 내역이 존재하지 않습니다. 주문 번호 : " + orderId));
+                .orElseThrow(() -> new PaymentException("[결제/PAYMENT_READ] 주문 번호에 해당하는 지불 내역이 존재하지 않습니다. 주문 번호 : " + orderId));
     }
 
     public Payment findByOrderId(Long orderId) {
         return paymentRepository.findByOrderId(orderId)
-                .orElseThrow(() -> new PaymentException("주문 번호에 일치하는 결제 내역이 존재하지 않습니다. 주문 번호 : " + orderId));
+                .orElseThrow(() -> new PaymentException("[결제/PAYMENT_READ] 주문 번호에 일치하는 결제 내역이 존재하지 않습니다. 주문 번호 : " + orderId));
     }
 }

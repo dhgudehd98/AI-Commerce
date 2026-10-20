@@ -66,7 +66,7 @@ public class TossPaymentClient {
 
     public TossPaymentSuccessResponseDto confirm(TossPaymentRequestDto request) throws JsonProcessingException {
         try {
-            log.info("[토스 페이먼츠 API 요청] 요청 주문번호 :{}", request.getOrderId());
+            log.info("[PAYMENT] stage=WIDGET_PG_REQUEST event=REQUEST_SENT orderNumber={} amount={}", request.getOrderId(), request.getAmount());
 
             // Toss Payment 결제 승인 요청
             String encodedSecretKey = Base64.getEncoder()
@@ -94,21 +94,21 @@ public class TossPaymentClient {
                 throw new PaymentException("토스 결제 승인에 실패했습니다.");
             }
 
-            log.info("[토스 페이먼츠 결제 승인 완료] 응답 데이터 :{}", response.getBody());
+            log.info("[PAYMENT] stage=WIDGET_PG_REQUEST event=RESPONSE_RECEIVED orderNumber={} httpStatus={} pgStatus={}", request.getOrderId(), response.getStatusCode().value(), response.getBody().getStatus());
 
             // 결제 승인이 성공적으로 완료되었다면 , DB에 저장된 Payment, Order에 대한 값 업데이트
             return response.getBody();
         } catch (HttpStatusCodeException e) {
             throw convertException(e);
         } catch (RestClientException e) {
-            log.warn("[결제 승인 결과 확인 필요] 통슨 또는 응답 변환 오류 확인 필요", e);
+            log.warn("[PAYMENT] stage=WIDGET_PG_REQUEST event=RESULT_UNKNOWN orderNumber={} errorType={}", request.getOrderId(), e.getClass().getSimpleName());
 
             throw new TossRestClientException("[결제 승인 결과 확인필요] 통신 또는 응답 변환 오류 발생", e);
         }
     }
 
     public TossPaymentBillingResponseDto getBillingKey(TossPaymentBillingRequestDto request) {
-        log.info("[토스 페이먼츠 카드 BillingKey 발급 요청] 요청키 :{}", request.getAuthKey());
+        log.info("[PAYMENT] stage=BILLING_KEY_ISSUE event=REQUEST_SENT");
 
         // Toss Payment 결제 승인 요청
         String encodedSecretKey = Base64.getEncoder()
@@ -136,7 +136,7 @@ public class TossPaymentClient {
             throw new PaymentException("토스 페이먼츠 자동 결제 BillingKey 발급에 실패하였습니다.");
         }
 
-        log.info("[토스 페이먼츠 자동결제 BillingKey 발급 완료] 응답 데이터 :{}", response.getBody().toString());
+        log.info("[PAYMENT] stage=BILLING_KEY_ISSUE event=RESPONSE_RECEIVED httpStatus={}", response.getStatusCode().value());
 
         // 결제 승인이 성공적으로 완료되었다면 , DB에 저장된 Payment, Order에 대한 값 업데이트
         return response.getBody();
@@ -144,7 +144,7 @@ public class TossPaymentClient {
 
     public TossPaymentSuccessResponseDto cardBilling(PaymentBillingCardRequestDto billingCardRequestDto) throws JsonProcessingException {
         try {
-            log.info("[토스페이먼츠 자동결제 승인 요청] 주문번호 : {}", billingCardRequestDto.getOrderNumber());
+            log.info("[PAYMENT] stage=PG_REQUEST event=REQUEST_SENT orderNumber={} paymentId={} attemptId={} amount={}", billingCardRequestDto.getOrderNumber(), billingCardRequestDto.getPaymentId(), billingCardRequestDto.getAttemptId(), billingCardRequestDto.getAmount());
 
             String encodedSecretKey = Base64.getEncoder()
                     .encodeToString((tossBillingSecretKey +
@@ -173,18 +173,19 @@ public class TossPaymentClient {
 
             if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
                 //토스페이먼츠 자동 결제가 실패한 경우에는 예약 내역 해제까지
-                throw new PaymentException("토스페이먼츠 자동결제 승인에 실패했습니다.");
+                throw new PaymentException("[결제/PG_REQUEST] 승인 응답이 유효하지 않습니다. 결과 확인이 필요합니다.");
             }
 
-            log.info("[토스페이먼츠 자동결제 승인 완료] 주문번호 : {}", billingCardRequestDto.getOrderNumber());
+            log.info("[PAYMENT] stage=PG_REQUEST event=RESPONSE_RECEIVED orderNumber={} paymentId={} attemptId={} httpStatus={} pgStatus={} approvedAmount={}", billingCardRequestDto.getOrderNumber(), billingCardRequestDto.getPaymentId(), billingCardRequestDto.getAttemptId(), response.getStatusCode().value(), response.getBody().getStatus(), response.getBody().getTotalAmount());
 
             return response.getBody();
 
         } catch (HttpStatusCodeException e) {
+            log.warn("[PAYMENT] stage=PG_REQUEST event=HTTP_ERROR orderNumber={} paymentId={} attemptId={} httpStatus={} outcome=CHECK_REQUIRED", billingCardRequestDto.getOrderNumber(), billingCardRequestDto.getPaymentId(), billingCardRequestDto.getAttemptId(), e.getStatusCode().value());
             throw convertException(e);
         } catch (RestClientException e) {
-            log.warn("[결제 승인 결과 확인 필요] 통슨 또는 응답 변환 오류 확인 필요", e);
-            throw new TossRestClientException("[결제 승인 결과 확인필요] 통신 또는 응답 변환 오류 발생", e);
+            log.warn("[PAYMENT] stage=PG_REQUEST event=RESULT_UNKNOWN orderNumber={} paymentId={} attemptId={} errorType={}", billingCardRequestDto.getOrderNumber(), billingCardRequestDto.getPaymentId(), billingCardRequestDto.getAttemptId(), e.getClass().getSimpleName());
+            throw new TossRestClientException("[결제/PG_REQUEST] 통신 또는 응답 변환 오류로 승인 결과 확인이 필요합니다.", e);
         }
     }
 
@@ -381,9 +382,10 @@ public class TossPaymentClient {
 
         if (codeException.getStatusCode().is4xxClientError()
                 && PAYMENT_REJECTION_CODES.contains(errorResponse.getCode())) {
-            throw new TossPaymentException("결제 요청이 실패 했습니다. 결제 실패 에러 코드 : " + errorResponse.getCode() + " 메세지 : " + errorResponse.getMessage());
+            throw new TossPaymentException(errorResponse.getCode(),
+                    "[결제/PG_REQUEST] PG가 승인 요청을 거절했습니다. | pgCode=" + errorResponse.getCode(), codeException);
         }
 
-        return new TossRestClientException("[결제 승인 결과 확인 필요] 에러 코드 : " + errorResponse.getCode() + " 에러 메세지 : " + errorResponse.getMessage());
+        return new TossRestClientException("[결제/PG_REQUEST] PG 오류로 승인 결과 확인이 필요합니다. | pgCode=" + errorResponse.getCode());
     }
 }

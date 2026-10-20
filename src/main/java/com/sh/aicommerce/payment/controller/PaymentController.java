@@ -28,7 +28,8 @@ public class PaymentController {
 //            Authentication authentication
     ) {
         Long memberId = 1L;
-        log.info("결제 준비 요청 : {}", paymentRequestDto.toString());
+        log.info("[PAYMENT] stage=PREPARE event=RECEIVED orderNumber={} memberId={} variantId={} optionId={} method={}",
+                paymentRequestDto.getOrderNumber(), memberId, variantId, optionId, paymentRequestDto.getPaymentMethod());
         return ResponseEntity.ok(paymentService.getPaymentLockByOrderNumber(memberId, variantId, optionId, paymentRequestDto));
 //        return ResponseEntity.ok(paymentService.preparePay(memberId, variantId, optionId, paymentRequestDto));
     }
