@@ -132,13 +132,10 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     select p
     from Payment p
     join fetch p.order o
-    where
-    (p.status = 'READY' or p.status = 'PROCESSING')
-    and (o.status = 'PENDING_PAYMENT' or o.status = 'PAYMENT_PROCESSING')
-    and o.orderNumber = :orderNumber
+    where p.order.orderNumber = :orderNumber
     """
     )
-    Optional<Payment> findPaymentWithOrderByOrderNumber(String orderNumber);
+    Optional<Payment> findPaymentWithOrderByOrderNumber(@Param("orderNumber")String orderNumber);
 
 
 

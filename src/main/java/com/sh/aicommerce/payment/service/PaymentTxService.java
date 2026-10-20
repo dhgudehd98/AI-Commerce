@@ -20,12 +20,15 @@ import com.sh.aicommerce.payment.repository.PaymentRepository;
 import com.sh.aicommerce.paymentAttempt.repository.PaymentAttemptRepository;
 import com.sh.aicommerce.toss.dto.response.TossPaymentSuccessResponseDto;
 import com.sh.aicommerce.toss.repository.TossPaymentLogRepository;
+import com.sh.aicommerce.wms.inventory.service.ProductInventoryService;
 import com.sh.aicommerce.wms.outbound.service.OutboundService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+
+import java.util.Objects;
 
 @Service
 @Slf4j
@@ -40,6 +43,7 @@ public class PaymentTxService {
     private final TossPaymentLogRepository tossPaymentLogRepository;
 
     private final OutboundService outboundService;
+    private final ProductInventoryService inventoryService;
 
 
     @Transactional
@@ -260,12 +264,9 @@ public class PaymentTxService {
                 .findFirst()
                 .orElseThrow(() -> new OrderException("주문 상품명이 존재하지 않습니다."));
 
-        // 만약에 거의 그럴일 없겠지만, 데이터 검증에 실패하면 바로 결제 취소 요청처리 해야되나 ?
         if (!order.getOrderNumber().equals(responseDto.getOrderId())){
-
             log.error("잘못된 주문번호 결제 - 결제 실패 처리 ? ");
             throw new OrderException("잘못된 주문번호 결제 ");
-
         }
 
         if (!orderName.equals(responseDto.getOrderName())) {
@@ -275,8 +276,37 @@ public class PaymentTxService {
         }
 
         if (!payment.getAmount().equals(responseDto.getTotalAmount())) {
-            log.error("결제 요 금액과 결제 승인 금액이 다릅니다. 확인이 필요합니다. ");
+            log.error("결제 요청 금액과 결제 승인 금액이 다릅니다. 확인이 필요합니다. ");
             throw new PaymentException("결제 요청 금액과 결제 승인 금액 불일치");
+        }
+
+        if (payment.getStatus() == PaymentStatus.PAID) {
+            // 동일한 승인 결과인지 확인
+            if (!Objects.equals(payment.getPaymentKey(), responseDto.getPaymentKey())
+                    || !Objects.equals(payment.getAmount(), responseDto.getTotalAmount())
+                    || order.getStatus() != OrderStatus.PAID) {
+                throw new PaymentException("기존 결제 완료 정보와 일치하지 않습니다.");
+            }
+
+            PaymentAttempt attempt =
+                    paymentAttemptRepository.findPaymentAttemptByAttemptIdForUpdate(
+                            billingCardRequestDto.getAttemptId()
+                    ).orElseThrow(() ->
+                            new PaymentAttemptException("승인 시도가 존재하지 않습니다."));
+
+            if (!attempt.getPayment().getId().equals(payment.getId())
+                    || attempt.getStatus() != PaymentAttemptStatus.SUCCESS
+                    || !Objects.equals(attempt.getPaymentKey(), responseDto.getPaymentKey())) {
+                throw new PaymentAttemptException("기존 승인 결과와 일치하지 않습니다.");
+            }
+
+            // 업데이트·출고 생성을 다시 하지 않고 반환
+            return new PgPaymentSuccessResponseDto(payment, attempt, order);
+        }
+
+        if (payment.getStatus() != PaymentStatus.PROCESSING
+                || order.getStatus() != OrderStatus.PAYMENT_PROCESSING) {
+            throw new PaymentException("결제 완료를 반영할 수 없는 상태입니다.");
         }
 
         log.info("[결제 승인 요청 완료] 요청 데이터와 응답 데이터 검증 성공 ");
@@ -309,6 +339,9 @@ public class PaymentTxService {
         // 결제 완료 시 출고 요청 처리
         outboundService.createOutbound(order);
         log.info("[결제 승인 요청 완료] 결제 내역 내부 DB 반영 완료 주문 내역 번호 : {}, 주문 번호 : {}, 승인 요청 번호 : {}", payment.getId(), order.getId(), attempt.getId());
+
+        // 출고 요청 처리 후, 결제가 완료되면 실제 재고 감소 처리
+//        inventoryService.decreaseQuantityProduct(payment.getId());
 
         return new PgPaymentSuccessResponseDto(payment, attempt, order);
     }

@@ -1,5 +1,6 @@
 package com.sh.aicommerce.entity;
 import com.sh.aicommerce.common.exception.product.ProductException;
+import com.sh.aicommerce.common.exception.productInventory.ProductInventoryException;
 import com.sh.aicommerce.common.exception.wms.InventoryException;
 import com.sh.aicommerce.entity.ProductOption;
 import com.sh.aicommerce.entity.StockMovement;
@@ -109,5 +110,13 @@ public class ProductInventory {
     public void releasedQuantity(Integer reservedQuantity) {
         if(reservedQuantity < 0) throw new ProductException("예약 수량은 음수가 될 수 없습니다.");
         this.reservedQuantity -= reservedQuantity;
+    }
+
+    public void updateOnHandQuantityByPaymentQuantity(Integer quantity) {
+
+        if(this.onHandQuantity < quantity)
+            throw new ProductInventoryException("현재 재고 수량이 결제 완료된 수량보다 부족합니다.");
+
+        this.onHandQuantity -= quantity;
     }
 }

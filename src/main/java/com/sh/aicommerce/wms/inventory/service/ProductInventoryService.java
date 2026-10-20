@@ -1,10 +1,15 @@
 package com.sh.aicommerce.wms.inventory.service;
 
+import com.sh.aicommerce.common.exception.payment.PaymentException;
 import com.sh.aicommerce.common.exception.product.ProductException;
+import com.sh.aicommerce.common.exception.productInventory.ProductInventoryException;
 import com.sh.aicommerce.common.exception.wms.InventoryException;
 import com.sh.aicommerce.entity.*;
 import com.sh.aicommerce.enums.wms.StockMovementReferenceType;
 import com.sh.aicommerce.enums.wms.StockMovementStatus;
+import com.sh.aicommerce.order.orderRepository.OrderRepository;
+import com.sh.aicommerce.payment.repository.PaymentRepository;
+import com.sh.aicommerce.productOption.repository.ProductOptionRepository;
 import com.sh.aicommerce.wms.inBound.dto.InboundType;
 import com.sh.aicommerce.wms.inventory.repository.ProductInventoryRepository;
 import com.sh.aicommerce.wms.stockMovement.repository.StockMovementRepository;
@@ -21,6 +26,9 @@ import java.time.LocalDateTime;
 public class ProductInventoryService {
     private final ProductInventoryRepository inventoryRepository;
     private final StockMovementRepository stockMovementRepository;
+    private final ProductOptionRepository optionRepository;
+    private final PaymentRepository paymentRepository;
+    private final OrderRepository orderRepository;
 
     @Transactional
     public void inBoundProduct(InboundType inboundType, Product product, ProductVariant variant, ProductOption option, Warehouse warehouse, int quantity, Integer safetyQuantity, Long inboundId) {
@@ -99,5 +107,35 @@ public class ProductInventoryService {
 
         stockMovementRepository.save(stockMovement);
         log.info("[기존 상품 재고 추가] 상품 ID : {}, 상품 옵션 ID :{}", productId, option.getId());
+    }
+
+    public void decreaseQuantityProduct(Long paymentId) {
+
+        Payment payment = paymentRepository.findPaymentByIdWithOrder(paymentId)
+                .orElseThrow(() -> new PaymentException("결제 번호에 해당 하는 결제 내역이 존재하지 않습니다."));
+        Orders order = payment.getOrder();
+        OrderItem orderItem = order.getOrderItems().get(0);
+        ProductOption option = orderItem.getProductOption();
+
+        ProductInventory inventory = inventoryRepository.findProductInventoryByOptionIdForUpdate(option.getId())
+                .orElseThrow(() -> new ProductInventoryException("현재 상품 옵션에 해당하는 재고 정보가 존재하지 않습니다."));
+        Integer beforeOnHandQuantity = inventory.getOnHandQuantity();
+
+        // 재고에서 현재 가지고 있는 수량 업데이트
+        inventory.updateOnHandQuantityByPaymentQuantity(orderItem.getQuantity());
+
+        // 재고 변경 이력 저장
+        StockMovement stockMovement = new StockMovement(
+                inventory,
+                StockMovementStatus.OUTBOUND,
+                StockMovementReferenceType.ORDER,
+                order.getId(),
+                orderItem.getQuantity(), // 결제 주문 수량
+                beforeOnHandQuantity, // 차감 전 재고 수
+                inventory.getOnHandQuantity(), // 차감 후 재고 수
+                LocalDateTime.now()
+        );
+
+        stockMovementRepository.save(stockMovement);
     }
 }

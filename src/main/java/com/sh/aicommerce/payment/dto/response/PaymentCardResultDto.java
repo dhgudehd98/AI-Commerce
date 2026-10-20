@@ -31,6 +31,7 @@ public class PaymentCardResultDto {
         this.paymentStatus = PaymentStatus.PAID;
         this.orderName = responseDto.getOrderName();
         this.totalAmount = responseDto.getTotalAmount();
+        this.paidAt = responseDto.getPaidAt();
     }
 
     public PaymentCardResultDto(PaymentCompleteDto completeDto) {

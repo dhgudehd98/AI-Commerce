@@ -128,7 +128,6 @@ public class PaymentService {
 
         try {
             // TransactionTemplate 실행
-            // preparePay() 수행 및 커밋이 끝나면 반환됩니다.
             log.info("[결제 요청 전 ] 주문번호를 통해 분산 락 획득  주문번호 : {}", orderNumber);
             return action.get();
         } finally {
