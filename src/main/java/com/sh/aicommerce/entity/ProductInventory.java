@@ -114,9 +114,9 @@ public class ProductInventory {
 
     public void updateOnHandQuantityByPaymentQuantity(Integer quantity) {
 
-        if(this.onHandQuantity < quantity)
-            throw new ProductInventoryException("현재 재고 수량이 결제 완료된 수량보다 부족합니다.");
-
-        this.onHandQuantity -= quantity;
+//        if(this.onHandQuantity < quantity)
+////            throw new ProductInventoryException("현재 재고 수량이 결제 완료된 수량보다 부족합니다.");
+//
+//        this.onHandQuantity -= quantity;
     }
 }
