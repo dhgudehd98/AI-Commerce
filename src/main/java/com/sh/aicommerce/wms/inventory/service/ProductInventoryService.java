@@ -8,6 +8,7 @@ import com.sh.aicommerce.entity.*;
 import com.sh.aicommerce.enums.wms.StockMovementReferenceType;
 import com.sh.aicommerce.enums.wms.StockMovementStatus;
 import com.sh.aicommerce.order.orderRepository.OrderRepository;
+import com.sh.aicommerce.payment.dto.request.PaymentBillingCardRequestDto;
 import com.sh.aicommerce.payment.repository.PaymentRepository;
 import com.sh.aicommerce.productOption.repository.ProductOptionRepository;
 import com.sh.aicommerce.wms.inBound.dto.InboundType;
@@ -137,5 +138,22 @@ public class ProductInventoryService {
         );
 
         stockMovementRepository.save(stockMovement);
+    }
+
+    public void releasedReservationQuantity(Orders order, PaymentBillingCardRequestDto paymentBillingCardRequestDto) {
+        log.info("[PAYMENT] stage=RESERVATION_RELEASE event=START orderNumber={} orderId={} paymentId={} attemptId={}",
+                order.getOrderNumber(), order.getId(), paymentBillingCardRequestDto.getPaymentId(), paymentBillingCardRequestDto.getAttemptId());
+        OrderItem item = order.getOrderItems().stream()
+                .findFirst()
+                .orElseThrow(() -> new ProductInventoryException("[결제/RESERVATION_RELEASE] 예약 해제 대상 주문 상품이 없습니다."));
+        Long optionId = item.getProductOption().getId();
+
+        ProductInventory inventory = inventoryRepository.findProductInventoryByOptionIdForUpdate(optionId)
+                .orElseThrow(() -> new ProductInventoryException("[결제/RESERVATION_RELEASE] 상품 옵션의 재고 정보가 없습니다. | optionId=" + optionId));
+        Integer beforeReserved = inventory.getReservedQuantity();
+        inventory.updateReleasedReservationQuantity(item.getQuantity());
+        log.info("[PAYMENT] stage=RESERVATION_RELEASE event=APPLIED_PENDING_COMMIT orderNumber={} paymentId={} attemptId={} optionId={} releaseQuantity={} reservedBefore={} reservedAfter={} onHandQuantity={}",
+                order.getOrderNumber(), paymentBillingCardRequestDto.getPaymentId(), paymentBillingCardRequestDto.getAttemptId(),
+                optionId, item.getQuantity(), beforeReserved, inventory.getReservedQuantity(), inventory.getOnHandQuantity());
     }
 }

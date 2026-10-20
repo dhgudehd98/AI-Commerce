@@ -11,7 +11,8 @@ public enum PaymentStatus {
     PAID("결제 완료"), // 결제 완료 : PG에서 승인 성공이 확인도니 상태
     FAILED("결제 실패"), // 결제 실패 : 결제 프로세스가 최종적으로 실패한 상태
     CANCELED("결제 취소 완료"),
-    CANCEL_FAILED("결제 취소 실패");
+    CANCEL_FAILED("결제 취소 실패"),
+    UNKNOWN("결과 확인 필요");
 
     private String status;
 

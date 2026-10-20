@@ -51,9 +51,9 @@ public class ExpiredPaymentBatchConfig {
     ) {
         return new StepBuilder("expiredPaymentJob", jobRepository)
                 .<Long, Long>chunk(5, transaction)
-                .reader(expiredPaymentReader)
+//                .reader(expiredPaymentReader)
 //                .processor(reservationProcessor())
-                .writer(expiredPaymentWriter)
+//                .writer(expiredPaymentWriter)
                 .build();
     }
 

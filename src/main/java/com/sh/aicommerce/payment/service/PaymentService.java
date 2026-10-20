@@ -102,11 +102,20 @@ public class PaymentService {
             Long optionId,
             PaymentRequestDto request
     ) {
-        return withPaymentLock("PREPARE", request.getOrderNumber(), () ->
-                transactionTemplate.execute(status ->
-                        preparePay(memberId, variantId, optionId, request)
-                )
-        );
+        try {
+            return withPaymentLock("PREPARE", request.getOrderNumber(), () ->
+                    transactionTemplate.execute(status ->
+                            preparePay(memberId, variantId, optionId, request)
+                    )
+            );
+        }catch (RuntimeException e) {
+            log.error(
+                    "[PAYMENT] stage=PREPARE event=FAILED orderNumber={}",
+                    request.getOrderNumber(),
+                    e
+            );
+            throw e;
+        }
     }
 
     // 2. 락 획득 → 전달받은 작업 실행 → 락 해제
@@ -150,9 +159,6 @@ public class PaymentService {
             unLock(lockKey, lockValue);
         }
     }
-
-    // 4. 자신이 획득한 락만 삭제
-
 
     private void unLock(String lockKey, String lockValue) {
 
@@ -354,21 +360,27 @@ public class PaymentService {
 
     public PaymentCardResultDto adjustPaymentResult(Long memberId, CardBillingPaymentRequestDto cardBillingPaymentRequestDto) {
 
-        log.info("[PAYMENT] stage=DECIDE event=START orderNumber={} paymentId={} attemptId={}",
-                cardBillingPaymentRequestDto.getOrderNumber(), cardBillingPaymentRequestDto.getPaymentId(), cardBillingPaymentRequestDto.getPaymentAttemptId());
-        PaymentDecision decision = withPaymentLock("APPROVAL_VALIDATE", cardBillingPaymentRequestDto.getOrderNumber(),
-                () -> paymentTxService.adjustPaymentAction(memberId, cardBillingPaymentRequestDto));
+        try {
+            log.info("[PAYMENT] stage=DECIDE event=START orderNumber={} paymentId={} attemptId={}",
+                    cardBillingPaymentRequestDto.getOrderNumber(), cardBillingPaymentRequestDto.getPaymentId(), cardBillingPaymentRequestDto.getPaymentAttemptId());
+            PaymentDecision decision = withPaymentLock("APPROVAL_VALIDATE", cardBillingPaymentRequestDto.getOrderNumber(),
+                    () -> paymentTxService.adjustPaymentAction(memberId, cardBillingPaymentRequestDto));
 //
 
-        // PaymentStatus에 대한 값이 READY || PROCESSING 이면 PG 재요청
-        if (decision.action() == PaymentAction.PG_REQUEST) {
-            return new PaymentCardResultDto(payCard(decision.cardRequestDto()),cardBillingPaymentRequestDto.getPaymentId());
+            // PaymentStatus에 대한 값이 READY || PROCESSING 이면 PG 재요청
+            if (decision.action() == PaymentAction.PG_REQUEST) {
+                return new PaymentCardResultDto(payCard(decision.cardRequestDto()), cardBillingPaymentRequestDto.getPaymentId());
+            }
+
+            if (decision.action() == PaymentAction.COMPLETED)
+                return new PaymentCardResultDto(decision.completeDto());
+
+            return new PaymentCardResultDto();
+        } catch (RuntimeException e) {
+            log.error("[결제 요청 decision 에러 발생 : ", e);
+            throw e;
         }
 
-        if(decision.action() == PaymentAction.COMPLETED)
-            return new PaymentCardResultDto(decision.completeDto());
-
-        return new PaymentCardResultDto();
 
     }
 
@@ -387,12 +399,54 @@ public class PaymentService {
             log.warn("[PAYMENT] stage=PG_REQUEST event=REJECTED orderNumber={} paymentId={} attemptId={} pgCode={}",
                     paymentBillingCardRequestDto.getOrderNumber(), paymentBillingCardRequestDto.getPaymentId(),
                     paymentBillingCardRequestDto.getAttemptId(), e.getErrorCode());
+
+            try {
+                // Toss에서 명백하게 에러에 대한 코드를 return 했기 떄문에 Payment, PaymentAttempt, Order에 대한 값들을 실패 값으로 설정
+                withPaymentLock(
+                        "FAILED",
+                        paymentBillingCardRequestDto.getOrderNumber(),
+                        () -> {
+                            transactionTemplate.executeWithoutResult(status ->
+                                    paymentTxService.applyPaymentRejected(
+                                            paymentBillingCardRequestDto, e
+                                    )
+                            );
+
+                            return null;
+                        }
+                );
+            } catch (RuntimeException saveException) {
+                // 실패 저장 오류가 원래 PG 거절 예외를 덮어쓰지 않도록 보존
+                e.addSuppressed(saveException);
+                log.error("[PAYMENT] stage=REJECTION_APPLY event=FAILED orderNumber={} errorType={}", paymentBillingCardRequestDto.getOrderNumber(), saveException.getClass().getSimpleName());
+            }
+
             throw e;
         } catch (TossRestClientException e) {
             log.warn("[PAYMENT] stage=PG_REQUEST event=RESULT_UNKNOWN orderNumber={} paymentId={} attemptId={}",
                     paymentBillingCardRequestDto.getOrderNumber(), paymentBillingCardRequestDto.getPaymentId(),
                     paymentBillingCardRequestDto.getAttemptId());
+
+            try{
+                withPaymentLock(
+                        "FAILED",
+                        paymentBillingCardRequestDto.getOrderNumber(),
+                        () -> {
+                            transactionTemplate.executeWithoutResult(status ->
+                                    paymentTxService.applyPaymentRejected(
+                                            paymentBillingCardRequestDto, e
+                                    )
+                            );
+
+                            return null;
+                        }
+                );
+            } catch(RuntimeException saveException){
+                e.addSuppressed(saveException);
+                log.error("[PAYMENT] stage=REJECTION_APPLY event=FAILED orderNumber={} errorType={}", paymentBillingCardRequestDto.getOrderNumber(), saveException.getClass().getSimpleName());
+            }
             throw e;
+
         } catch (JsonProcessingException e) {
             log.error("[PAYMENT] stage=PG_REQUEST event=RESULT_UNKNOWN orderNumber={} paymentId={} attemptId={} errorType={}", paymentBillingCardRequestDto.getOrderNumber(), paymentBillingCardRequestDto.getPaymentId(), paymentBillingCardRequestDto.getAttemptId(), e.getClass().getSimpleName());
             throw new PaymentException("[결제/APPROVAL] 결제 결과 확인이 필요합니다.");
@@ -431,7 +485,7 @@ public class PaymentService {
                 orderNumber, e.getErrorCode());
         try {
             // 명확한 승인 거절일 때만 실패 저장 및 예약 재고 해제
-            paymentTransactionService.payFailTossPayment(orderNumber);
+            paymentTransactionService.payFailTossPayment(orderNumber, e.getMessage());
         } catch (RuntimeException saveException) {
             // 실패 저장 오류가 원래 PG 거절 예외를 덮어쓰지 않도록 보존
             e.addSuppressed(saveException);

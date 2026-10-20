@@ -111,30 +111,30 @@ public class PaymentTransactionService {
         return paymentRepository.findPaidTossWidgetPayment(orderNumber, paymentKey, amount).orElseThrow(() -> new PaymentException("이미 결제된 주문정보가 존재하지 않습니다."));
     }
 
+//    @Transactional
+//    public void payFailOrExpiredPayment(Long paymentId, LocalDateTime expiredAt) {
+//        Payment payment = paymentRepository
+//                .findExpiredPaymentForUpdate(paymentId, expiredAt)
+//                .orElse(null);
+//
+//        if(payment == null) return ;
+//
+//        failOrExpiredPaymentAndReleaseReservation(payment);
+//    }
+
+
     @Transactional
-    public void payFailOrExpiredPayment(Long paymentId, LocalDateTime expiredAt) {
-        Payment payment = paymentRepository
-                .findExpiredPaymentForUpdate(paymentId, expiredAt)
-                .orElse(null);
-
-        if(payment == null) return ;
-
-        failOrExpiredPaymentAndReleaseReservation(payment);
-    }
-
-
-    @Transactional
-    public void payFailTossPayment(String orderNumber) {
+    public void payFailTossPayment(String orderNumber, String failReason) {
         Payment payment = paymentRepository.findPaymentWithOrderByOrderNumber(orderNumber).orElseThrow(() -> new PaymentException("주문 번호에 해당하는 정보를 찾을 수 없습니다."));
 
         // 토스페이먼츠 결제 실패 + Payment 만료된 데이터 실패 공통 로직으로 묶어서 분리
-        failOrExpiredPaymentAndReleaseReservation(payment);
+        failOrExpiredPaymentAndReleaseReservation(payment, failReason);
     }
 
-    private void failOrExpiredPaymentAndReleaseReservation(Payment payment) {
+    private void failOrExpiredPaymentAndReleaseReservation(Payment payment, String failReason) {
         Orders order = payment.getOrder();
 
-        payment.updateFailPaymentTossWidget();
+        payment.updateStatusToFailed(failReason);
 
         for (OrderItem item : order.getOrderItems()) {
             Long optionId = item.getProductOption().getId();

@@ -110,4 +110,7 @@ public class Orders {
     public void updateStatusToPaymentComplete() {
         this.status = OrderStatus.PAID;
     }
+
+    public void updateStatusToUnknown() {
+    }
 }

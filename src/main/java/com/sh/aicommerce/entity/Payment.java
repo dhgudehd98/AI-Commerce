@@ -62,6 +62,8 @@ public class Payment {
     private LocalDateTime updatedAt;
     private LocalDateTime paidAt;
 
+    private String failReason; // 토스 결제 실패 사유 추가
+
     public static Payment createPayment(PaymentRequestDto dto, Integer totalPrice) {
         Payment payment = new Payment();
         payment.paymentMethod = dto.getPaymentMethod();
@@ -172,9 +174,11 @@ public class Payment {
         this.order = orders;
     }
 
-    public void updateFailPaymentTossWidget() {
+    public void updateStatusToFailed(String failReason) {
         this.status = PaymentStatus.FAILED;
         this.updatedAt = LocalDateTime.now();
+        this.failReason = failReason;
+
     }
 
     public void updateCancelStatus() {
@@ -194,4 +198,8 @@ public class Payment {
         this.status = PaymentStatus.CANCEL_FAILED;
     }
 
+    public void updateStatusToUnknown(String failReason) {
+        this.failReason = failReason;
+        this.status = PaymentStatus.UNKNOWN;
+    }
 }

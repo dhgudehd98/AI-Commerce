@@ -7,6 +7,7 @@ import com.sh.aicommerce.common.exception.order.OrderException;
 import com.sh.aicommerce.common.exception.payment.PaymentException;
 import com.sh.aicommerce.common.exception.paymentAttempt.PaymentAttemptException;
 import com.sh.aicommerce.common.exception.toss.TossPaymentException;
+import com.sh.aicommerce.common.exception.toss.TossRestClientException;
 import com.sh.aicommerce.entity.*;
 import com.sh.aicommerce.enums.order.OrderStatus;
 import com.sh.aicommerce.enums.payment.*;
@@ -347,5 +348,61 @@ public class PaymentTxService {
 
         return new PgPaymentSuccessResponseDto(payment, attempt, order);
     }
-    
+
+    public void applyPaymentRejected(PaymentBillingCardRequestDto paymentBillingCardRequestDto, RuntimeException e) {
+        log.info("[PAYMENT] stage=REJECTION_APPLY event=START orderNumber={} paymentId={} attemptId={} errorType={}",
+                paymentBillingCardRequestDto.getOrderNumber(), paymentBillingCardRequestDto.getPaymentId(),
+                paymentBillingCardRequestDto.getAttemptId(), e.getClass().getSimpleName());
+        Payment payment = paymentRepository.findPaymentByIdWithOrderForUpdate(paymentBillingCardRequestDto.getPaymentId(), paymentBillingCardRequestDto.getOrderNumber())
+                .orElseThrow(() -> new PaymentException("[결제/REJECTION_APPLY] 주문번호와 결제 ID에 일치하는 결제 내역이 없습니다."));
+        Orders order = payment.getOrder();
+        PaymentAttempt attempt = paymentAttemptRepository.findPaymentAttemptByAttemptIdForUpdate(paymentBillingCardRequestDto.getAttemptId())
+                .orElseThrow(() -> new PaymentAttemptException("[결제/REJECTION_APPLY] 승인 시도 ID에 일치하는 내역이 없습니다."));
+
+        if(!payment.getId().equals(attempt.getPayment().getId()))
+            throw new PaymentException("[결제/REJECTION_APPLY] 결제와 승인 시도가 연결되어 있지 않습니다.");
+
+        // 이미 결제가 완료된 상태들은 update하지 않도록 처리
+        if(payment.getStatus() == PaymentStatus.PAID
+            || order.getStatus() == OrderStatus.PAID
+                || attempt.getStatus() == PaymentAttemptStatus.SUCCESS) return;
+
+
+        // 실패 상태와 예약 해제는 같은 트랜잭션에서 저장된다.
+        // 늦은 통신 오류도 확정 실패를 UNKNOWN으로 되돌리지 않도록 한다.
+        if (payment.getStatus() == PaymentStatus.FAILED) {
+            log.info("[PAYMENT] stage=REJECTION_APPLY event=REPLAYED orderNumber={} paymentId={} attemptId={}",
+                    order.getOrderNumber(), payment.getId(), attempt.getId());
+            return;
+        }
+
+        if(e instanceof TossPaymentException){
+
+            updateStatusToFailed(payment, order, attempt, e.getMessage());
+
+            // 예약 재고 선점 해제
+            inventoryService.releasedReservationQuantity(order, paymentBillingCardRequestDto);
+        }
+        else if (e instanceof TossRestClientException) {
+            updateStatusToUnknown(payment, order, attempt, e.getMessage());
+        }
+        else{
+            updateStatusToUnknown(payment, order, attempt, e.getMessage());
+        }
+    }
+
+
+    public void updateStatusToFailed(Payment payment, Orders order, PaymentAttempt attempt, String message) {
+        log.info("[PAYMENT] stage=REJECTION_APPLY event=FAILED_PENDING_COMMIT orderNumber={} paymentId={} attemptId={} previousStatus={} reservationAction=RELEASE", order.getOrderNumber(), payment.getId(), attempt.getId(), payment.getStatus());
+        payment.updateStatusToFailed(message);
+        order.updateStatusToFailed();
+        attempt.updateStatusToFailed();
+    }
+
+    private void updateStatusToUnknown(Payment payment, Orders order, PaymentAttempt attempt, String message) {
+        log.warn("[PAYMENT] stage=REJECTION_APPLY event=UNKNOWN_PENDING_COMMIT orderNumber={} paymentId={} attemptId={} previousStatus={} reservationAction=KEEP", order.getOrderNumber(), payment.getId(), attempt.getId(), payment.getStatus());
+        payment.updateStatusToUnknown(message);
+        order.updateStatusToUnknown();
+        attempt.updateStatusToUnknown();
+    }
 }

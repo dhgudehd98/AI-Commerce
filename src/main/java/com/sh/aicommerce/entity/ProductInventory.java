@@ -1,5 +1,6 @@
 package com.sh.aicommerce.entity;
 import com.sh.aicommerce.common.exception.product.ProductException;
+import com.sh.aicommerce.common.exception.productInventory.ProductInventoryException;
 import com.sh.aicommerce.common.exception.wms.InventoryException;
 import com.sh.aicommerce.entity.ProductOption;
 import com.sh.aicommerce.entity.StockMovement;
@@ -113,9 +114,21 @@ public class ProductInventory {
 
     public void updateOnHandQuantityByPaymentQuantity(Integer quantity) {
 
-//        if(this.onHandQuantity < quantity)
-////            throw new ProductInventoryException("현재 재고 수량이 결제 완료된 수량보다 부족합니다.");
-//
-//        this.onHandQuantity -= quantity;
+        if(this.onHandQuantity < quantity)
+            throw new ProductInventoryException("현재 재고 수량이 결제 완료된 수량보다 부족합니다.");
+
+        this.onHandQuantity -= quantity;
+    }
+
+    public void updateReleasedReservationQuantity(Integer quantity) {
+        if (quantity == null || quantity <= 0) {
+            throw new ProductInventoryException("[결제/RESERVATION_RELEASE] 해제 수량은 1 이상이어야 합니다.");
+        }
+        if (this.reservedQuantity < quantity) {
+            throw new ProductInventoryException("[결제/RESERVATION_RELEASE] 예약 수량보다 해제 요청 수량이 많습니다."
+                    + " | reservedQuantity=" + this.reservedQuantity + " releaseQuantity=" + quantity);
+        }
+
+        this.reservedQuantity -= quantity;
     }
 }

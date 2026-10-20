@@ -17,7 +17,7 @@ public class ExpiredPaymentWriter implements ItemWriter<Long> {
     @Override
     public void write(Chunk<? extends Long> chunk) throws Exception {
         for (Long paymentId : chunk) {
-            transactionService.payFailOrExpiredPayment(paymentId, expiredAt);
+//            transactionService.payFailOrExpiredPayment(paymentId, expiredAt);
         }
     }
 }

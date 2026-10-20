@@ -76,4 +76,12 @@ public class PaymentAttempt {
     public void updateAttemptStatusToProcessing() {
         this.status = PaymentAttemptStatus.PROCESSING;
     }
+
+    public void updateStatusToFailed() {
+        this.status = PaymentAttemptStatus.FAILED;
+    }
+
+    public void updateStatusToUnknown() {
+        this.status = PaymentAttemptStatus.UNKNOWN;
+    }
 }

@@ -44,7 +44,7 @@ public class TossAPIService {
     public void payFail(String orderNumber, String errorCode, String errorMessage) {
         log.error("[토스페이먼츠 결제 위젯 오류 발생] 에러 코드 : {}, 에러 메세지 : {}", errorCode, errorMessage);
 
-        paymentTransactionService.payFailTossPayment(orderNumber);
+        paymentTransactionService.payFailTossPayment(orderNumber, errorMessage);
     }
 
     public void cancel(Long cancellationId) {
