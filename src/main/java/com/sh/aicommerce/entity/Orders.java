@@ -112,5 +112,6 @@ public class Orders {
     }
 
     public void updateStatusToUnknown() {
+        this.status = OrderStatus.PAYMENT_UNKNOWN;
     }
 }

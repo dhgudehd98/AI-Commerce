@@ -12,6 +12,7 @@ public enum OrderStatus {
     PAID("결제 완료"),                // 결제 완료: PG 승인 성공 및 주문 확정
 
     PAYMENT_FAILED("결제 실패"),      // 결제 실패: PG 승인 실패가 확정된 상태
+    PAYMENT_UNKNOWN("결제 결과 확인 필요"),
 
     EXPIRED("주문 만료"),             // 주문 만료: 결제 대기 시간 초과로 주문 종료 및 재고 예약 해제
 
@@ -27,7 +28,7 @@ public enum OrderStatus {
     CANCELING("주문 취소 진행중"),           // 주문 취소 진행 중: PG 결제 취소 및 재고 복구 처리 중
 
     CANCELED("주문 취소 완료"),             // 주문 취소 완료: 필요한 취소 및 재고 복구 처리 완료
-    FAILED("취소"), //
+    FAILED("주문 취소 실패"),
     REFUNDED("주문 환불 완료");
 
     private String status;
