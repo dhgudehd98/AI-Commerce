@@ -189,6 +189,40 @@ public class TossPaymentClient {
         }
     }
 
+    private RuntimeException convertException(HttpStatusCodeException codeException) {
+
+        if (codeException.getStatusCode().is5xxServerError()) {
+            return new TossRestClientException(
+                    "[결제 승인 결과 확인 필요] PG 서버 오류",codeException);
+        }
+
+        TossPaymentErrorResponseDto errorResponse ;
+
+        try {
+            errorResponse = objectMapper
+                    .readValue(codeException.getResponseBodyAsString(), TossPaymentErrorResponseDto.class);
+        } catch (JsonProcessingException e) {
+            codeException.addSuppressed(e);
+
+            return new TossRestClientException(
+                    "[결제 승인 결과 확인 필요] 오류 응답 해석 실패",
+                    codeException
+            );
+        }
+
+        if (errorResponse == null || errorResponse.getCode() == null) {
+            throw new RestClientException("[결제 승인 요청 결과 확인필요] 오류 코드 누락");
+        }
+
+        if (codeException.getStatusCode().is4xxClientError()
+                && PAYMENT_REJECTION_CODES.contains(errorResponse.getCode())) {
+            throw new TossPaymentException(errorResponse.getCode(),
+                    "[결제/PG_REQUEST] PG가 승인 요청을 거절했습니다. | pgCode=" + errorResponse.getCode(), codeException);
+        }
+
+        return new TossRestClientException("[결제/PG_REQUEST] PG 오류로 승인 결과 확인이 필요합니다. | pgCode=" + errorResponse.getCode());
+    }
+
     public TossPaymentCancelResponseDto cancel(String paymentKey){
         try {
             String encodedSecretKey = Base64.getEncoder()
@@ -353,39 +387,5 @@ public class TossPaymentClient {
                     e
             );
         }
-    }
-
-    private RuntimeException convertException(HttpStatusCodeException codeException) {
-
-        if (codeException.getStatusCode().is5xxServerError()) {
-            return new TossRestClientException(
-                    "[결제 승인 결과 확인 필요] PG 서버 오류",codeException);
-        }
-
-        TossPaymentErrorResponseDto errorResponse ;
-
-        try {
-            errorResponse = objectMapper
-                    .readValue(codeException.getResponseBodyAsString(), TossPaymentErrorResponseDto.class);
-        } catch (JsonProcessingException e) {
-            codeException.addSuppressed(e);
-
-            return new TossRestClientException(
-                    "[결제 승인 결과 확인 필요] 오류 응답 해석 실패",
-                    codeException
-            );
-        }
-
-        if (errorResponse == null || errorResponse.getCode() == null) {
-            throw new RestClientException("[결제 승인 요청 결과 확인필요] 오류 코드 누락");
-        }
-
-        if (codeException.getStatusCode().is4xxClientError()
-                && PAYMENT_REJECTION_CODES.contains(errorResponse.getCode())) {
-            throw new TossPaymentException(errorResponse.getCode(),
-                    "[결제/PG_REQUEST] PG가 승인 요청을 거절했습니다. | pgCode=" + errorResponse.getCode(), codeException);
-        }
-
-        return new TossRestClientException("[결제/PG_REQUEST] PG 오류로 승인 결과 확인이 필요합니다. | pgCode=" + errorResponse.getCode());
     }
 }

@@ -10,6 +10,7 @@ import com.sh.aicommerce.common.exception.member.MemberException;
 import com.sh.aicommerce.common.exception.order.OrderException;
 import com.sh.aicommerce.common.exception.orderItem.OrderItemException;
 import com.sh.aicommerce.common.exception.payment.PaymentException;
+import com.sh.aicommerce.common.exception.payment.PaymentResultUnknownException;
 import com.sh.aicommerce.common.exception.paymentAttempt.PaymentAttemptException;
 import com.sh.aicommerce.common.exception.product.ProductException;
 import com.sh.aicommerce.common.exception.toss.TossPaymentException;
@@ -393,7 +394,15 @@ public class PaymentService {
                     client.cardBilling(paymentBillingCardRequestDto);
 
             // PG사 외부 API 자동 결제 요청 후, 응답 데이터 저장 전 락 획득 후 데이터 저장 시작
-            return withPaymentLock("APPROVAL_APPLY", paymentBillingCardRequestDto.getOrderNumber(), () -> paymentTxService.validatePGResponseData(paymentBillingCardRequestDto, response));
+            try {
+                return withPaymentLock("APPROVAL_APPLY", paymentBillingCardRequestDto.getOrderNumber(),
+                        () -> paymentTxService.validatePGResponseData(paymentBillingCardRequestDto, response));
+            } catch (RuntimeException applyException) {
+                log.error("[PAYMENT] stage=APPROVAL_APPLY event=RESULT_UNKNOWN orderNumber={} paymentId={} attemptId={} errorType={}",
+                        paymentBillingCardRequestDto.getOrderNumber(), paymentBillingCardRequestDto.getPaymentId(),
+                        paymentBillingCardRequestDto.getAttemptId(), applyException.getClass().getSimpleName());
+                throw new PaymentResultUnknownException(applyException);
+            }
 
         } catch (TossPaymentException e) {
             log.warn("[PAYMENT] stage=PG_REQUEST event=REJECTED orderNumber={} paymentId={} attemptId={} pgCode={}",
@@ -445,11 +454,11 @@ public class PaymentService {
                 e.addSuppressed(saveException);
                 log.error("[PAYMENT] stage=REJECTION_APPLY event=FAILED orderNumber={} errorType={}", paymentBillingCardRequestDto.getOrderNumber(), saveException.getClass().getSimpleName());
             }
-            throw e;
+            throw new PaymentResultUnknownException(e);
 
         } catch (JsonProcessingException e) {
             log.error("[PAYMENT] stage=PG_REQUEST event=RESULT_UNKNOWN orderNumber={} paymentId={} attemptId={} errorType={}", paymentBillingCardRequestDto.getOrderNumber(), paymentBillingCardRequestDto.getPaymentId(), paymentBillingCardRequestDto.getAttemptId(), e.getClass().getSimpleName());
-            throw new PaymentException("[결제/APPROVAL] 결제 결과 확인이 필요합니다.");
+            throw new PaymentResultUnknownException(e);
         }
     }
 

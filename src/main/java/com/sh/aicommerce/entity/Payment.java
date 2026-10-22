@@ -200,6 +200,7 @@ public class Payment {
 
     public void updateStatusToUnknown(String failReason) {
         this.failReason = failReason;
+        this.updatedAt = LocalDateTime.now();
         this.status = PaymentStatus.UNKNOWN;
     }
 }
