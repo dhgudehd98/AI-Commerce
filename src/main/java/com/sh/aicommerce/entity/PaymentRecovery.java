@@ -172,4 +172,13 @@ public class PaymentRecovery {
 
         this.updatedAt = LocalDateTime.now();
     }
+
+    public void completeRecovery() {
+        LocalDateTime now = LocalDateTime.now();
+        this.status = PaymentRecoveryStatus.COMPLETED;
+
+        this.updatedAt = now;
+        this.lastRetryAt = now;
+        this.completedAt = now;
+    }
 }

@@ -1,6 +1,7 @@
 package com.sh.aicommerce.entity;
 
 import com.sh.aicommerce.enums.payment.PaymentAttemptStatus;
+import com.sh.aicommerce.toss.dto.response.TossPaymentRequestHistoryResponseDto;
 import com.sh.aicommerce.toss.dto.response.TossPaymentSuccessResponseDto;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -74,6 +75,13 @@ public class PaymentAttempt {
         this.completedAt = OffsetDateTime
                 .parse(responseDto.getApprovedAt())
                 .toLocalDateTime();
+    }
+
+    public void updateAttemptSuccessPayByRecovery(TossPaymentRequestHistoryResponseDto responseDto) {
+        this.requestAmount = responseDto.getTotalAmount();
+        this.status = PaymentAttemptStatus.SUCCESS;
+        this.paymentKey = responseDto.getPaymentKey();
+        this.completedAt = responseDto.getApprovedAt().toLocalDateTime();
     }
 
     public void updateAttemptStatusToProcessing() {

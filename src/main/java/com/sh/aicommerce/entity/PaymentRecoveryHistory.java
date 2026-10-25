@@ -149,4 +149,14 @@ public class PaymentRecoveryHistory {
         this.errorCode = errorCode;
         this.errorMessage = errorMessage;
     }
+
+    public void completeRecoveryHistory(String pgPaymentStatus) {
+        LocalDateTime now = LocalDateTime.now();
+        this.pgPaymentStatus = pgPaymentStatus;
+        this.action = PaymentRecoveryAction.DB_APPLY;
+        this.result = PaymentRecoveryResult.SUCCESS;
+
+        this.completedAt = now;
+
+    }
 }

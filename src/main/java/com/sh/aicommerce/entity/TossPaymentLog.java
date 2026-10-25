@@ -167,6 +167,62 @@ public class TossPaymentLog {
         return log;
     }
 
+    public static TossPaymentLog confirmSuccess(
+            Payment payment,
+            TossPaymentRequestHistoryResponseDto response,
+            Integer httpStatus,
+            String responsePayload
+    ) {
+        TossPaymentLog log = new TossPaymentLog();
+        log.payment = payment;
+        log.mid = response.getMId();
+        log.lastTransactionKey = response.getLastTransactionKey();
+        log.paymentKey = response.getPaymentKey();
+        log.orderNumber = response.getOrderId();
+        log.orderName = response.getOrderName();
+        log.tossStatus = response.getStatus();
+        log.requestType = "CONFIRM";
+        log.method = response.getMethod();
+
+        if (response.getEasyPay() != null) {
+            log.easyPayProvider = response.getEasyPay().getProvider();
+        }
+
+        if (response.getCard() != null) {
+            log.cardIssuerCode = response.getCard().getIssuerCode();
+            log.cardAcquirerCode = response.getCard().getAcquirerCode();
+            log.cardNumber = response.getCard().getNumber();
+            log.cardApprovedNumber = response.getCard().getApproveNo();
+            log.cardType = response.getCard().getCardType();
+            log.ownerType = response.getCard().getOwnerType();
+            log.acquireStatus = response.getCard().getAcquireStatus();
+            log.installmentPlanMonths = response.getCard().getInstallmentPlanMonths();
+            log.interestFree = response.getCard().getIsInterestFree();
+            log.useCardPoint = response.getCard().getUseCardPoint();
+        }
+
+        log.amount = response.getTotalAmount();
+        log.balanceAmount = response.getBalanceAmount();
+        log.suppliedAmount = response.getSuppliedAmount();
+        log.vat = response.getVat();
+        log.taxFreeAmount = response.getTaxFreeAmount();
+        log.currency = response.getCurrency();
+        log.partialCancelable = response.getIsPartialCancelable();
+        log.httpStatus = httpStatus;
+        if (response.getReceipt() != null) {
+            log.receiptUrl = response.getReceipt().getUrl();
+        }
+
+        if (response.getCheckout() != null) {
+            log.checkoutUrl = response.getCheckout().getUrl();
+        }
+        log.responsePayload = responsePayload;
+        log.requestedAt = response.getRequestedAt().toLocalDateTime();
+        log.approvedAt = response.getApprovedAt().toLocalDateTime();
+        log.createdAt = LocalDateTime.now();
+        return log;
+    }
+
     /**
      * 서비스에서 전액 취소 응답 검증 후 호출한다.
      * 승인 로그 필드는 유지하고, 취소 거래는 별도 필드에 기록한다.

@@ -4,6 +4,7 @@ import com.sh.aicommerce.common.exception.payment.PaymentException;
 import com.sh.aicommerce.enums.payment.*;
 import com.sh.aicommerce.payment.dto.request.PaymentRequestDto;
 import com.sh.aicommerce.toss.dto.request.TossPaymentRequestDto;
+import com.sh.aicommerce.toss.dto.response.TossPaymentRequestHistoryResponseDto;
 import com.sh.aicommerce.toss.dto.response.TossPaymentSuccessResponseDto;
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -122,6 +123,26 @@ public class Payment {
         this.updatedAt = LocalDateTime.now();
         this.status = PaymentStatus.PAID;
     }
+
+    public void updatePaymentByBillingCard(TossPaymentRequestHistoryResponseDto response) {
+        if (response == null) {
+            throw new PaymentException("토스 결제 승인 응답이 존재하지 않습니다.");
+        }
+        if (!"DONE".equals(response.getStatus())) {
+            throw new PaymentException("토스 자동결제 승인이 완료되지 않았 습니다.");
+        }
+
+        this.paidAt = response.getApprovedAt().toLocalDateTime();
+        this.paymentKey = response.getPaymentKey();
+        this.provider = response.getMethod(); // "카드"
+        this.approvedNumber = response.getCard().getApproveNo();
+        this.cardCode = response.getCard().getIssuerCode();
+        this.cardCompany = CardCompany.fromCode(response.getCard().getIssuerCode());
+        this.installmentMonths = response.getCard().getInstallmentPlanMonths();
+        this.updatedAt = LocalDateTime.now();
+        this.status = PaymentStatus.PAID;
+    }
+
     // 결제 관련 상태 값 변경 - 토스 위젯 결제
     public void updatePaymentStatusToProcessingByWidget(String paymentKey) {
         if (this.status != PaymentStatus.READY) {

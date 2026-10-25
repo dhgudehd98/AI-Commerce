@@ -81,9 +81,15 @@ public class PaymentUnknownRetryScheduler {
         // 하지만 그래도 토스 API 요청은 확인을 해봐야될거 같긴하다
         try {
             // 결제 조회에 대한 부분은 멱등성 키로 하는 것이 아닌 주문번호에 대한 값으로 확인
-            TossPaymentRequestHistoryResponseDto paymentHistory = client.findPaymentHistory(dto.getOrderNumber());
+            TossPaymentRequestHistoryResponseDto tossResponseDto = client.findPaymentHistory(dto.getOrderNumber());
+            log.info("[PAYMENT] stage=RECOVERY_QUERY event=RESPONSE_RECEIVED paymentId={} attemptId={} orderNumber={} recoveryId={} historyId={} pgStatus={} approvedAmount={}",
+                    paymentId, dto.getAttemptId(), dto.getOrderNumber(), dto.getRecoveryId(), historyId,
+                    tossResponseDto.getStatus(), tossResponseDto.getTotalAmount());
 
-            log.info("[PAYMENT] stage=RECOVERY_QUERY event=RESPONSE_RECEIVED paymentId={} recoveryId={} historyId={} pgStatus={}", paymentId, dto.getRecoveryId(), historyId, paymentHistory.getStatus());
+            // 결제 내역이 존재하는 경우
+            retryTxService.applyPaymentRecoveryResult(historyId, dto, tossResponseDto);
+            log.info("[PAYMENT] stage=RECOVERY_APPLY event=TRANSACTION_RETURNED paymentId={} attemptId={} orderNumber={} recoveryId={} historyId={}",
+                    paymentId, dto.getAttemptId(), dto.getOrderNumber(), dto.getRecoveryId(), historyId);
             // PG 조회 결과가 있는 경우에는 DB 업데이트 결제 완료 및 실패로 변경
         } catch (TossPaymentException paymentException) {
             log.warn("[PAYMENT] stage=RECOVERY_QUERY event=HTTP_ERROR paymentId={} recoveryId={} historyId={} pgCode={}", paymentId, dto.getRecoveryId(), historyId, paymentException.getErrorCode());
@@ -94,7 +100,24 @@ public class PaymentUnknownRetryScheduler {
             }
         } catch (TossRestClientException restClientException) {
             log.warn("[PAYMENT] stage=RECOVERY_QUERY event=RESULT_UNKNOWN paymentId={} recoveryId={} historyId={} errorType={}", paymentId, dto.getRecoveryId(), historyId, restClientException.getClass().getSimpleName());
+        } catch (RuntimeException e) {
+            log.error("[PAYMENT] stage=RECOVERY_APPLY event=FAILED paymentId={} attemptId={} orderNumber={} recoveryId={} historyId={} errorType={}",
+                    paymentId, dto.getAttemptId(), dto.getOrderNumber(), dto.getRecoveryId(), historyId,
+                    e.getClass().getSimpleName());
+            try {
+                retryTxService.updateRecoveryAndHistoryFail(historyId, e);
+            } catch (RuntimeException saveException) {
+                e.addSuppressed(saveException);
 
+                log.error(
+                        "[PAYMENT] stage=RECOVERY_FAILURE_APPLY event=FAILED "
+                                + "paymentId={} recoveryId={} historyId={} errorType={}",
+                        paymentId,
+                        dto.getRecoveryId(),
+                        historyId,
+                        saveException.getClass().getSimpleName()
+                );
+            }
         }
 
     }

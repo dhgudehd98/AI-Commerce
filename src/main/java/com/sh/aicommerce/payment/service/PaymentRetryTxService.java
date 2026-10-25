@@ -14,7 +14,11 @@ import com.sh.aicommerce.payment.repository.PaymentRepository;
 import com.sh.aicommerce.payment.repository.history.PaymentRecoveryHistoryRepository;
 import com.sh.aicommerce.payment.repository.recovery.PaymentRecoveryRepository;
 import com.sh.aicommerce.paymentAttempt.repository.PaymentAttemptRepository;
+import com.sh.aicommerce.recovery.dto.record.RecoveryTarget;
+import com.sh.aicommerce.toss.dto.response.TossPaymentRequestHistoryResponseDto;
+import com.sh.aicommerce.toss.repository.TossPaymentLogRepository;
 import com.sh.aicommerce.wms.inventory.service.ProductInventoryService;
+import com.sh.aicommerce.wms.outbound.service.OutboundService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +27,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Objects;
+import org.springframework.util.StringUtils;
+import com.sh.aicommerce.enums.payment.PaymentMethod;
+import com.sh.aicommerce.enums.paymentRecovery.PaymentRecoveryResult;
 
 @Service
 @RequiredArgsConstructor
@@ -32,8 +40,10 @@ public class PaymentRetryTxService {
     private final PaymentAttemptRepository attemptRepository;
     private final PaymentRecoveryRepository recoveryRepository;
     private final PaymentRecoveryHistoryRepository recoverHistoryRepository;
+    private final TossPaymentLogRepository tossPaymentLogRepository;
 
     private final ProductInventoryService inventoryService;
+    private final OutboundService outboundService;
     private final EntityManager entityManager;
 
 
@@ -142,14 +152,141 @@ public class PaymentRetryTxService {
         return history.getId();
     }
 
+    /**
+     * PG 조회 내역이 있는 경우의 흐름
+     * 1. History와 Recovery 잠금 조회 후 현재 복구가 PROCESSING인지 확인한다.
+     * 2. DTO 식별자, 현재 실행 회차 및 Recovery → Attempt → Payment → Orders 연결을 검증한다.
+     * 3. Payment → Orders → Attempt 순으로 잠금·새로고침하여 최신 상태를 확인한다.
+     *    Payment/Attempt는 UNKNOWN, Orders는 PAYMENT_PROCESSING이어야 한다.
+     * 4. PG DONE 상태, 주문번호, 상품명 스냅샷, 금액, 결제키 및 카드 승인 정보를 검증한다.
+     * 5. 이후 구현: 검증된 승인 정보와 완료 상태, 출고·PG 이력, Recovery·History를 함께 반영한다.
+     * 현재 메서드는 검증까지만 수행하며 DB 상태 변경·출고 생성·예약 해제를 하지 않는다.
+     */
     @Transactional
-    public void updatePaymentRecovery(UnknownPaymentRequestDto dto) {
-        log.info("[PAYMENT] stage=RECOVERY_COMPLETE event=START recoveryId={}", dto.getRecoveryId());
-        PaymentRecovery recovery = recoveryRepository.findRecoveryByIdForUpdate(dto.getRecoveryId())
-                .orElseThrow(() -> new PaymentRecoveryException("결제 재시도 이력이 존재하지 않습니다."));
-        recovery.updateRecovery();
+    public void applyPaymentRecoveryResult(Long historyId, UnknownPaymentRequestDto request, TossPaymentRequestHistoryResponseDto tossResponseDto) {
+        log.info("[PAYMENT] stage=RECOVERY_APPLY event=START historyId={}", historyId);
+        PaymentRecoveryHistory history = recoverHistoryRepository.findHistoryByIdForUpdate(historyId)
+                .orElseThrow(() -> new PaymentRecoveryException("[결제/RECOVERY_VALIDATE] 복구 이력이 존재하지 않습니다."));
+        PaymentRecovery recovery = recoveryRepository.findRecoveryByIdForUpdate(history.getPaymentRecovery().getId())
+                .orElseThrow(() -> new PaymentRecoveryException("[결제/RECOVERY_VALIDATE] 복구 작업이 존재하지 않습니다."));
 
-        PaymentRecoveryHistory history = PaymentRecoveryHistory.createHistory(recovery);
+
+        if (recovery.getStatus() != PaymentRecoveryStatus.PROCESSING) {
+            log.info("[PAYMENT] stage=RECOVERY_APPLY event=STATE_SKIPPED recoveryId={} historyId={} recoveryStatus={}", recovery.getId(), historyId, recovery.getStatus());
+            return;
+        }
+
+        // PG Response 데이터 검증 및 Recovery, History, Payment, Attempt, Order 데이터 검증
+        log.info("[PAYMENT] stage=RECOVERY_VALIDATE event=START recoveryId={} historyId={} retryCount={} maxRetryCount={}",
+                recovery.getId(), historyId, recovery.getRetryCount(), recovery.getMaxRetryCount());
+        RecoveryTarget target = validatePaymentRecoveryResultBeforeApply(history, recovery, request, tossResponseDto);
+        log.info("[PAYMENT] stage=RECOVERY_VALIDATE event=VALIDATED recoveryId={} historyId={} paymentId={} attemptId={} orderNumber={}",
+                recovery.getId(), historyId, request.getPaymentId(), request.getAttemptId(), request.getOrderNumber());
+        // 데이터 검증이 통과되면 Recovery, history, Payment, Attempt, Order 데이터 업데이트
+        applyPaymentRecoverySuccess(tossResponseDto, target);
+        // 데이터 검증이 실패하거나 , 다른 오류가 있는 경우에는 PaymentRecovery, history에 대한 내역 업데이트
+    }
+
+    private void applyPaymentRecoverySuccess(TossPaymentRequestHistoryResponseDto tossResponseDto, RecoveryTarget recoveryTarget) {
+        PaymentRecovery recovery = recoveryTarget.recovery();
+        PaymentRecoveryHistory history = recoveryTarget.history();
+        Payment payment = recoveryTarget.payment();
+        PaymentAttempt attempt = recoveryTarget.attempt();
+        Orders order = recoveryTarget.order();
+
+        log.info("[PAYMENT] stage=RECOVERY_APPLY event=STATE_UPDATE_START orderNumber={} paymentId={} attemptId={} recoveryId={} historyId={} paymentStatus={} orderStatus={} attemptStatus={}",
+                order.getOrderNumber(), payment.getId(), attempt.getId(), recovery.getId(), history.getId(),
+                payment.getStatus(), order.getStatus(), attempt.getStatus());
+        recovery.completeRecovery();
+        history.completeRecoveryHistory(tossResponseDto.getStatus());
+
+        payment.updatePaymentByBillingCard(tossResponseDto);
+        order.updateStatusToPaymentComplete();
+        attempt.updateAttemptSuccessPayByRecovery(tossResponseDto);
+
+        // 출고 내역 생성
+        log.info("[PAYMENT] stage=RECOVERY_OUTBOUND event=START orderNumber={} paymentId={} recoveryId={} historyId={}",
+                order.getOrderNumber(), payment.getId(), recovery.getId(), history.getId());
+        outboundService.createOutbound(order);
+
+        // PG 응답 로그 저장
+        TossPaymentLog paymentLog = TossPaymentLog.confirmSuccess(payment, tossResponseDto, 200, tossResponseDto.toString());
+        tossPaymentLogRepository.save(paymentLog);
+        log.info("[PAYMENT] stage=RECOVERY_APPLY event=APPLIED_PENDING_COMMIT orderNumber={} paymentId={} attemptId={} recoveryId={} historyId={} paymentStatus={} orderStatus={} attemptStatus={} recoveryStatus={} historyResult={}",
+                order.getOrderNumber(), payment.getId(), attempt.getId(), recovery.getId(), history.getId(),
+                payment.getStatus(), order.getStatus(), attempt.getStatus(), recovery.getStatus(), history.getResult());
+    }
+
+    private RecoveryTarget validatePaymentRecoveryResultBeforeApply(
+            PaymentRecoveryHistory history, PaymentRecovery recovery,
+            UnknownPaymentRequestDto dto, TossPaymentRequestHistoryResponseDto response) {
+        if (dto == null || response == null) {
+            throw new PaymentRecoveryException("[결제/RECOVERY_VALIDATE] 복구 대상 또는 PG 조회 응답이 없습니다.");
+        }
+        if (!Objects.equals(dto.getRecoveryId(), recovery.getId())
+                || !Objects.equals(history.getPaymentRecovery().getId(), recovery.getId())
+                || history.getAttemptNumber() != recovery.getRetryCount()
+                || history.getResult() != PaymentRecoveryResult.CREATE
+                || history.getCompletedAt() != null) {
+            throw new PaymentRecoveryException("[결제/RECOVERY_VALIDATE] 현재 진행 중인 복구 실행 이력이 아닙니다.");
+        }
+
+        PaymentAttempt attempt = recovery.getPaymentAttempt();
+        Payment payment = attempt.getPayment();
+        entityManager.refresh(payment, LockModeType.PESSIMISTIC_WRITE);
+        Orders order = payment.getOrder();
+        entityManager.refresh(order, LockModeType.PESSIMISTIC_WRITE);
+        entityManager.refresh(attempt, LockModeType.PESSIMISTIC_WRITE);
+
+        if (!Objects.equals(dto.getAttemptId(), attempt.getId())
+                || !Objects.equals(dto.getPaymentId(), payment.getId())
+                || !Objects.equals(dto.getOrderId(), order.getId())
+                || !Objects.equals(attempt.getPayment().getId(), payment.getId())
+                || !Objects.equals(dto.getOrderNumber(), order.getOrderNumber())) {
+            throw new PaymentRecoveryException("[결제/RECOVERY_VALIDATE] 복구 대상과 주문·결제·승인 시도 연결이 일치하지 않습니다.");
+        }
+        if (payment.getStatus() != PaymentStatus.UNKNOWN
+                || attempt.getStatus() != PaymentAttemptStatus.UNKNOWN
+                || order.getStatus() != OrderStatus.PAYMENT_PROCESSING) {
+            throw new PaymentRecoveryException("[결제/RECOVERY_VALIDATE] 복구 대상의 최신 상태가 결과 확인 대기 상태가 아닙니다.");
+        }
+        if (!"DONE".equals(response.getStatus()) || response.getApprovedAt() == null) {
+            throw new PaymentRecoveryException("[결제/RECOVERY_VALIDATE] 승인 완료된 PG 결제 내역이 아닙니다.");
+        }
+        if (!Objects.equals(order.getOrderNumber(), response.getOrderId())) {
+            throw new PaymentRecoveryException("[결제/RECOVERY_VALIDATE] PG 주문번호가 내부 주문번호와 일치하지 않습니다.");
+        }
+        String orderName = order.getOrderItems().stream().findFirst()
+                .map(OrderItem::getProductNameSnapshot)
+                .orElseThrow(() -> new PaymentRecoveryException("[결제/RECOVERY_VALIDATE] 주문 상품명 스냅샷이 없습니다."));
+        if (!Objects.equals(orderName, response.getOrderName())) {
+            throw new PaymentRecoveryException("[결제/RECOVERY_VALIDATE] PG 상품명이 주문 스냅샷과 일치하지 않습니다.");
+        }
+        if (payment.getAmount() == null || payment.getAmount() <= 0
+                || !Objects.equals(payment.getAmount(), order.getTotalPrice())
+                || !Objects.equals(payment.getAmount(), attempt.getRequestAmount())
+                || !Objects.equals(payment.getAmount(), response.getTotalAmount())
+                || !Objects.equals(response.getTotalAmount(), response.getBalanceAmount())
+                || !"KRW".equals(response.getCurrency())) {
+            throw new PaymentRecoveryException("[결제/RECOVERY_VALIDATE] 주문·승인 요청·PG 조회 금액 또는 통화가 일치하지 않습니다.");
+        }
+        if (!StringUtils.hasText(response.getPaymentKey())
+                || (StringUtils.hasText(payment.getPaymentKey())
+                    && !payment.getPaymentKey().equals(response.getPaymentKey()))
+                || (StringUtils.hasText(attempt.getPaymentKey())
+                    && !attempt.getPaymentKey().equals(response.getPaymentKey()))) {
+            throw new PaymentRecoveryException("[결제/RECOVERY_VALIDATE] PG 결제키가 없거나 기존 승인 정보와 일치하지 않습니다.");
+        }
+        // Billing 카드 복구 경로. PG에는 내부 savedCardId가 없으므로 직접 비교하지 않는다.
+        if (payment.getPaymentMethod() != PaymentMethod.SAVED_CARD
+                || payment.getSavedCardId() == null
+                || response.getCard() == null
+                || !StringUtils.hasText(response.getCard().getApproveNo())
+                || !StringUtils.hasText(response.getCard().getIssuerCode())) {
+            throw new PaymentRecoveryException("[결제/RECOVERY_VALIDATE] 저장된 카드 결제의 승인 정보가 유효하지 않습니다.");
+        }
+
+        return new RecoveryTarget(recovery, history, payment, attempt, order);
     }
 
     /**
@@ -270,6 +407,9 @@ public class PaymentRetryTxService {
         //History Update
         history.updateHistoryForNextRetry(errorCode, errorMessage);
         log.info("[PAYMENT] stage=RECOVERY_RETRY event=APPLIED_PENDING_COMMIT recoveryId={} historyId={} retryCount={} maxRetryCount={} recoveryStatus={} pgCode={}", recovery.getId(), history.getId(), recovery.getRetryCount(), recovery.getMaxRetryCount(), recovery.getStatus(), errorCode);
+    }
 
+    @Transactional
+    public void updateRecoveryAndHistoryFail(Long historyId, RuntimeException e) {
     }
 }
