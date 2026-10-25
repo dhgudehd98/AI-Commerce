@@ -4,10 +4,7 @@ package com.sh.aicommerce.entity;
 import co.elastic.clients.elasticsearch.indices.recovery.RecoveryStatus;
 import com.sh.aicommerce.enums.paymentRecovery.PaymentRecoveryStatus;
 import jakarta.persistence.*;
-import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import java.time.LocalDateTime;
 
@@ -23,11 +20,12 @@ import java.time.LocalDateTime;
         indexes = {
                 @Index(
                         name = "idx_recovery_schedule",
-                        columnList = "status, next_retry_at"
+                        columnList = "status"
                 )
         }
 )
 @Getter
+@Builder
 @AllArgsConstructor
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class PaymentRecovery {
@@ -86,6 +84,7 @@ public class PaymentRecovery {
      * 기본값: 3회
      */
     @Column(nullable = false)
+    @Builder.Default
     private int maxRetryCount = 3;
 
     /**
@@ -130,4 +129,47 @@ public class PaymentRecovery {
      */
     @Column(nullable = false)
     private LocalDateTime updatedAt;
+
+    public static PaymentRecovery createRecovery(PaymentAttempt attempt) {
+        return PaymentRecovery.builder()
+                .paymentAttempt(attempt)
+                .status(PaymentRecoveryStatus.RETRY_WAIT)
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .lastRetryAt(LocalDateTime.now())
+                .build();
+    }
+
+    public void updateRecovery() {
+        LocalDateTime now = LocalDateTime.now();
+        this.status = PaymentRecoveryStatus.COMPLETED;
+
+        this.completedAt = now;
+        this.updatedAt = now;
+        this.lastRetryAt = now;
+    }
+
+    public void startRecovery() {
+        this.retryCount += 1;
+        this.updatedAt = LocalDateTime.now();
+        this.status = PaymentRecoveryStatus.PROCESSING;
+    }
+
+    public void updateRecoveryToManualCheck(String errorCode, String lastErrorMessage) {
+        this.status = PaymentRecoveryStatus.MANUAL_REVIEW;
+        this.lastRetryAt = LocalDateTime.now();
+        this.lastErrorCode = errorCode;
+        this.lastErrorMessage = lastErrorMessage;
+
+        this.completedAt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public void updateRecoveryForNextRetry(String errorCode, String errorMessage) {
+        this.status = PaymentRecoveryStatus.RETRY_WAIT; // 다음 재시도 대기
+        this.lastErrorCode = errorCode;
+        this.lastErrorMessage = errorMessage;
+
+        this.updatedAt = LocalDateTime.now();
+    }
 }

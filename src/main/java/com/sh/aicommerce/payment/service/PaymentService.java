@@ -337,7 +337,7 @@ public class PaymentService {
         orderRepository.saveAndFlush(order);
 
         // PaymentAttempt 생성
-        PaymentAttempt attempt = PaymentAttempt.createPaymentAttempt(payment);
+        PaymentAttempt attempt = PaymentAttempt.createPaymentAttempt(payment, paymentRequestDto.getOrderNumber());
         attemptRepository.save(attempt);
 
 
@@ -401,10 +401,32 @@ public class PaymentService {
                 log.error("[PAYMENT] stage=APPROVAL_APPLY event=RESULT_UNKNOWN orderNumber={} paymentId={} attemptId={} errorType={}",
                         paymentBillingCardRequestDto.getOrderNumber(), paymentBillingCardRequestDto.getPaymentId(),
                         paymentBillingCardRequestDto.getAttemptId(), applyException.getClass().getSimpleName());
+
+                //DB 저장 실패시,UNKNOWN으로 저장
+                try{
+                    withPaymentLock(
+                            "UNKNOWN",
+                            paymentBillingCardRequestDto.getOrderNumber(),
+                            () -> {
+                                transactionTemplate.executeWithoutResult(status ->
+                                        paymentTxService.applyPaymentRejected(
+                                                paymentBillingCardRequestDto, applyException
+                                        )
+                                );
+
+                                return null;
+                            }
+                    );
+                } catch(RuntimeException saveException){
+                    applyException.addSuppressed(saveException);
+                    log.error("[PAYMENT] stage=REJECTION_APPLY event=FAILED orderNumber={} errorType={}", paymentBillingCardRequestDto.getOrderNumber(), saveException.getClass().getSimpleName());
+                }
                 throw new PaymentResultUnknownException(applyException);
             }
 
-        } catch (TossPaymentException e) {
+        }
+        // 토스 API에서 명백하게 에러코드를 return 하는 경우
+        catch (TossPaymentException e) {
             log.warn("[PAYMENT] stage=PG_REQUEST event=REJECTED orderNumber={} paymentId={} attemptId={} pgCode={}",
                     paymentBillingCardRequestDto.getOrderNumber(), paymentBillingCardRequestDto.getPaymentId(),
                     paymentBillingCardRequestDto.getAttemptId(), e.getErrorCode());
@@ -431,14 +453,16 @@ public class PaymentService {
             }
 
             throw e;
-        } catch (TossRestClientException e) {
+        }
+        // 외부 API 연결 타임아웃 및
+        catch (TossRestClientException e) {
             log.warn("[PAYMENT] stage=PG_REQUEST event=RESULT_UNKNOWN orderNumber={} paymentId={} attemptId={}",
                     paymentBillingCardRequestDto.getOrderNumber(), paymentBillingCardRequestDto.getPaymentId(),
                     paymentBillingCardRequestDto.getAttemptId());
 
             try{
                 withPaymentLock(
-                        "FAILED",
+                        "UNKNOWN",
                         paymentBillingCardRequestDto.getOrderNumber(),
                         () -> {
                             transactionTemplate.executeWithoutResult(status ->

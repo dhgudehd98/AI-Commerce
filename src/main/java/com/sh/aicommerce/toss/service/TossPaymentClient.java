@@ -388,4 +388,107 @@ public class TossPaymentClient {
             );
         }
     }
+
+    public TossPaymentRequestHistoryResponseDto findPaymentHistory(
+            String orderNumber
+    ) {
+        HttpHeaders headers = new HttpHeaders();
+
+        // Billing 승인 때 사용한 시크릿 키로 인증
+        String encodedSecretKey = Base64.getEncoder()
+                .encodeToString(
+                        (tossBillingSecretKey + ":")
+                                .getBytes(StandardCharsets.UTF_8)
+                );
+
+        headers.setBasicAuth(encodedSecretKey);
+
+        HttpEntity<Void> httpEntity = new HttpEntity<>(headers);
+
+        log.info(
+                "[PAYMENT] stage=PG_QUERY event=START orderNumber={}",
+                orderNumber
+        );
+
+        try {
+            ResponseEntity<TossPaymentRequestHistoryResponseDto> response =
+                    tossRestTemplate.exchange(
+                            "https://api.tosspayments.com/v1/payments/orders/{orderId}",
+                            HttpMethod.GET,
+                            httpEntity,
+                            TossPaymentRequestHistoryResponseDto.class,
+                            orderNumber
+                    );
+
+            TossPaymentRequestHistoryResponseDto body = response.getBody();
+
+            if (!response.getStatusCode().is2xxSuccessful() || body == null) {
+                throw new TossRestClientException(
+                        "[결제/PG_QUERY] 유효한 결제 조회 응답이 없습니다."
+                );
+            }
+
+            if (!orderNumber.equals(body.getOrderId())) {
+                throw new TossRestClientException(
+                        "[결제/PG_QUERY] 요청 주문번호와 조회 결과가 일치하지 않습니다."
+                );
+            }
+
+            log.info(
+                    "[PAYMENT] stage=PG_QUERY event=RESPONSE_RECEIVED "
+                            + "orderNumber={} httpStatus={} pgStatus={} totalAmount={}",
+                    orderNumber,
+                    response.getStatusCode().value(),
+                    body.getStatus(),
+                    body.getTotalAmount()
+            );
+
+            return body;
+
+        } catch (HttpStatusCodeException e) {
+            TossPaymentErrorResponseDto errorResponse;
+            try {
+                errorResponse = objectMapper.readValue(
+                        e.getResponseBodyAsString(), TossPaymentErrorResponseDto.class);
+            } catch (JsonProcessingException parseException) {
+                e.addSuppressed(parseException);
+                throw new TossRestClientException(
+                        "[결제/PG_QUERY] 결제 조회 오류 응답을 해석하지 못했습니다.", e);
+            }
+
+            if (errorResponse == null || errorResponse.getCode() == null
+                    || errorResponse.getCode().isBlank()) {
+                throw new TossRestClientException(
+                        "[결제/PG_QUERY] 결제 조회 오류 응답에 코드가 없습니다.", e);
+            }
+
+            log.warn(
+                    "[PAYMENT] stage=PG_QUERY event=HTTP_ERROR "
+                            + "orderNumber={} httpStatus={} pgCode={}",
+                    orderNumber,
+                    e.getStatusCode().value(),
+                    errorResponse.getCode()
+            );
+
+            throw new TossPaymentException(
+                    errorResponse.getCode(),
+                    "[결제/PG_QUERY] 결제 조회에 실패했습니다."
+                            + " | httpStatus=" + e.getStatusCode().value(),
+                    e
+            );
+
+        } catch (RestClientException e) {
+            log.warn(
+                    "[PAYMENT] stage=PG_QUERY event=RESULT_UNKNOWN "
+                            + "orderNumber={} errorType={}",
+                    orderNumber,
+                    e.getClass().getSimpleName()
+            );
+
+            throw new TossRestClientException(
+                    "[결제/PG_QUERY] 통신 또는 응답 변환 오류로 조회 결과를 확인하지 못했습니다.",
+                    e
+            );
+        }
+    }
 }

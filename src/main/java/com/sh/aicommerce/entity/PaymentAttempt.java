@@ -44,6 +44,8 @@ public class PaymentAttempt {
     @Column(nullable = false)
     private Integer requestAmount; // 승인 요청 금액
 
+    private String orderNumber; // 결제 주문 번호
+
     private String paymentKey; // 해당 승인 시도의 PG 결제 식별자
 
     private String failureCode; // 실패 코드
@@ -54,10 +56,11 @@ public class PaymentAttempt {
 
     private LocalDateTime completedAt; // 승인 결과 확정 시각
 
-    public static PaymentAttempt createPaymentAttempt(Payment payment) {
+    public static PaymentAttempt createPaymentAttempt(Payment payment, String orderNumber) {
         return PaymentAttempt.builder()
                 .payment(payment)
                 .requestAmount(payment.getAmount())
+                .orderNumber(orderNumber)
                 .idempotencyKey(UUID.randomUUID().toString())
                 .status(PaymentAttemptStatus.READY)
                 .createdAt(LocalDateTime.now())
@@ -77,11 +80,17 @@ public class PaymentAttempt {
         this.status = PaymentAttemptStatus.PROCESSING;
     }
 
-    public void updateStatusToFailed() {
-        this.status = PaymentAttemptStatus.FAILED;
+    public void updateStatusToRejected() {
+        this.status = PaymentAttemptStatus.PAYMENT_REJECTED;
     }
 
     public void updateStatusToUnknown() {
         this.status = PaymentAttemptStatus.UNKNOWN;
+    }
+
+    public void updateStatusToPaymentFailed(String errorCode, String errorMessage) {
+        this.status = PaymentAttemptStatus.PAYMENT_FAILED;
+        this.failureCode = errorCode;
+        this.failureMessage = errorMessage;
     }
 }

@@ -134,7 +134,7 @@ public class PaymentTransactionService {
     private void failOrExpiredPaymentAndReleaseReservation(Payment payment, String failReason) {
         Orders order = payment.getOrder();
 
-        payment.updateStatusToFailed(failReason);
+        payment.updateStatusToRejected(failReason);
 
         for (OrderItem item : order.getOrderItems()) {
             Long optionId = item.getProductOption().getId();
@@ -145,7 +145,7 @@ public class PaymentTransactionService {
             inventory.releasedReserved(quantity);
         }
 
-        if(payment.getStatus().equals(PaymentStatus.FAILED)) order.updateStatusToFailed();
+        if(payment.getStatus().equals(PaymentStatus.PAYMENT_REJECTED)) order.updateStatusToRejected();
 
         // 결제 실패 || 만료가 진행된 경우에는 Delivery Status의 상태 값을 실패로 설정
         if(order.getDelivery() != null) order.getDelivery().paymentFailUpdateStatus();

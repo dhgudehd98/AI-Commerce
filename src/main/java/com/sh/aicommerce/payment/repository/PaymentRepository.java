@@ -10,6 +10,7 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 
@@ -205,4 +206,12 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     where p.order.id = :orderId
     """)
     Optional<Payment> findPaymentByOrderId(@Param("orderId") Long orderId);
+
+
+    @Query("""
+    select p.id
+    from Payment p
+    where p.status = 'UNKNOWN'
+    """)
+    List<Long> findPaymentStatusUnknown();
 }

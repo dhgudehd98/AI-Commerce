@@ -29,6 +29,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.util.List;
 import java.util.Objects;
 
 @Service
@@ -370,7 +371,8 @@ public class PaymentTxService {
 
         // 실패 상태와 예약 해제는 같은 트랜잭션에서 저장된다.
         // 늦은 통신 오류도 확정 실패를 UNKNOWN으로 되돌리지 않도록 한다.
-        if (payment.getStatus() == PaymentStatus.FAILED) {
+        if (payment.getStatus() == PaymentStatus.PAYMENT_REJECTED
+                || payment.getStatus() == PaymentStatus.PAYMENT_FAILED) {
             log.info("[PAYMENT] stage=REJECTION_APPLY event=REPLAYED orderNumber={} paymentId={} attemptId={}",
                     order.getOrderNumber(), payment.getId(), attempt.getId());
             return;
@@ -378,7 +380,7 @@ public class PaymentTxService {
 
         if(e instanceof TossPaymentException){
 
-            updateStatusToFailed(payment, order, attempt, e.getMessage());
+            updateStatusToRejected(payment, order, attempt, e.getMessage());
 
             // 예약 재고 선점 해제
             inventoryService.releasedReservationQuantity(order, paymentBillingCardRequestDto);
@@ -392,17 +394,18 @@ public class PaymentTxService {
     }
 
 
-    public void updateStatusToFailed(Payment payment, Orders order, PaymentAttempt attempt, String message) {
+    public void updateStatusToRejected(Payment payment, Orders order, PaymentAttempt attempt, String message) {
         log.info("[PAYMENT] stage=REJECTION_APPLY event=FAILED_PENDING_COMMIT orderNumber={} paymentId={} attemptId={} previousStatus={} reservationAction=RELEASE", order.getOrderNumber(), payment.getId(), attempt.getId(), payment.getStatus());
-        payment.updateStatusToFailed(message);
-        order.updateStatusToFailed();
-        attempt.updateStatusToFailed();
+        payment.updateStatusToRejected(message);
+        order.updateStatusToRejected();
+        attempt.updateStatusToRejected();
     }
 
     private void updateStatusToUnknown(Payment payment, Orders order, PaymentAttempt attempt, String message) {
         log.warn("[PAYMENT] stage=REJECTION_APPLY event=UNKNOWN_PENDING_COMMIT orderNumber={} paymentId={} attemptId={} previousStatus={} reservationAction=KEEP", order.getOrderNumber(), payment.getId(), attempt.getId(), payment.getStatus());
         payment.updateStatusToUnknown(message);
-        order.updateStatusToUnknown();
         attempt.updateStatusToUnknown();
     }
+
+
 }

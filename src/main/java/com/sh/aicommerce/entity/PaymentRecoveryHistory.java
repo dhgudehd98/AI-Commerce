@@ -4,10 +4,7 @@ package com.sh.aicommerce.entity;
 import com.sh.aicommerce.enums.paymentRecovery.PaymentRecoveryAction;
 import com.sh.aicommerce.enums.paymentRecovery.PaymentRecoveryResult;
 import jakarta.persistence.*;
-import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import java.time.LocalDateTime;
 
@@ -23,6 +20,7 @@ import java.time.LocalDateTime;
 )
 @Getter
 @AllArgsConstructor
+@Builder
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class PaymentRecoveryHistory {
 
@@ -64,9 +62,10 @@ public class PaymentRecoveryHistory {
      * PG_STATUS_CHECK : PG 결제 결과 조회
      * DB_APPLY        : 내부 DB 상태 반영
      * MANUAL_RECONCILIATION : 운영자 수동 복구
+     *
+     * 생성 할 떄는 action에 대한 값이 null 값인 형태로 생성
      */
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 30)
     private PaymentRecoveryAction action;
 
     /**
@@ -84,7 +83,7 @@ public class PaymentRecoveryHistory {
      * PG 거래 조회에서 확인된 실제 결제 상태
      *
      * Toss에서 반환한 상태를 기록한다.
-     * PG 조회 자체가 실패한 경우 null 가능
+     * PG 조회 자체가 실패한 경우에는 NOT_FOUND_PAYMENT에 대한 코드 값 입력
      */
     @Column(length = 50)
     private String pgPaymentStatus;
@@ -117,4 +116,37 @@ public class PaymentRecoveryHistory {
      * 실행 도중 서버가 종료된 경우 null 가능
      */
     private LocalDateTime completedAt;
+
+    public static PaymentRecoveryHistory createHistory(PaymentRecovery recovery) {
+        return PaymentRecoveryHistory.builder()
+                .paymentRecovery(recovery)
+                .result(PaymentRecoveryResult.CREATE)
+                .attemptNumber(recovery.getRetryCount())
+                .pgPaymentStatus(null)
+                .errorCode(null)
+                .errorMessage(null)
+                .startedAt(LocalDateTime.now())
+                .completedAt(null)
+                .build();
+
+    }
+
+
+    // 재시도 횟수가 초과한 경우 관리자가 확인할 수 있도록 확인
+    public void updateHistoryExceedRetryCntNotFoundPayment(String errorCode, String errorMessage) {
+        this.result = PaymentRecoveryResult.INCONCLUSIVE;
+        this.completedAt = LocalDateTime.now();
+        this.errorCode = errorCode;
+        this.errorMessage = errorMessage;
+
+    }
+
+    public void updateHistoryForNextRetry(String errorCode, String errorMessage) {
+        this.action = PaymentRecoveryAction.PG_STATUS_CHECK;
+        this.result = PaymentRecoveryResult.INCONCLUSIVE;
+        this.pgPaymentStatus = null;
+        this.completedAt = LocalDateTime.now();
+        this.errorCode = errorCode;
+        this.errorMessage = errorMessage;
+    }
 }

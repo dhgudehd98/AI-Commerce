@@ -174,8 +174,8 @@ public class Payment {
         this.order = orders;
     }
 
-    public void updateStatusToFailed(String failReason) {
-        this.status = PaymentStatus.FAILED;
+    public void updateStatusToRejected(String failReason) {
+        this.status = PaymentStatus.PAYMENT_REJECTED;
         this.updatedAt = LocalDateTime.now();
         this.failReason = failReason;
 
@@ -202,5 +202,9 @@ public class Payment {
         this.failReason = failReason;
         this.updatedAt = LocalDateTime.now();
         this.status = PaymentStatus.UNKNOWN;
+    }
+
+    public void updateStatusToPaymentFailed() {
+        this.status = PaymentStatus.PAYMENT_FAILED;
     }
 }

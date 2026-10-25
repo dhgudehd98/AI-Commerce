@@ -27,6 +27,14 @@ public class PaymentBillingCardRequestDto {
     private String idempotencyKey;
     private PaymentAction action;
 
+    /** 예약 해제 추적용 식별자만 설정한다. PG 승인 요청용으로 사용하지 않는다. */
+    public PaymentBillingCardRequestDto(Long paymentId, Long orderId, String orderNumber, Long attemptId) {
+        this.paymentId = paymentId;
+        this.orderId = orderId;
+        this.orderNumber = orderNumber;
+        this.attemptId = attemptId;
+    }
+
     public PaymentBillingCardRequestDto(Payment payment, PaymentAttempt attempt, Orders order, Card card, Member member, String orderName) {
         this.memberId = member.getId();
         this.paymentId = payment.getId();
@@ -42,4 +50,6 @@ public class PaymentBillingCardRequestDto {
         this.customerName = member.getMemberName();
         this.idempotencyKey = attempt.getIdempotencyKey();
     }
+
+
 }

@@ -92,8 +92,8 @@ public class Orders {
         this.status = OrderStatus.PAID;
     }
 
-    public void updateStatusToFailed() {
-        this.status = OrderStatus.FAILED;
+    public void updateStatusToRejected() {
+        this.status = OrderStatus.PAYMENT_REJECTED;
     }
 
     public void updateStatusToCancelRequest() {
@@ -111,7 +111,7 @@ public class Orders {
         this.status = OrderStatus.PAID;
     }
 
-    public void updateStatusToUnknown() {
-        this.status = OrderStatus.PAYMENT_UNKNOWN;
+    public void updateStatusToPaymentFailed() {
+        this.status = OrderStatus.PAYMENT_FAILED;
     }
 }

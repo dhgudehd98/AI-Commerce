@@ -11,7 +11,4 @@ import org.springframework.stereotype.Component;
 @Slf4j
 public class PaymentFailedRetryScheduler {
 
-
-//    @Scheduled
-    public void failedPaymentRetry()
 }
