@@ -4,6 +4,8 @@ package com.sh.aicommerce.payment.service;
 import com.sh.aicommerce.common.exception.payment.PaymentException;
 import com.sh.aicommerce.common.exception.paymentAttempt.PaymentAttemptException;
 import com.sh.aicommerce.common.exception.paymentRecovery.PaymentRecoveryException;
+import com.sh.aicommerce.common.exception.toss.TossPaymentException;
+import com.sh.aicommerce.common.exception.toss.TossRestClientException;
 import com.sh.aicommerce.entity.*;
 import com.sh.aicommerce.enums.order.OrderStatus;
 import com.sh.aicommerce.enums.payment.PaymentAttemptStatus;
@@ -36,6 +38,7 @@ import com.sh.aicommerce.enums.paymentRecovery.PaymentRecoveryResult;
 @RequiredArgsConstructor
 @Slf4j
 public class PaymentRetryTxService {
+    private static final int RECOVERY_ERROR_MESSAGE_MAX_LENGTH = 1000;
     private final PaymentRepository paymentRepository;
     private final PaymentAttemptRepository attemptRepository;
     private final PaymentRecoveryRepository recoveryRepository;
@@ -299,7 +302,7 @@ public class PaymentRetryTxService {
      * @param errorMessage
      */
     @Transactional
-    public void updateFailPaymentRecovery(Long historyId, String errorCode, String errorMessage) {
+    public void updateRecoveryNotFoundPayment(Long historyId, String errorCode, String errorMessage) {
         log.info("[PAYMENT] stage=RECOVERY_APPLY event=START historyId={} pgCode={}", historyId, errorCode);
 
         PaymentRecoveryHistory history = recoverHistoryRepository.findHistoryByIdForUpdate(historyId)
@@ -315,12 +318,10 @@ public class PaymentRetryTxService {
 
         // 결제 복구에 대한 부분이 재시도 횟수가 초과 된 경우에는 관리자 확인으로 상태 값 변경
         if (recovery.getRetryCount() >= recovery.getMaxRetryCount()) {
-            updateRecoveryExceedRetryCount(recovery, history, errorCode, errorMessage);
+            updateRecoveryExceedRetryCountByNotFoundPayment(recovery, history, errorCode, errorMessage);
         }else{
-            updateRecoveryPaymentFailure(recovery, history, errorCode, errorMessage);
+            updateRecoveryPaymentFailureByNotFoundPayment(recovery, history, errorCode, errorMessage);
         }
-
-
 
     }
 
@@ -339,7 +340,7 @@ public class PaymentRetryTxService {
      * @param errorCode
      * @param errorMessage
      */
-    private void updateRecoveryExceedRetryCount(PaymentRecovery recovery, PaymentRecoveryHistory history, String errorCode, String errorMessage) {
+    private void updateRecoveryExceedRetryCountByNotFoundPayment(PaymentRecovery recovery, PaymentRecoveryHistory history, String errorCode, String errorMessage) {
         PaymentAttempt attempt = recovery.getPaymentAttempt();
         Payment payment = attempt.getPayment();
         // 이미 영속성 컨텍스트에 로딩된 값도 DB의 최신 값으로 갱신하며 잠근다.
@@ -401,7 +402,7 @@ public class PaymentRetryTxService {
      * @param recovery
      * @param history
      */
-    private void updateRecoveryPaymentFailure(PaymentRecovery recovery, PaymentRecoveryHistory history, String errorCode, String errorMessage) {
+    private void updateRecoveryPaymentFailureByNotFoundPayment(PaymentRecovery recovery, PaymentRecoveryHistory history, String errorCode, String errorMessage) {
         //PaymentRecovery Update
         recovery.updateRecoveryForNextRetry(errorCode, errorMessage);
         //History Update
@@ -409,7 +410,136 @@ public class PaymentRetryTxService {
         log.info("[PAYMENT] stage=RECOVERY_RETRY event=APPLIED_PENDING_COMMIT recoveryId={} historyId={} retryCount={} maxRetryCount={} recoveryStatus={} pgCode={}", recovery.getId(), history.getId(), recovery.getRetryCount(), recovery.getMaxRetryCount(), recovery.getStatus(), errorCode);
     }
 
+    /**
+     * 결제 내역이 존재하는 데이터중, 데이터 검증이나 데이터 반영시 발생하는 경우 해당 메소드에서 처리
+     * - 업데이트 할 데이터 : PaymentRecovery, PaymentRecoveryHistory
+     * @param historyId
+     * @param e
+     */
     @Transactional
     public void updateRecoveryAndHistoryFail(Long historyId, RuntimeException e) {
+        log.error("[PAYMENT] stage=RECOVERY_FAILURE_APPLY event=START historyId={} errorType={}",
+                historyId, e.getClass().getSimpleName(), e);
+        PaymentRecoveryHistory history = recoverHistoryRepository.findHistoryByIdForUpdate(historyId)
+                .orElseThrow(() -> new PaymentRecoveryException("[결제/RECOVERY_FAILURE_APPLY] 복구 이력이 존재하지 않습니다."));
+        PaymentRecovery recovery = recoveryRepository.findRecoveryByIdForUpdate(history.getPaymentRecovery().getId())
+                .orElseThrow(() -> new PaymentRecoveryException("[결제/RECOVERY_FAILURE_APPLY] 복구 작업이 존재하지 않습니다."));
+
+        // 완료된 작업이나 이전 회차의 실패가 현재 복구 결과를 덮어쓰지 않도록 한다.
+        if (recovery.getStatus() != PaymentRecoveryStatus.PROCESSING
+                || history.getAttemptNumber() != recovery.getRetryCount()
+                || history.getResult() != PaymentRecoveryResult.CREATE
+                || history.getCompletedAt() != null) {
+            log.info("[PAYMENT] stage=RECOVERY_FAILURE_APPLY event=STATE_SKIPPED recoveryId={} historyId={} recoveryStatus={} attemptNumber={} retryCount={} historyResult={}",
+                    recovery.getId(), historyId, recovery.getStatus(), history.getAttemptNumber(),
+                    recovery.getRetryCount(), history.getResult());
+            return;
+        }
+
+        String errorMessage = StringUtils.hasText(e.getMessage()) ? e.getMessage() : e.getClass().getSimpleName();
+        if (errorMessage.length() > RECOVERY_ERROR_MESSAGE_MAX_LENGTH) {
+            errorMessage = errorMessage.substring(0, RECOVERY_ERROR_MESSAGE_MAX_LENGTH);
+        }
+        // 재시도 횟수 초과 시, 예약 재고는 해제하지 않음.
+        // 이미 결제가 완료된 상품이기 때문에 재시도 복구 처리 쪽에서는 예약 재고를 해제하지 않음. -> 결제 취소 요청 처리를 할 때 예약 해제하기
+        if (recovery.getRetryCount() >= recovery.getMaxRetryCount()) {
+            recovery.updateRecoveryToManualCheck(null, errorMessage);
+        } else {
+            recovery.updateRecoveryForNextRetry(null, errorMessage);
+        }
+
+        history.updateHistoryForApplyFailure(null, errorMessage);
+        log.warn("[PAYMENT] stage=RECOVERY_FAILURE_APPLY event=APPLIED_PENDING_COMMIT recoveryId={} historyId={} retryCount={} maxRetryCount={} recoveryStatus={} historyResult={} errorType={}",
+                recovery.getId(), historyId, recovery.getRetryCount(), recovery.getMaxRetryCount(),
+                recovery.getStatus(), history.getResult(), e.getClass().getSimpleName());
+
+    }
+
+    /**
+     * 통신 오류로 인한 실패의 경우도 내역 저장
+     * 저장 항목
+     * - PaymentRecovery
+     * - PaymentRecoveryHistory
+     * @param historyId
+     * @param exception
+     */
+    @Transactional
+    public void updatePaymentRecoveryByRestClient(Long historyId, TossRestClientException exception) {
+        log.warn("[PAYMENT] stage=RECOVERY_QUERY_FAILURE_APPLY event=START historyId={} errorType={}",
+                historyId, exception.getClass().getSimpleName());
+        PaymentRecoveryHistory history = recoverHistoryRepository.findHistoryByIdForUpdate(historyId)
+                .orElseThrow(() -> new PaymentRecoveryException("[결제/RECOVERY_FAILURE_APPLY] 복구 이력이 존재하지 않습니다."));
+        PaymentRecovery recovery = recoveryRepository.findRecoveryByIdForUpdate(history.getPaymentRecovery().getId())
+                .orElseThrow(() -> new PaymentRecoveryException("[결제/RECOVERY_FAILURE_APPLY] 복구 작업이 존재하지 않습니다."));
+
+        if (recovery.getStatus() != PaymentRecoveryStatus.PROCESSING
+                || history.getAttemptNumber() != recovery.getRetryCount()
+                || history.getResult() != PaymentRecoveryResult.CREATE
+                || history.getCompletedAt() != null) {
+            log.info("[PAYMENT] stage=RECOVERY_QUERY_FAILURE_APPLY event=STATE_SKIPPED recoveryId={} historyId={} recoveryStatus={} attemptNumber={} retryCount={} historyResult={}",
+                    recovery.getId(), historyId, recovery.getStatus(), history.getAttemptNumber(),
+                    recovery.getRetryCount(), history.getResult());
+            return;
+        }
+
+        String errorMessage = StringUtils.hasText(exception.getMessage())
+                ? exception.getMessage() : exception.getClass().getSimpleName();
+        if (errorMessage.length() > RECOVERY_ERROR_MESSAGE_MAX_LENGTH) {
+            errorMessage = errorMessage.substring(0, RECOVERY_ERROR_MESSAGE_MAX_LENGTH);
+        }
+        // 조회 실패는 결제 거절을 뜻하지 않는다. 결제 상태와 예약 재고는 유지한다.
+        // 횟수는 startPaymentRecovery에서 이미 증가했다.
+        if (recovery.getRetryCount() >= recovery.getMaxRetryCount()) {
+            recovery.updateRecoveryToManualCheck(null, errorMessage);
+        } else {
+            recovery.updateRecoveryForNextRetry(null, errorMessage);
+        }
+        history.updateHistoryForNextRetry(null, errorMessage);
+        log.warn("[PAYMENT] stage=RECOVERY_QUERY_FAILURE_APPLY event=APPLIED_PENDING_COMMIT recoveryId={} historyId={} retryCount={} maxRetryCount={} recoveryStatus={} historyResult={} errorType={}",
+                recovery.getId(), historyId, recovery.getRetryCount(), recovery.getMaxRetryCount(),
+                recovery.getStatus(), history.getResult(), exception.getClass().getSimpleName());
+    }
+
+    /** 일시적인 PG 조회 오류: 최대 횟수까지 재조회하며 결제 상태와 예약은 유지한다. */
+    @Transactional
+    public void updateRecoveryQueryFailure(Long historyId, String errorCode, String errorMessage) {
+        applyRecoveryQueryFailure(historyId, errorCode, errorMessage, false);
+    }
+
+    /** 인증·설정 오류 및 분류되지 않은 조회 오류는 운영자 확인으로 전환한다. */
+    @Transactional
+    public void updateRecoveryForManualReview(Long historyId, TossPaymentException exception) {
+        applyRecoveryQueryFailure(historyId, exception.getErrorCode(), exception.getMessage(), true);
+    }
+
+    private void applyRecoveryQueryFailure(Long historyId, String errorCode, String errorMessage,
+                                           boolean manualReview) {
+        log.warn("[PAYMENT] stage=RECOVERY_QUERY_FAILURE_APPLY event=START historyId={} pgCode={} manualReview={}",
+                historyId, errorCode, manualReview);
+        PaymentRecoveryHistory history = recoverHistoryRepository.findHistoryByIdForUpdate(historyId)
+                .orElseThrow(() -> new PaymentRecoveryException("[결제/RECOVERY_QUERY_FAILURE_APPLY] 복구 이력이 존재하지 않습니다."));
+        PaymentRecovery recovery = recoveryRepository.findRecoveryByIdForUpdate(history.getPaymentRecovery().getId())
+                .orElseThrow(() -> new PaymentRecoveryException("[결제/RECOVERY_QUERY_FAILURE_APPLY] 복구 작업이 존재하지 않습니다."));
+        if (recovery.getStatus() != PaymentRecoveryStatus.PROCESSING
+                || history.getAttemptNumber() != recovery.getRetryCount()
+                || history.getResult() != PaymentRecoveryResult.CREATE
+                || history.getCompletedAt() != null) {
+            log.info("[PAYMENT] stage=RECOVERY_QUERY_FAILURE_APPLY event=STATE_SKIPPED recoveryId={} historyId={} recoveryStatus={}",
+                    recovery.getId(), historyId, recovery.getStatus());
+            return;
+        }
+        String message = StringUtils.hasText(errorMessage) ? errorMessage : "PG 결제 조회에 실패했습니다.";
+        if (message.length() > RECOVERY_ERROR_MESSAGE_MAX_LENGTH) {
+            message = message.substring(0, RECOVERY_ERROR_MESSAGE_MAX_LENGTH);
+        }
+        if (manualReview || recovery.getRetryCount() >= recovery.getMaxRetryCount()) {
+            recovery.updateRecoveryToManualCheck(errorCode, message);
+        } else {
+            recovery.updateRecoveryForNextRetry(errorCode, message);
+        }
+        history.updateHistoryForNextRetry(errorCode, message);
+        log.warn("[PAYMENT] stage=RECOVERY_QUERY_FAILURE_APPLY event=APPLIED_PENDING_COMMIT recoveryId={} historyId={} retryCount={} maxRetryCount={} recoveryStatus={} historyResult={} pgCode={}",
+                recovery.getId(), historyId, recovery.getRetryCount(), recovery.getMaxRetryCount(),
+                recovery.getStatus(), history.getResult(), errorCode);
     }
 }

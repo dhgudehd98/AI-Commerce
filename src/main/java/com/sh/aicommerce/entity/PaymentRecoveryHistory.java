@@ -6,6 +6,7 @@ import com.sh.aicommerce.enums.paymentRecovery.PaymentRecoveryResult;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
@@ -158,5 +159,15 @@ public class PaymentRecoveryHistory {
 
         this.completedAt = now;
 
+    }
+
+    public void updateHistoryForApplyFailure(String errorCode, String errorMessage) {
+        LocalDateTime now = LocalDateTime.now();
+
+        this.action = PaymentRecoveryAction.DB_APPLY;
+        this.result = PaymentRecoveryResult.FAILED;
+        this.errorCode = errorCode;
+        this.errorMessage = errorMessage;
+        this.completedAt = now;
     }
 }

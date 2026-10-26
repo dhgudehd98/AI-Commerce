@@ -92,14 +92,64 @@ public class PaymentUnknownRetryScheduler {
                     paymentId, dto.getAttemptId(), dto.getOrderNumber(), dto.getRecoveryId(), historyId);
             // PG 조회 결과가 있는 경우에는 DB 업데이트 결제 완료 및 실패로 변경
         } catch (TossPaymentException paymentException) {
+            /*
+             * 결제 조회 API 오류 코드별 복구 정책
+             *
+             * [결제 내역 없음 → 최대 횟수까지 재조회]
+             * - 404 NOT_FOUND_PAYMENT: 주문번호에 해당하는 결제 정보 없음
+             *   최대 횟수 도달 시 기존 정책에 따라 결제 최종 실패 및 예약 재고 해제
+             *
+             * [일시적 조회 오류 → 재시도 대기]
+             * - 403 FORBIDDEN_CONSECUTIVE_REQUEST: 반복 요청 제한
+             * - 500 FAILED_PAYMENT_INTERNAL_SYSTEM_PROCESSING: PG 내부 처리 오류
+             *   최대 횟수 미만: RETRY_WAIT / 최대 횟수 도달: MANUAL_REVIEW
+             *
+             * [설정 오류·분류 불가 → 즉시 운영자 확인]
+             * - 401 UNAUTHORIZED_KEY: 인증되지 않은 시크릿 키 또는 클라이언트 키
+             * - 403 INCORRECT_BASIC_AUTH_FORMAT: ':' 누락 등 Basic 인증 인코딩 형식 오류
+             * - 404 NOT_FOUND: 일반적인 정보 없음, 결제 정보 없음으로 확정 불가
+             * - 400 NOT_SUPPORTED_MONTHLY_INSTALLMENT_PLAN_BELOW_AMOUNT: 할부 최소 금액 조건 오류
+             * - 오류 코드 누락 또는 기타 미분류 오류
+             *   재시도 횟수와 관계없이 MANUAL_REVIEW 전환
+             *
+             * 조회 실패만으로 실제 결제 거절 확정 불가
+             * NOT_FOUND_PAYMENT 외 경로: Recovery·History만 변경, 결제 상태·예약 재고 유지
+             */
+            String errorCode = paymentException.getErrorCode();
             log.warn("[PAYMENT] stage=RECOVERY_QUERY event=HTTP_ERROR paymentId={} recoveryId={} historyId={} pgCode={}", paymentId, dto.getRecoveryId(), historyId, paymentException.getErrorCode());
-            if (paymentException.getErrorCode().equals("NOT_FOUND_PAYMENT")) {
-                // 결제 조회에 대한 내역이 존재하지 않으면, 현재 존재하는 Payment에 대한 값 업데이트
-                retryTxService.updateFailPaymentRecovery(historyId, paymentException.getErrorCode(), paymentException.getMessage());
-                log.info("[PAYMENT] stage=RECOVERY_APPLY event=COMMITTED paymentId={} recoveryId={} historyId={}", paymentId, dto.getRecoveryId(), historyId);
+
+            try {
+                if (errorCode == null) {
+                    retryTxService.updateRecoveryForManualReview(historyId, paymentException);
+                } else {
+                    switch (errorCode) {
+                        case "NOT_FOUND_PAYMENT" -> retryTxService.updateRecoveryNotFoundPayment(
+                                historyId, errorCode, paymentException.getMessage());
+                        case "FORBIDDEN_CONSECUTIVE_REQUEST", "FAILED_PAYMENT_INTERNAL_SYSTEM_PROCESSING" ->
+                                retryTxService.updateRecoveryQueryFailure(
+                                        historyId, errorCode, paymentException.getMessage());
+                        default -> retryTxService.updateRecoveryForManualReview(historyId, paymentException);
+                    }
+                }
+                log.info("[PAYMENT] stage=RECOVERY_QUERY_FAILURE_APPLY event=TRANSACTION_RETURNED paymentId={} recoveryId={} historyId={} pgCode={}",
+                        paymentId, dto.getRecoveryId(), historyId, errorCode);
+            } catch (RuntimeException saveException) {
+                saveException.addSuppressed(paymentException);
+                log.error("[PAYMENT] stage=RECOVERY_QUERY_FAILURE_APPLY event=FAILED paymentId={} recoveryId={} historyId={} pgCode={}",
+                        paymentId, dto.getRecoveryId(), historyId, errorCode, saveException);
             }
         } catch (TossRestClientException restClientException) {
             log.warn("[PAYMENT] stage=RECOVERY_QUERY event=RESULT_UNKNOWN paymentId={} recoveryId={} historyId={} errorType={}", paymentId, dto.getRecoveryId(), historyId, restClientException.getClass().getSimpleName());
+            // 통신 오류가 있을 때도 해당 내역 값 저장해야되잖아
+            try {
+                retryTxService.updatePaymentRecoveryByRestClient(historyId, restClientException);
+                log.info("[PAYMENT] stage=RECOVERY_QUERY_FAILURE_APPLY event=TRANSACTION_RETURNED paymentId={} recoveryId={} historyId={}",
+                        paymentId, dto.getRecoveryId(), historyId);
+            } catch (RuntimeException saveException) {
+                saveException.addSuppressed(restClientException);
+                log.error("[PAYMENT] stage=RECOVERY_QUERY_FAILURE_APPLY event=FAILED paymentId={} recoveryId={} historyId={} errorType={}",
+                        paymentId, dto.getRecoveryId(), historyId, saveException.getClass().getSimpleName(), saveException);
+            }
         } catch (RuntimeException e) {
             log.error("[PAYMENT] stage=RECOVERY_APPLY event=FAILED paymentId={} attemptId={} orderNumber={} recoveryId={} historyId={} errorType={}",
                     paymentId, dto.getAttemptId(), dto.getOrderNumber(), dto.getRecoveryId(), historyId,
