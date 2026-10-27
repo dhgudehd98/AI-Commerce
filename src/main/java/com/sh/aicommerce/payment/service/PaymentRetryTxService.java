@@ -368,7 +368,7 @@ public class PaymentRetryTxService {
         order.updateStatusToPaymentFailed();
         attempt.updateStatusToPaymentFailed(errorCode, errorMessage);
 
-        // 기존에 있는 예약 선점 재고 해제
+        // 재시도 횟수가 초과한 경우, 예약된 재고 선점 해제
         inventoryService.releasedReservationQuantity(order,
                 new PaymentBillingCardRequestDto(payment.getId(), order.getId(), order.getOrderNumber(), attempt.getId()));
         log.info("[PAYMENT] stage=RECOVERY_FINALIZE event=APPLIED_PENDING_COMMIT orderNumber={} paymentId={} attemptId={} recoveryId={} historyId={} paymentStatus={} recoveryStatus={}", order.getOrderNumber(), payment.getId(), attempt.getId(), recovery.getId(), history.getId(), payment.getStatus(), recovery.getStatus());
@@ -512,6 +512,7 @@ public class PaymentRetryTxService {
                 .orElseThrow(() -> new PaymentRecoveryException("[결제/RECOVERY_QUERY_FAILURE_APPLY] 복구 이력이 존재하지 않습니다."));
         PaymentRecovery recovery = recoveryRepository.findRecoveryByIdForUpdate(history.getPaymentRecovery().getId())
                 .orElseThrow(() -> new PaymentRecoveryException("[결제/RECOVERY_QUERY_FAILURE_APPLY] 복구 작업이 존재하지 않습니다."));
+
         if (recovery.getStatus() != PaymentRecoveryStatus.PROCESSING
                 || history.getAttemptNumber() != recovery.getRetryCount()
                 || history.getResult() != PaymentRecoveryResult.CREATE
@@ -520,10 +521,12 @@ public class PaymentRetryTxService {
                     recovery.getId(), historyId, recovery.getStatus());
             return;
         }
+
         String message = StringUtils.hasText(errorMessage) ? errorMessage : "PG 결제 조회에 실패했습니다.";
         if (message.length() > RECOVERY_ERROR_MESSAGE_MAX_LENGTH) {
             message = message.substring(0, RECOVERY_ERROR_MESSAGE_MAX_LENGTH);
         }
+
         if (manualReview || recovery.getRetryCount() >= recovery.getMaxRetryCount()) {
             recovery.updateRecoveryToManualCheck(errorCode, message);
         } else {
