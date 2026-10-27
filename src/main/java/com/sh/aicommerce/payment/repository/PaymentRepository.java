@@ -214,4 +214,12 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     where p.status = 'UNKNOWN'
     """)
     List<Long> findPaymentStatusUnknown();
+
+    @Query("""
+    select p.id
+    from Payment p
+    where p.status = 'PROCESSING'
+    and p.updatedAt <= :updatedAt
+    """)
+    List<Long> findPaymentStatusProcessing(@Param("updatedAt") LocalDateTime updatedAt);
 }

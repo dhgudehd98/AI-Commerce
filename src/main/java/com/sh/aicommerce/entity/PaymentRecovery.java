@@ -2,6 +2,7 @@ package com.sh.aicommerce.entity;
 
 
 import co.elastic.clients.elasticsearch.indices.recovery.RecoveryStatus;
+import com.sh.aicommerce.enums.payment.PaymentStatus;
 import com.sh.aicommerce.enums.paymentRecovery.PaymentRecoveryStatus;
 import jakarta.persistence.*;
 import lombok.*;
@@ -63,6 +64,10 @@ public class PaymentRecovery {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     private PaymentRecoveryStatus status;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 30)
+    private PaymentStatus paymentStatus;
 
     /**
      * 현재까지 실행한 자동 복구 시도 횟수
@@ -130,9 +135,10 @@ public class PaymentRecovery {
     @Column(nullable = false)
     private LocalDateTime updatedAt;
 
-    public static PaymentRecovery createRecovery(PaymentAttempt attempt) {
+    public static PaymentRecovery createRecovery(PaymentAttempt attempt, PaymentStatus paymentStatus) {
         return PaymentRecovery.builder()
                 .paymentAttempt(attempt)
+                .paymentStatus(paymentStatus)
                 .status(PaymentRecoveryStatus.RETRY_WAIT)
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())

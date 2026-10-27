@@ -1,4 +1,4 @@
-package com.sh.aicommerce.payment.service;
+package com.sh.aicommerce.recovery.dto.request;
 
 import com.sh.aicommerce.entity.Orders;
 import com.sh.aicommerce.entity.Payment;
@@ -11,7 +11,7 @@ import lombok.NoArgsConstructor;
 @Getter
 @AllArgsConstructor
 @NoArgsConstructor
-public class UnknownPaymentRequestDto {
+public class PaymentRecoveryRequestDto {
     private Long recoveryId;
     private Long paymentId;
     private Long attemptId;
@@ -22,7 +22,7 @@ public class UnknownPaymentRequestDto {
     private String failureMessage;
 
 
-    public UnknownPaymentRequestDto(Payment payment, PaymentAttempt attempt, Orders order, PaymentRecovery recovery) {
+    public PaymentRecoveryRequestDto(Payment payment, PaymentAttempt attempt, Orders order, PaymentRecovery recovery) {
         this.recoveryId = recovery.getId();
         this.paymentId = payment.getId();
         this.attemptId = attempt.getId();

@@ -17,6 +17,7 @@ import com.sh.aicommerce.payment.repository.history.PaymentRecoveryHistoryReposi
 import com.sh.aicommerce.payment.repository.recovery.PaymentRecoveryRepository;
 import com.sh.aicommerce.paymentAttempt.repository.PaymentAttemptRepository;
 import com.sh.aicommerce.recovery.dto.record.RecoveryTarget;
+import com.sh.aicommerce.recovery.dto.request.PaymentRecoveryRequestDto;
 import com.sh.aicommerce.toss.dto.response.TossPaymentRequestHistoryResponseDto;
 import com.sh.aicommerce.toss.repository.TossPaymentLogRepository;
 import com.sh.aicommerce.wms.inventory.service.ProductInventoryService;
@@ -28,6 +29,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
 import org.springframework.util.StringUtils;
@@ -39,6 +41,7 @@ import com.sh.aicommerce.enums.paymentRecovery.PaymentRecoveryResult;
 @Slf4j
 public class PaymentRetryTxService {
     private static final int RECOVERY_ERROR_MESSAGE_MAX_LENGTH = 1000;
+    private static final long PROCESSING_TIMEOUT_MINUTES = 30;
     private final PaymentRepository paymentRepository;
     private final PaymentAttemptRepository attemptRepository;
     private final PaymentRecoveryRepository recoveryRepository;
@@ -56,7 +59,7 @@ public class PaymentRetryTxService {
     }
 
     @Transactional
-    public UnknownPaymentRequestDto validatePayment(Long paymentId) {
+    public PaymentRecoveryRequestDto validateRecoveryTarget(Long paymentId) {
 
         log.info("[PAYMENT] stage=RECOVERY_VALIDATE event=TRANSACTION_START paymentId={}", paymentId);
         Payment payment =
@@ -67,7 +70,9 @@ public class PaymentRetryTxService {
                                 )
                         );
 
+        entityManager.refresh(payment, LockModeType.PESSIMISTIC_WRITE);
         Orders order = payment.getOrder();
+        entityManager.refresh(order, LockModeType.PESSIMISTIC_WRITE);
 
         PaymentAttempt attempt =
                 attemptRepository
@@ -80,17 +85,11 @@ public class PaymentRetryTxService {
                                 )
                         );
 
-        if (payment.getStatus() != PaymentStatus.UNKNOWN
-                || attempt.getStatus() != PaymentAttemptStatus.UNKNOWN
-                || order.getStatus() != OrderStatus.PAYMENT_PROCESSING) {
-
-            log.warn(
-                    "[PAYMENT] stage=RECOVERY_VALIDATE event=STATE_MISMATCH paymentStatus={} attemptStatus={} orderStatus={}",
-                    payment.getStatus(),
-                    attempt.getStatus(),
-                    order.getStatus()
-            );
-
+        entityManager.refresh(attempt, LockModeType.PESSIMISTIC_WRITE);
+        if (!isRecoverableState(payment, attempt, order)
+                || !Objects.equals(attempt.getPayment().getId(), payment.getId())) {
+            log.info("[PAYMENT] stage=RECOVERY_VALIDATE event=STATE_SKIPPED paymentId={} paymentStatus={} attemptStatus={} orderStatus={}",
+                    paymentId, payment.getStatus(), attempt.getStatus(), order.getStatus());
             return null;
         }
 
@@ -109,13 +108,13 @@ public class PaymentRetryTxService {
                         )
                         .orElseGet(() -> {
                             PaymentRecovery created =
-                                    PaymentRecovery.createRecovery(attempt);
+                                    PaymentRecovery.createRecovery(attempt,payment.getStatus());
                             PaymentRecovery saved = recoveryRepository.save(created);
                             log.info("[PAYMENT] stage=RECOVERY_CREATE event=CREATED_PENDING_COMMIT paymentId={} attemptId={} recoveryId={}", paymentId, attempt.getId(), saved.getId());
                             return saved;
                         });
 
-        return new UnknownPaymentRequestDto(
+        return new PaymentRecoveryRequestDto(
                 payment, attempt, order, recovery
         );
     }
@@ -156,17 +155,14 @@ public class PaymentRetryTxService {
     }
 
     /**
-     * PG 조회 내역이 있는 경우의 흐름
-     * 1. History와 Recovery 잠금 조회 후 현재 복구가 PROCESSING인지 확인한다.
-     * 2. DTO 식별자, 현재 실행 회차 및 Recovery → Attempt → Payment → Orders 연결을 검증한다.
-     * 3. Payment → Orders → Attempt 순으로 잠금·새로고침하여 최신 상태를 확인한다.
-     *    Payment/Attempt는 UNKNOWN, Orders는 PAYMENT_PROCESSING이어야 한다.
-     * 4. PG DONE 상태, 주문번호, 상품명 스냅샷, 금액, 결제키 및 카드 승인 정보를 검증한다.
-     * 5. 이후 구현: 검증된 승인 정보와 완료 상태, 출고·PG 이력, Recovery·History를 함께 반영한다.
-     * 현재 메서드는 검증까지만 수행하며 DB 상태 변경·출고 생성·예약 해제를 하지 않는다.
+     * PG 조회 결과 반영 흐름
+     * 1. History·Recovery 잠금 및 현재 실행 회차 검증
+     * 2. Payment → Orders → Attempt 잠금 후 UNKNOWN 또는 장시간 PROCESSING 상태 검증
+     * 3. PG 승인 상태·주문번호·금액·결제키·카드 정보 검증
+     * 4. 승인 결과·출고·PG 이력·복구 완료 내역을 동일 트랜잭션에서 반영
      */
     @Transactional
-    public void applyPaymentRecoveryResult(Long historyId, UnknownPaymentRequestDto request, TossPaymentRequestHistoryResponseDto tossResponseDto) {
+    public void applyPaymentRecoveryResult(Long historyId, PaymentRecoveryRequestDto request, TossPaymentRequestHistoryResponseDto tossResponseDto) {
         log.info("[PAYMENT] stage=RECOVERY_APPLY event=START historyId={}", historyId);
         PaymentRecoveryHistory history = recoverHistoryRepository.findHistoryByIdForUpdate(historyId)
                 .orElseThrow(() -> new PaymentRecoveryException("[결제/RECOVERY_VALIDATE] 복구 이력이 존재하지 않습니다."));
@@ -222,7 +218,7 @@ public class PaymentRetryTxService {
 
     private RecoveryTarget validatePaymentRecoveryResultBeforeApply(
             PaymentRecoveryHistory history, PaymentRecovery recovery,
-            UnknownPaymentRequestDto dto, TossPaymentRequestHistoryResponseDto response) {
+            PaymentRecoveryRequestDto dto, TossPaymentRequestHistoryResponseDto response) {
         if (dto == null || response == null) {
             throw new PaymentRecoveryException("[결제/RECOVERY_VALIDATE] 복구 대상 또는 PG 조회 응답이 없습니다.");
         }
@@ -248,9 +244,7 @@ public class PaymentRetryTxService {
                 || !Objects.equals(dto.getOrderNumber(), order.getOrderNumber())) {
             throw new PaymentRecoveryException("[결제/RECOVERY_VALIDATE] 복구 대상과 주문·결제·승인 시도 연결이 일치하지 않습니다.");
         }
-        if (payment.getStatus() != PaymentStatus.UNKNOWN
-                || attempt.getStatus() != PaymentAttemptStatus.UNKNOWN
-                || order.getStatus() != OrderStatus.PAYMENT_PROCESSING) {
+        if (!isRecoverableState(payment, attempt, order)) {
             throw new PaymentRecoveryException("[결제/RECOVERY_VALIDATE] 복구 대상의 최신 상태가 결과 확인 대기 상태가 아닙니다.");
         }
         if (!"DONE".equals(response.getStatus()) || response.getApprovedAt() == null) {
@@ -355,9 +349,7 @@ public class PaymentRetryTxService {
         }
 
         // PG 조회 동안 다른 요청이 완료·취소 등을 반영했다면 덮어쓰거나 예약을 해제하지 않는다.
-        if (payment.getStatus() != PaymentStatus.UNKNOWN
-                || attempt.getStatus() != PaymentAttemptStatus.UNKNOWN
-                || order.getStatus() != OrderStatus.PAYMENT_PROCESSING) {
+        if (!isRecoverableState(payment, attempt, order)) {
             String reason = "[결제/RECOVERY_FINALIZE] PG 조회 중 결제 상태가 변경되어 실패 확정을 중단했습니다.";
             recovery.updateRecoveryToManualCheck(errorCode, reason);
             history.updateHistoryExceedRetryCntNotFoundPayment(errorCode, reason);
@@ -541,5 +533,24 @@ public class PaymentRetryTxService {
         log.warn("[PAYMENT] stage=RECOVERY_QUERY_FAILURE_APPLY event=APPLIED_PENDING_COMMIT recoveryId={} historyId={} retryCount={} maxRetryCount={} recoveryStatus={} historyResult={} pgCode={}",
                 recovery.getId(), historyId, recovery.getRetryCount(), recovery.getMaxRetryCount(),
                 recovery.getStatus(), history.getResult(), errorCode);
+    }
+
+    /**
+     * 아래 코드 부터는 PROCESSING 상태 결제 내역 재처리 시도 로직
+     */
+    public List<Long> findPaymentStatusProcessing() {
+        LocalDateTime updatedAt = LocalDateTime.now().minusMinutes(PROCESSING_TIMEOUT_MINUTES);
+        return paymentRepository.findPaymentStatusProcessing(updatedAt);
+    }
+
+    /** 결제·승인 시도 상태 조합과 PROCESSING 경과 시간 검증 */
+    private boolean isRecoverableState(Payment payment, PaymentAttempt attempt, Orders order) {
+        boolean unknown = payment.getStatus() == PaymentStatus.UNKNOWN
+                && attempt.getStatus() == PaymentAttemptStatus.UNKNOWN;
+        boolean staleProcessing = payment.getStatus() == PaymentStatus.PROCESSING
+                && attempt.getStatus() == PaymentAttemptStatus.PROCESSING
+                && payment.getUpdatedAt() != null
+                && !payment.getUpdatedAt().isAfter(LocalDateTime.now().minusMinutes(PROCESSING_TIMEOUT_MINUTES));
+        return order.getStatus() == OrderStatus.PAYMENT_PROCESSING && (unknown || staleProcessing);
     }
 }
