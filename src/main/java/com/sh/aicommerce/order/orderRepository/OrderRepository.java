@@ -42,4 +42,19 @@ public interface OrderRepository extends JpaRepository<Orders, Long> {
     where o.id =:orderId
     """)
     Optional<Orders> findByIdWithLock(@Param("orderId") Long orderId);
+
+    @Query("""
+     select o
+     from Orders o
+     where o.orderNumber = :orderNumber
+     """)
+    Optional<Orders> findOrderByOrderNumber(@Param("orderNumber")String orderNumber);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+    select o
+    from Orders o
+    where o.orderNumber = :orderNumber
+    """)
+    Optional<Orders> findOrderByOrderNumberForUpdate(@Param("orderNumber")String orderNumber);
 }

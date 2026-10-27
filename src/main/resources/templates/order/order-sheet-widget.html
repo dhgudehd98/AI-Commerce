@@ -422,6 +422,7 @@
     const payment = billingTossPayments.payment({ customerKey });
 
 
+    const orderNumber = /*[[${orderSheet.orderNumber}]]*/ "";
     const variantId = [[${orderSheet.orderSheetProductDto.variantId}]];
     const optionId = [[${orderSheet.orderSheetProductDto.optionId}]];
     const initialPaymentAmount = [[${orderSheet.orderSheetPriceDto.paymentAmount}]];
@@ -654,6 +655,7 @@
 
     function buildPaymentRequestDto(extra) {
         return {
+            orderNumber: orderNumber,
             receiver: {
                 name: /*[[${orderSheet.receiver.name}]]*/ "구매자",
                 phone: /*[[${orderSheet.receiver.phone}]]*/ "01000000000",
@@ -740,15 +742,24 @@
             savedCardId: selectedSavedCardId
         });
 
+        const paymentResultUnknownMessage = "결제 결과를 확인하지 못했습니다. 이미 승인되었을 수 있으니 새 주문으로 다시 결제하지 마시고, 주문번호를 보관한 뒤 관리자에게 문의해주세요.";
         const billingResponse = await fetch("/api/pay/cardBilling", {
             method: "POST",
-            headers: { "Content-Type": "text/plain;charset=UTF-8" },
-            body: result.orderNumber
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                orderNumber: result.orderNumber,
+                paymentId: result.paymentId,
+                paymentAttemptId: result.attemptId,
+                savedCardId: result.savedCardId ?? null,
+                savedAccountId: result.savedAccountId ?? null
+            })
+        }).catch(() => {
+            throw new Error(`${paymentResultUnknownMessage} (주문번호: ${result.orderNumber})`);
         });
 
         if (!billingResponse.ok) {
             const err = await billingResponse.json().catch(() => null);
-            throw new Error(err?.message || "카드 간편결제에 실패했습니다.");
+            throw new Error(`${err?.message || paymentResultUnknownMessage} (주문번호: ${result.orderNumber})`);
         }
 
         window.location.href = `/api/pay/complete?orderNumber=${encodeURIComponent(result.orderNumber)}`;
@@ -770,7 +781,7 @@
                 alert("계좌 자동결제는 아직 연결된 서버 결제 API가 없습니다.");
             }
         } catch (e) {
-            alert(e.message || "결제 처리 중 오류가 발생했습니다. 다시 시도해주세요.");
+            alert(e.message || "결제 처리 상태를 확인하지 못했습니다. 결제 내역을 확인한 뒤 관리자에게 문의해주세요.");
         } finally {
             paymentButton.disabled = false;
         }

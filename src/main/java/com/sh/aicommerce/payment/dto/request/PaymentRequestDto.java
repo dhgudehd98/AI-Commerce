@@ -12,6 +12,9 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class PaymentRequestDto {
 
+    // 중복 방지를 위한 이 전에 생성한 주문번호 값 전달
+    private String orderNumber;
+
     // 받는 사람 정보
     private Receiver receiver;
 

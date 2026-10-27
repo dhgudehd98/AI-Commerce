@@ -11,7 +11,11 @@ import com.sh.aicommerce.common.exception.orderCancellation.OrderCancellationExc
 import com.sh.aicommerce.common.exception.orderItem.OrderItemException;
 import com.sh.aicommerce.common.exception.outbox.OutboxException;
 import com.sh.aicommerce.common.exception.payment.PaymentException;
+import com.sh.aicommerce.common.exception.payment.PaymentResultUnknownException;
+import com.sh.aicommerce.common.exception.paymentAttempt.PaymentAttemptException;
+import com.sh.aicommerce.common.exception.paymentRecovery.PaymentRecoveryException;
 import com.sh.aicommerce.common.exception.product.ProductException;
+import com.sh.aicommerce.common.exception.productInventory.ProductInventoryException;
 import com.sh.aicommerce.common.exception.refund.RefundException;
 import com.sh.aicommerce.common.exception.review.ReviewException;
 import com.sh.aicommerce.common.exception.search.SearchException;
@@ -36,6 +40,30 @@ import java.util.Map;
 @RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(PaymentRecoveryException.class)
+    public ResponseEntity<?> handlePaymentRecoveryException(PaymentRecoveryException e) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("result", "N", "message", e.getMessage()));
+    }
+
+    @ExceptionHandler(PaymentResultUnknownException.class)
+    public ResponseEntity<?> handlePaymentResultUnknownException(PaymentResultUnknownException e) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("result", "N", "message", PaymentResultUnknownException.USER_MESSAGE));
+    }
+
+    @ExceptionHandler(ProductInventoryException.class)
+    public ResponseEntity<?> handleProductInventoryException(ProductInventoryException e) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("result", "N", "message", e.getMessage()));
+    }
+
+    @ExceptionHandler(PaymentAttemptException.class)
+    public ResponseEntity<?> handlePaymentAttemptException(PaymentAttemptException e) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("result", "N", "message", e.getMessage()));
+    }
 
     @ExceptionHandler(TossPaymentException.class)
     public ResponseEntity<?> handleTossPaymentException(TossPaymentException e) {

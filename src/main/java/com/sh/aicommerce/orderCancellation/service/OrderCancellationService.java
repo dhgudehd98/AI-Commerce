@@ -1,17 +1,14 @@
 package com.sh.aicommerce.orderCancellation.service;
 
 import com.sh.aicommerce.admin.service.AdminService;
-import com.sh.aicommerce.common.exception.order.OrderException;
 import com.sh.aicommerce.common.exception.orderCancellation.OrderCancellationException;
 import com.sh.aicommerce.common.exception.payment.PaymentException;
 import com.sh.aicommerce.common.exception.refund.RefundException;
 import com.sh.aicommerce.common.exception.toss.TossPaymentException;
 import com.sh.aicommerce.common.exception.toss.TossRestClientException;
 import com.sh.aicommerce.common.exception.wms.InventoryException;
-import com.sh.aicommerce.common.exception.wms.OutboundException;
 import com.sh.aicommerce.entity.*;
 import com.sh.aicommerce.enums.order.OrderCancelStatus;
-import com.sh.aicommerce.enums.order.OrderStatus;
 import com.sh.aicommerce.enums.payment.PaymentStatus;
 import com.sh.aicommerce.enums.refund.RefundStatus;
 import com.sh.aicommerce.orderCancellation.dto.record.OrderCancellationDetailRecord;
@@ -24,14 +21,11 @@ import com.sh.aicommerce.orderCancellation.repository.OrderCancellationRepositor
 import com.sh.aicommerce.orderItem.repository.OrderItemRepository;
 import com.sh.aicommerce.payment.repository.PaymentRepository;
 import com.sh.aicommerce.payment.service.PaymentService;
-import com.sh.aicommerce.payment.service.PaymentTransactionService;
 import com.sh.aicommerce.refund.service.RefundService;
 import com.sh.aicommerce.toss.dto.response.PgPaymentHistoryDetailResponseDto;
 import com.sh.aicommerce.toss.dto.response.TossPaymentRequestHistoryResponseDto;
-import com.sh.aicommerce.toss.service.TossAPIService;
 import com.sh.aicommerce.toss.service.TossPaymentClient;
 import com.sh.aicommerce.wms.inventory.repository.ProductInventoryRepository;
-import com.sh.aicommerce.wms.outbound.enums.OutboundStatus;
 import com.sh.aicommerce.wms.outbound.service.OutboundService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -59,7 +53,6 @@ public class OrderCancellationService {
     private final AdminService adminService;
     private final OutboundService outboundService;
     private final RefundService refundService;
-    private final PaymentService paymentService;
     private final OrderCancellationTxService cancellationTxService;
 
     private final TossPaymentClient client;

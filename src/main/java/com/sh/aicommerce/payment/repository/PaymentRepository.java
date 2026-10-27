@@ -10,6 +10,7 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 
@@ -64,14 +65,13 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     from Payment p
     join fetch p.order o
     where
-    p.status = 'CONFIRMING' and
+    p.status = 'PROCESSING' and
     p.paymentMethod = 'SAVED_CARD' and
     o.orderNumber = :orderNumber and
-    o.status = 'CREATED' and
+    o.status = 'PAYMENT_PROCESSING' and
     o.member.id = :memberId
     """)
-    Optional<Payment> findConfirmingPaymentForUpdatePaymentStatusCardForUpdateInBillingCard(@Param("orderNumber")String orderNumber, @Param("memberId") Long memberId);
-
+    Optional<Payment> findPaymentByOrderNumberForUpdate(@Param("orderNumber")String orderNumber, @Param("memberId") Long memberId);
 
     @Query("""
   select count(p) > 0
@@ -133,13 +133,10 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     select p
     from Payment p
     join fetch p.order o
-    where
-    (p.status = 'READY' or p.status = 'CONFIRMING')
-    and o.status = 'CREATED'
-    and o.orderNumber = :orderNumber
+    where p.order.orderNumber = :orderNumber
     """
     )
-    Optional<Payment> findPaymentWithOrderByOrderNumber(String orderNumber);
+    Optional<Payment> findPaymentWithOrderByOrderNumber(@Param("orderNumber")String orderNumber);
 
 
 
@@ -184,4 +181,45 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     """)
     Optional<Payment> findPaymentByPaymentKey(@Param("paymentKey")String paymentKey);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+    select p
+    from Payment p
+    join p.order o on p.order.id = o.id
+    where p.id = :paymentId
+    and o.orderNumber = :orderNumber
+   
+    """)
+    Optional<Payment> findPaymentByIdWithOrderForUpdate(@Param("paymentId")Long paymentId, @Param("orderNumber")String orderNumber);
+
+    @Query("""
+    select p
+    from Payment p
+    join fetch p.order o
+    where p.id = :paymentId
+    """)
+    Optional<Payment> findPaymentByIdWithOrder(@Param("paymentId")Long paymentId);
+
+    @Query("""
+    select p
+    from Payment p
+    where p.order.id = :orderId
+    """)
+    Optional<Payment> findPaymentByOrderId(@Param("orderId") Long orderId);
+
+
+    @Query("""
+    select p.id
+    from Payment p
+    where p.status = 'UNKNOWN'
+    """)
+    List<Long> findPaymentStatusUnknown();
+
+    @Query("""
+    select p.id
+    from Payment p
+    where p.status = 'PROCESSING'
+    and p.updatedAt <= :updatedAt
+    """)
+    List<Long> findPaymentStatusProcessing(@Param("updatedAt") LocalDateTime updatedAt);
 }

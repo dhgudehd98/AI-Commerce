@@ -1,4 +1,4 @@
-package com.sh.aicommerce.toss;
+package com.sh.aicommerce.toss.controller;
 
 
 import com.fasterxml.jackson.core.JsonProcessingException;

@@ -21,7 +21,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Optional;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -37,10 +40,14 @@ public class OrderService {
     private final ProductVariantRepository productVariantRepository;
 
 
+
     public OrderSheetResponseDto orderSheet(Long memberId, Long variantId, Long optionId) {
         // 회원에 대한 정보 검사 ->
         Member member = validateMember(memberId);
 //        ProductVariant variant = productVariantRepository.findWithProductById(variantId).orElseThrow(() -> new ProductException("존재하지 않는 상품입니다."));
+
+        // 중복 결제를 방지하기 위한 주문 번호(orderNumber) 생성
+        String orderNumber = createOrderNumber(optionId);
 
         // 상품 Variant, 상품 Option 정합성 검증(DB <-> ES)
         ProductOption option = productOptionRepository.findWithProductVariantByVariantIdAndOptionId(variantId, optionId).orElseThrow(() -> new ProductException("잘못된 상품 정보입니다. 상품정보를 다시 확인해주세요."));
@@ -59,7 +66,18 @@ public class OrderService {
 
         // 여기는 나중에 Coupon에 대한 값이 존재하면 설정하도록 변경 일단은 discountPrice에 대한 값은 0으로
         OrderSheetPriceDto orderSheetPriceDto = new OrderSheetPriceDto(orderSheetProductDto.getProductPrice(), deliveryPrice, 0, 0, orderSheetProductDto.getProductPrice() + deliveryPrice);
-        return new OrderSheetResponseDto(receiver, orderSheetProductDto, orderSheetPriceDto, member.getCustomerKey());
+        return new OrderSheetResponseDto(receiver, orderSheetProductDto, orderSheetPriceDto, member.getCustomerKey(), orderNumber);
+    }
+
+    private  String createOrderNumber(Long optionId) {
+        String orderedAt = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
+        String suffix = UUID.randomUUID()
+                .toString()
+                .replace("-", "")
+                .substring(0, 6)
+                .toUpperCase();
+
+        return "ORD-" + orderedAt + "-" + optionId + "-" + suffix;
     }
 
     private int setDeliveryPrice(Integer productPrice) {

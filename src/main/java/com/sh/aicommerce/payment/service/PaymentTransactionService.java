@@ -5,17 +5,14 @@ import com.sh.aicommerce.auth.repository.AuthRepository;
 import com.sh.aicommerce.card.repository.CardRepository;
 import com.sh.aicommerce.common.exception.card.CardException;
 import com.sh.aicommerce.common.exception.member.MemberException;
-import com.sh.aicommerce.common.exception.order.OrderException;
 import com.sh.aicommerce.common.exception.orderCancellation.OrderCancellationException;
 import com.sh.aicommerce.common.exception.payment.PaymentException;
 import com.sh.aicommerce.common.exception.product.ProductException;
 import com.sh.aicommerce.common.exception.refund.RefundException;
-import com.sh.aicommerce.common.exception.toss.TossCancelException;
 import com.sh.aicommerce.entity.*;
 import com.sh.aicommerce.enums.order.OrderCancelStatus;
 import com.sh.aicommerce.enums.payment.PaymentStatus;
 import com.sh.aicommerce.enums.refund.RefundStatus;
-import com.sh.aicommerce.order.orderRepository.OrderRepository;
 import com.sh.aicommerce.orderCancellation.repository.OrderCancellationRepository;
 import com.sh.aicommerce.orderCancellation.service.OrderCancellationService;
 import com.sh.aicommerce.payment.repository.PaymentRepository;
@@ -73,8 +70,7 @@ public class PaymentTransactionService {
         // 금액에 대한 부분 한번 더 검증
         if(!amount.equals(payment.getAmount())) throw new PaymentException("실제 결제 금액과 저장되어 있는 결제 금액이 일치하지 않습니다.");
 
-        // 검증 통과하면 Status에 대한 부분 중복 방지 및 멱등성 처리를 위해 PaymentStatus를 CONFIRMING으로 변경
-        payment.setStatusConfirmingInWidget(paymentDto.getPaymentKey());
+        payment.updatePaymentStatusToProcessingByWidget(paymentDto.getPaymentKey());
         log.info("[토스페이먼츠 결제 검증 통과 및 결제 상태 CONFIRM 변경] : 주문번호(orderId) : {}", paymentDto.getOrderId());
     }
 
@@ -104,48 +100,6 @@ public class PaymentTransactionService {
         log.info("[토스 페이먼츠] Payment 및 Order 업데이트 완료 업데이트 정보 paymentId : {} , orderId : {}",payment.getId(), order.getId());
     }
 
-    @Transactional
-    public Payment validatePaymentByBillingCard(String orderNumber, Long memberId) {
-        Payment payment = paymentRepository.findPaymentForUpdatePaymentStatusCardForUpdateInBillingCard(orderNumber, memberId).orElseThrow(() -> new PaymentException("해당 결제 정보가 존재하지 않습니다."));
-        payment.setStatusConfirmingInBillingCard();
-
-        return payment;
-    }
-
-    @Transactional
-    public void applyPaymentByTossBillingCard(Long memberId, String orderNumber,TossPaymentSuccessResponseDto response) {
-        Payment payment = paymentRepository.findConfirmingPaymentForUpdatePaymentStatusCardForUpdateInBillingCard(orderNumber, memberId).orElseThrow(() -> new PaymentException("해당 결제 정보가 존재하지 않습니다."));
-        Orders order = payment.getOrder();
-        payment.updateCardByBillingCard(response);
-
-        if(payment.getStatus().equals(PaymentStatus.PAID)) order.updateStatusToPaid();
-
-        // 결제 완료 시, 출고 요청 처리
-        outboundService.createOutbound(order);
-
-    }
-
-
-
-    @Transactional(readOnly = true)
-    public Member validateMember(Long memberId) {
-        return authRepository.findById(memberId).orElseThrow(() -> new MemberException("존재하지 않는 회원입니다."));
-    }
-
-    @Transactional(readOnly = true)
-    public Card validateCard(Long savedCardId, Long memberId) {
-        return cardRepository.findByIdAndMemberId(savedCardId, memberId).orElseThrow(() -> new CardException("현재 저장되어 있는 카드 정보가 없습니다."));
-    }
-
-    @Transactional(readOnly = true)
-    public boolean isPaidBillingCardPayment(String orderNumber) {
-        return paymentRepository.existsPaidBillingCardPayment(orderNumber);
-    }
-
-    @Transactional(readOnly = true)
-    public Payment findPaidBillingCardPayment(String orderNumber) {
-        return paymentRepository.findPaidBillingCardPayment(orderNumber).orElseThrow(() -> new PaymentException("이미 결제된 주문정보가 존재하지 않습니다."));
-    }
 
     @Transactional(readOnly = true)
     public boolean isPaidTossWidgetPayment(String orderNumber, String paymentKey, Integer amount) {
@@ -157,30 +111,30 @@ public class PaymentTransactionService {
         return paymentRepository.findPaidTossWidgetPayment(orderNumber, paymentKey, amount).orElseThrow(() -> new PaymentException("이미 결제된 주문정보가 존재하지 않습니다."));
     }
 
+//    @Transactional
+//    public void payFailOrExpiredPayment(Long paymentId, LocalDateTime expiredAt) {
+//        Payment payment = paymentRepository
+//                .findExpiredPaymentForUpdate(paymentId, expiredAt)
+//                .orElse(null);
+//
+//        if(payment == null) return ;
+//
+//        failOrExpiredPaymentAndReleaseReservation(payment);
+//    }
+
+
     @Transactional
-    public void payFailOrExpiredPayment(Long paymentId, LocalDateTime expiredAt) {
-        Payment payment = paymentRepository
-                .findExpiredPaymentForUpdate(paymentId, expiredAt)
-                .orElse(null);
-
-        if(payment == null) return ;
-
-        failOrExpiredPaymentAndReleaseReservation(payment);
-    }
-
-
-    @Transactional
-    public void payFailTossPayment(String orderNumber) {
+    public void payFailTossPayment(String orderNumber, String failReason) {
         Payment payment = paymentRepository.findPaymentWithOrderByOrderNumber(orderNumber).orElseThrow(() -> new PaymentException("주문 번호에 해당하는 정보를 찾을 수 없습니다."));
 
         // 토스페이먼츠 결제 실패 + Payment 만료된 데이터 실패 공통 로직으로 묶어서 분리
-        failOrExpiredPaymentAndReleaseReservation(payment);
+        failOrExpiredPaymentAndReleaseReservation(payment, failReason);
     }
 
-    private void failOrExpiredPaymentAndReleaseReservation(Payment payment) {
+    private void failOrExpiredPaymentAndReleaseReservation(Payment payment, String failReason) {
         Orders order = payment.getOrder();
 
-        payment.updateFailPaymentTossWidget();
+        payment.updateStatusToRejected(failReason);
 
         for (OrderItem item : order.getOrderItems()) {
             Long optionId = item.getProductOption().getId();
@@ -191,7 +145,7 @@ public class PaymentTransactionService {
             inventory.releasedReserved(quantity);
         }
 
-        if(payment.getStatus().equals(PaymentStatus.FAILED)) order.updateStatusToFailed();
+        if(payment.getStatus().equals(PaymentStatus.PAYMENT_REJECTED)) order.updateStatusToRejected();
 
         // 결제 실패 || 만료가 진행된 경우에는 Delivery Status의 상태 값을 실패로 설정
         if(order.getDelivery() != null) order.getDelivery().paymentFailUpdateStatus();

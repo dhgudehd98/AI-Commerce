@@ -1,10 +1,12 @@
 package com.sh.aicommerce.payment.controller;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.sh.aicommerce.payment.dto.request.CardBillingPaymentRequestDto;
 import com.sh.aicommerce.payment.dto.request.PaymentRequestDto;
 import com.sh.aicommerce.payment.service.PaymentPrepareService;
 import com.sh.aicommerce.payment.service.PaymentService;
 import lombok.RequiredArgsConstructor;
+import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -26,16 +28,27 @@ public class PaymentController {
 //            Authentication authentication
     ) {
         Long memberId = 1L;
-        log.info("결제 준비 요청 : {}", paymentRequestDto.toString());
-        return ResponseEntity.ok(paymentService.preparePay(memberId, variantId, optionId, paymentRequestDto));
+        log.info("[PAYMENT] stage=PREPARE event=RECEIVED orderNumber={} memberId={} variantId={} optionId={} method={}",
+                paymentRequestDto.getOrderNumber(), memberId, variantId, optionId, paymentRequestDto.getPaymentMethod());
+        return ResponseEntity.ok(paymentService.getPaymentLockByOrderNumber(memberId, variantId, optionId, paymentRequestDto));
+//        return ResponseEntity.ok(paymentService.preparePay(memberId, variantId, optionId, paymentRequestDto));
     }
 
+//    @PostMapping("cardBilling")
+//    public ResponseEntity<?> payByCardBilling(
+////            Authentication authentication
+//            @RequestBody String orderNumber
+//    ) throws JsonProcessingException {
+//        Long memberId = 1L;
+//        return ResponseEntity.ok(paymentService.payByTossBillingCard(memberId, orderNumber));
+//    }
+
+
     @PostMapping("cardBilling")
-    public ResponseEntity<?> payByCardBilling(
-//            Authentication authentication
-            @RequestBody String orderNumber
-    ) throws JsonProcessingException {
+    public ResponseEntity<?> payCard(
+            @Valid @RequestBody CardBillingPaymentRequestDto request
+    ) {
         Long memberId = 1L;
-        return ResponseEntity.ok(paymentService.payByTossBillingCard(memberId, orderNumber));
+        return ResponseEntity.ok(paymentService.adjustPaymentResult(memberId, request));
     }
 }

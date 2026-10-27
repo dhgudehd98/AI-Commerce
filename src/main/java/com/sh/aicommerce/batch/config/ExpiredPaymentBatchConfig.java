@@ -3,10 +3,7 @@ package com.sh.aicommerce.batch.config;
 import com.sh.aicommerce.batch.listener.JobListener;
 import com.sh.aicommerce.batch.reader.ExpiredPaymentReader;
 import com.sh.aicommerce.batch.writer.ExpiredPaymentWriter;
-import com.sh.aicommerce.entity.Payment;
-import com.sh.aicommerce.payment.repository.PaymentRepository;
 import com.sh.aicommerce.payment.service.PaymentTransactionService;
-import com.sh.aicommerce.wms.inventory.repository.ProductInventoryRepository;
 import jakarta.persistence.EntityManagerFactory;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -54,9 +51,9 @@ public class ExpiredPaymentBatchConfig {
     ) {
         return new StepBuilder("expiredPaymentJob", jobRepository)
                 .<Long, Long>chunk(5, transaction)
-                .reader(expiredPaymentReader)
+//                .reader(expiredPaymentReader)
 //                .processor(reservationProcessor())
-                .writer(expiredPaymentWriter)
+//                .writer(expiredPaymentWriter)
                 .build();
     }
 

@@ -18,12 +18,12 @@ class TossPaymentClientCancelTest {
     private TossPaymentClient client;
     private MockRestServiceServer server;
 
-    @BeforeEach
-    void setup() {
-        RestTemplate template = new RestTemplate();
-        server = MockRestServiceServer.createServer(template);
-        client = new TossPaymentClient(template, new ObjectMapper(), null);
-    }
+//    @BeforeEach
+//    void setup() {
+//        RestTemplate template = new RestTemplate();
+//        server = MockRestServiceServer.createServer(template);
+//        client = new TossPaymentClient(template, new ObjectMapper(), null);
+//    }
 
     private void error(HttpStatus status, String code) {
         server.expect(requestTo("https://api.tosspayments.com/v1/payments/test-key/cancel"))

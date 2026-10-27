@@ -4,6 +4,7 @@ import com.sh.aicommerce.common.exception.payment.PaymentException;
 import com.sh.aicommerce.enums.payment.*;
 import com.sh.aicommerce.payment.dto.request.PaymentRequestDto;
 import com.sh.aicommerce.toss.dto.request.TossPaymentRequestDto;
+import com.sh.aicommerce.toss.dto.response.TossPaymentRequestHistoryResponseDto;
 import com.sh.aicommerce.toss.dto.response.TossPaymentSuccessResponseDto;
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -62,6 +63,8 @@ public class Payment {
     private LocalDateTime updatedAt;
     private LocalDateTime paidAt;
 
+    private String failReason; // 토스 결제 실패 사유 추가
+
     public static Payment createPayment(PaymentRequestDto dto, Integer totalPrice) {
         Payment payment = new Payment();
         payment.paymentMethod = dto.getPaymentMethod();
@@ -72,14 +75,14 @@ public class Payment {
 
         if (dto.getPaymentMethod() == PaymentMethod.SAVED_CARD) {
             payment.savedCardId = dto.getSavedCardId();
-            payment.paymentProvider = "PG_BILLING";
+            payment.paymentProvider = "PG_BILLING_CARD";
             payment.paymentMethodLabel = "등록 카드 간편결제";
             return payment;
         }
 
         if (dto.getPaymentMethod() == PaymentMethod.SAVED_ACCOUNT) {
             payment.savedAccountId = dto.getSavedAccountId();
-            payment.paymentProvider = "PG_BILLING";
+            payment.paymentProvider = "PG_BILLING_ACCOUNT";
             payment.paymentMethodLabel = "등록 계좌 간편결제";
             return payment;
         }
@@ -94,23 +97,62 @@ public class Payment {
 
         return payment;
     }
+    // 결제 관련 상태 값 변경 - 자동Billing(카드 / 계좌)
+    public void updatePaymentStatusToProcessingByBilling() {
+        if(this.status == PaymentStatus.PAID)
+            throw new PaymentException("결제 승인 가능한 상태가 아닙니다.");
+        this.status = PaymentStatus.PROCESSING;
+        this.updatedAt = LocalDateTime.now();
+    }
 
-    public void setStatusConfirmingInWidget(String paymentKey) {
+    public void updatePaymentByBillingCard(TossPaymentSuccessResponseDto response) {
+        if (response == null) {
+            throw new PaymentException("토스 결제 승인 응답이 존재하지 않습니다.");
+        }
+        if (!"DONE".equals(response.getStatus())) {
+            throw new PaymentException("토스 자동결제 승인이 완료되지 않았 습니다.");
+        }
+
+        this.paidAt = LocalDateTime.now();
+        this.paymentKey = response.getPaymentKey();
+        this.provider = response.getMethod(); // "카드"
+        this.approvedNumber = response.getCard().getApproveNo();
+        this.cardCode = response.getCard().getIssuerCode();
+        this.cardCompany = CardCompany.fromCode(response.getCard().getIssuerCode());
+        this.installmentMonths = response.getCard().getInstallmentPlanMonths();
+        this.updatedAt = LocalDateTime.now();
+        this.status = PaymentStatus.PAID;
+    }
+
+    public void updatePaymentByBillingCard(TossPaymentRequestHistoryResponseDto response) {
+        if (response == null) {
+            throw new PaymentException("토스 결제 승인 응답이 존재하지 않습니다.");
+        }
+        if (!"DONE".equals(response.getStatus())) {
+            throw new PaymentException("토스 자동결제 승인이 완료되지 않았 습니다.");
+        }
+
+        this.paidAt = response.getApprovedAt().toLocalDateTime();
+        this.paymentKey = response.getPaymentKey();
+        this.provider = response.getMethod(); // "카드"
+        this.approvedNumber = response.getCard().getApproveNo();
+        this.cardCode = response.getCard().getIssuerCode();
+        this.cardCompany = CardCompany.fromCode(response.getCard().getIssuerCode());
+        this.installmentMonths = response.getCard().getInstallmentPlanMonths();
+        this.updatedAt = LocalDateTime.now();
+        this.status = PaymentStatus.PAID;
+    }
+
+    // 결제 관련 상태 값 변경 - 토스 위젯 결제
+    public void updatePaymentStatusToProcessingByWidget(String paymentKey) {
         if (this.status != PaymentStatus.READY) {
             throw new PaymentException("결제 승인 가능한 상태가 아닙니다.");
         }
         this.paymentKey = paymentKey;
         this.updatedAt = LocalDateTime.now();
-        this.status = PaymentStatus.CONFIRMING;
+        this.status = PaymentStatus.PROCESSING;
     }
 
-    public void setStatusConfirmingInBillingCard() {
-        if (this.status != PaymentStatus.READY) {
-            throw new PaymentException("결제 승인 가능한 상태가 아닙니다.");
-        }
-        this.status = PaymentStatus.CONFIRMING;
-        this.updatedAt = LocalDateTime.now();
-    }
 
     public void updateCardPaymentByTossWidget(TossPaymentRequestDto request, TossPaymentSuccessResponseDto response) {
         if (response == null) {
@@ -147,32 +189,17 @@ public class Payment {
     }
 
 
-    public void updateCardByBillingCard(TossPaymentSuccessResponseDto response) {
-        if (response == null) {
-            throw new PaymentException("토스 결제 승인 응답이 존재하지 않습니다.");
-        }
-        if (!"DONE".equals(response.getStatus())) {
-            throw new PaymentException("토스 자동결제 승인이 완료되지 않았 습니다.");
-        }
 
-        this.paidAt = LocalDateTime.now();
-        this.paymentKey = response.getPaymentKey();
-        this.provider = response.getMethod(); // "카드"
-        this.approvedNumber = response.getCard().getApproveNo();
-        this.cardCode = response.getCard().getIssuerCode();
-        this.cardCompany = CardCompany.fromCode(response.getCard().getIssuerCode());
-        this.installmentMonths = response.getCard().getInstallmentPlanMonths();
-        this.updatedAt = LocalDateTime.now();
-        this.status = PaymentStatus.PAID;
-    }
 
     public void setOrder(Orders orders) {
         this.order = orders;
     }
 
-    public void updateFailPaymentTossWidget() {
-        this.status = PaymentStatus.FAILED;
+    public void updateStatusToRejected(String failReason) {
+        this.status = PaymentStatus.PAYMENT_REJECTED;
         this.updatedAt = LocalDateTime.now();
+        this.failReason = failReason;
+
     }
 
     public void updateCancelStatus() {
@@ -190,5 +217,15 @@ public class Payment {
             throw new PaymentException("결제가 완료된 건만 취소 실패로 변경할 수 있습니다.");
         this.updatedAt = LocalDateTime.now();
         this.status = PaymentStatus.CANCEL_FAILED;
+    }
+
+    public void updateStatusToUnknown(String failReason) {
+        this.failReason = failReason;
+        this.updatedAt = LocalDateTime.now();
+        this.status = PaymentStatus.UNKNOWN;
+    }
+
+    public void updateStatusToPaymentFailed() {
+        this.status = PaymentStatus.PAYMENT_FAILED;
     }
 }

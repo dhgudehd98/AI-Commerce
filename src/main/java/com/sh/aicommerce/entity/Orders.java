@@ -50,13 +50,14 @@ public class Orders {
     private LocalDateTime orderedAt;
 
     public static Orders createOrder(Member member, Long optionId, Integer
-            totalPaymentPrice) {
+            totalPaymentPrice, String orderNumber) {
         Orders order = new Orders();
         order.member = member;
         order.orderNumber = createOrderNumber(optionId);
-        order.status = OrderStatus.CREATED;
+        order.status = OrderStatus.PENDING_PAYMENT;
         order.totalPrice = totalPaymentPrice;
         order.orderedAt = LocalDateTime.now();
+        order.orderNumber = orderNumber;
 
         return order;
     }
@@ -91,8 +92,8 @@ public class Orders {
         this.status = OrderStatus.PAID;
     }
 
-    public void updateStatusToFailed() {
-        this.status = OrderStatus.FAILED;
+    public void updateStatusToRejected() {
+        this.status = OrderStatus.PAYMENT_REJECTED;
     }
 
     public void updateStatusToCancelRequest() {
@@ -101,5 +102,16 @@ public class Orders {
 
     public void updateStatusToCancel() {
         this.status = OrderStatus.CANCELED;
+    }
+
+    public void updateOrderStatusToPaymentProcessing() {
+        this.status = OrderStatus.PAYMENT_PROCESSING;
+    }
+    public void updateStatusToPaymentComplete() {
+        this.status = OrderStatus.PAID;
+    }
+
+    public void updateStatusToPaymentFailed() {
+        this.status = OrderStatus.PAYMENT_FAILED;
     }
 }
