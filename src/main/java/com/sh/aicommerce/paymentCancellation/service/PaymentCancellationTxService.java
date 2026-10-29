@@ -6,6 +6,7 @@ import com.sh.aicommerce.common.exception.orderCancellation.OrderCancellationExc
 import com.sh.aicommerce.common.exception.payment.PaymentException;
 import com.sh.aicommerce.common.exception.paymentAttempt.PaymentAttemptException;
 import com.sh.aicommerce.common.exception.paymentCancellation.PaymentCancellationException;
+import com.sh.aicommerce.common.exception.toss.TossCancelException;
 import com.sh.aicommerce.entity.*;
 import com.sh.aicommerce.enums.order.OrderCancelStatus;
 import com.sh.aicommerce.enums.order.OrderStatus;
@@ -45,40 +46,40 @@ public class PaymentCancellationTxService {
     private final EntityManager entityManager;
 
     @Transactional
-    public void validateAndPaymentCancellation(Long cancellationId) {
-        OrderCancellation orderCancellation = orderCancellationRepository.findById(cancellationId)
-                .orElseThrow(() -> new OrderCancellationException("주문 취소 번호에 일치하는 주문 취소 내역이 존재하지 않습니다."));
+    public void validateAndPaymentCancellation(Long paymentCancellationId) {
+
+        PaymentCancellation paymentCancellation = paymentCancellationRepository.findById(paymentCancellationId)
+                .orElseThrow(() -> new PaymentCancellationException("결제 취소 요청 내역이 존재하지 않습니다."));
+
+        OrderCancellation orderCancellation = paymentCancellation.getOrderCancellation();
         Orders order = orderCancellation.getOrder();
-        Payment payment = order.getPayment();
+        Payment payment = paymentCancellation.getPayment();
         PaymentAttempt attempt = attemptRepository.findPaymentAttemptByOrderNumber(order.getOrderNumber())
                 .orElseThrow(() -> new PaymentAttemptException("주문 번호에 해당하는 결제 승인 요청 내역이 존재하지 않습니다."));
 
+        if(paymentCancellation.getStatus() != PaymentCancellationStatus.READY)
+            throw new PaymentCancellationException("현재 결제 취소가 가능한 상태가 아닙니다.");
 
         if(!orderCancellation.getOrder().getId().equals(order.getId()))
             throw new OrderCancellationException("취소 요청하려는 주문번호가 일치하지 않습니다.");
 
-        if(payment.getStatus() != PaymentStatus.PAID &&
-                order.getStatus() != OrderStatus.PAID &&
+        if(payment.getStatus() != PaymentStatus.PAID ||
+                order.getStatus() != OrderStatus.PAID ||
                 attempt.getStatus() != PaymentAttemptStatus.SUCCESS)
             throw new OrderCancellationException("결제가 완료된 내역이 아닙니다.");
 
-        PaymentCancellation paymentCancellation = paymentCancellationRepository.findByPaymentId(payment.getId())
-                .orElseGet(() -> {
-                    PaymentCancellation created = PaymentCancellation.createPaymentCancellation(payment, orderCancellation);
-                    PaymentCancellation saved = paymentCancellationRepository.save(created);
 
-                    return saved;
-                });
     }
 
-    public CancellationRequestRecord startCancellation(Long orderCancellationId) {
-        OrderCancellation orderCancellation = orderCancellationRepository.findByIdForUpdate(orderCancellationId)
-                .orElseThrow(() -> new OrderCancellationException("주문 취소 번호 내역이 존재하지 않습니다."));
+    @Transactional
+    public CancellationRequestRecord startCancellation(Long paymentCancellationId) {
 
-        PaymentCancellation paymentCancellation = paymentCancellationRepository.findPaymentCancellationByOrderCancellationIdForUpdate(orderCancellation.getId())
-                .orElseThrow(() -> new PaymentCancellationException("결제 취소 내역이 존재하지 않습니다."));
+        PaymentCancellation paymentCancellation = paymentCancellationRepository.findByIdForUpdate(paymentCancellationId)
+                .orElseThrow(() -> new PaymentCancellationException("결제 취소 요청 내역이 존재하지 않습니다."));
 
-        if(orderCancellation.getCancelStatus() != OrderCancelStatus.REQUESTED)
+        OrderCancellation orderCancellation = paymentCancellation.getOrderCancellation();
+
+        if(orderCancellation.getCancelStatus() != OrderCancelStatus.PROCESSING)
             return null;
 
         if(paymentCancellation.getStatus() != PaymentCancellationStatus.READY)
@@ -93,7 +94,7 @@ public class PaymentCancellationTxService {
         paymentCancellation.startPaymentCancellation();
         orderCancellation.startOrderCancellation();
 
-        return new CancellationRequestRecord(orderCancellationId, paymentCancellation.getId(), orderCancellation.getOrder().getOrderNumber(), paymentCancellation.getIdempotencyKey(), paymentCancellation.getPayment().getPaymentKey());
+        return new CancellationRequestRecord(orderCancellation.getId(), paymentCancellation.getId(), orderCancellation.getOrder().getOrderNumber(), paymentCancellation.getIdempotencyKey(), paymentCancellation.getPayment().getPaymentKey());
 
     }
 
@@ -276,5 +277,51 @@ public class PaymentCancellationTxService {
                     "결제 취소 요청 금액과 원결제 금액이 일치하지 않습니다."
             );
         }
+    }
+
+    @Transactional
+    public void rejectCancel(CancellationRequestRecord record, TossCancelException cancelException) {
+        log.info("[주문 취소 결제 거절]");
+        String errorCode = cancelException.getErrorCode();
+        String errorMessage = cancelException.getMessage();
+
+        Long paymentCancellationId = record.paymentCancellationId();
+        Long orderCancellationId = record.orderCancellationId();
+
+        OrderCancellation orderCancellation = orderCancellationRepository.findByIdForUpdate(orderCancellationId)
+                .orElseThrow(() -> new OrderCancellationException("주문 취소 정보 존재하지 않음."));
+
+        PaymentCancellation paymentCancellation = paymentCancellationRepository.findByIdForUpdate(paymentCancellationId)
+                .orElseThrow(() -> new PaymentCancellationException("결제 취소 정보 존재하지 않음."));
+
+
+        // 이미 취소가 완료된 데이터들인지 데이터 검증
+        if(orderCancellation.getCancelStatus() == OrderCancelStatus.COMPLETED
+            || paymentCancellation.getStatus() == PaymentCancellationStatus.SUCCESS)
+            return;
+
+        // 상태 값 업데이트 - 거절(거절 코드 및 거절 사유 저장)
+        paymentCancellation.updateStatusToRejected(errorCode, errorMessage);
+    }
+
+    @Transactional
+    public void unknownCancel(CancellationRequestRecord record) {
+        Long paymentCancellationId = record.paymentCancellationId();
+        Long orderCancellationId = record.orderCancellationId();
+
+        OrderCancellation orderCancellation = orderCancellationRepository.findByIdForUpdate(orderCancellationId)
+                .orElseThrow(() -> new OrderCancellationException("주문 취소 정보 존재하지 않음."));
+
+        PaymentCancellation paymentCancellation = paymentCancellationRepository.findByIdForUpdate(paymentCancellationId)
+                .orElseThrow(() -> new PaymentCancellationException("결제 취소 정보 존재하지 않음."));
+
+        // 이미 취소가 완료된 데이터들인지 데이터 검증
+        if(orderCancellation.getCancelStatus() == OrderCancelStatus.COMPLETED
+                || paymentCancellation.getStatus() == PaymentCancellationStatus.SUCCESS)
+            return;
+
+        // 상태 값 업데이트 RestClientException의 경우 정확히 어디서 에러가 난지 알 수 없음으로 Unknown 상태 값으로 관리
+        paymentCancellation.updateStatusToUnknown();
+
     }
 }

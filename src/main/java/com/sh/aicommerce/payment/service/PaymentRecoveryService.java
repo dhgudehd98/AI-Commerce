@@ -27,7 +27,9 @@ public class PaymentRecoveryService {
 
     private void recoverPayment(Long paymentId) {
         log.info("[PAYMENT] stage=RECOVERY_VALIDATE event=START paymentId={}", paymentId);
+
         PaymentRecoveryRequestDto dto = retryTxService.validateRecoveryTarget(paymentId);
+
         if(dto == null) {
             log.info("[PAYMENT] stage=RECOVERY_VALIDATE event=SKIPPED paymentId={}", paymentId);
             return;

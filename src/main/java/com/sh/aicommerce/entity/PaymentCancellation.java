@@ -40,6 +40,9 @@ public class PaymentCancellation {
     @Column(nullable = false)
     private String cancelReason;
 
+    private String failCode;
+    private String failMessage;
+
     private LocalDateTime createdAt;
 
     private LocalDateTime completedAt;
@@ -71,5 +74,19 @@ public class PaymentCancellation {
         this.canceledAt = cancelResponseDto.getCanceledAt().toLocalDateTime();
         this.updatedAt = LocalDateTime.now();
         this.completedAt = LocalDateTime.now();
+    }
+
+    // Toss API에서 취소 거절 코드가 있는 경우
+    public void updateStatusToRejected(String code, String message) {
+        this.status = PaymentCancellationStatus.REJECTED;
+        this.updatedAt = LocalDateTime.now();
+
+        this.failCode = code;
+        this.failMessage = message;
+    }
+
+    public void updateStatusToUnknown() {
+        this.updatedAt = LocalDateTime.now();
+        this.status = PaymentCancellationStatus.UNKNOWN;
     }
 }
