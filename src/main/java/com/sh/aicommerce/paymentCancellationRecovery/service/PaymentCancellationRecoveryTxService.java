@@ -34,6 +34,7 @@ import java.util.Objects;
 @Slf4j
 @RequiredArgsConstructor
 public class PaymentCancellationRecoveryTxService {
+    private static final int RECOVERY_ERROR_MESSAGE_MAX_LENGTH = 1000;
 
     private final EntityManager entityManager;
     private final PaymentCancellationRepository cancellationRepository;
@@ -235,6 +236,58 @@ public class PaymentCancellationRecoveryTxService {
         log.info("[PAYMENT_CANCEL] stage=RECOVERY_RESPONSE_VALIDATE event=VALIDATED recoveryId={} historyId={} paymentCancellationId={} paymentId={} orderNumber={} cancelAmount={}",
                 recovery.getId(), history.getId(), cancellation.getId(), payment.getId(), order.getOrderNumber(), cancel.getCancelAmount());
         return new PaymentCancellationRecoveryTarget(cancellation,recovery, history, payment, order);
+    }
+
+    /** PG 조회 오류: 인증·설정 오류 등은 즉시 운영자 확인, 나머지는 최대 횟수까지 재조회 */
+    @Transactional
+    public void updateRecoveryQueryFailure(Long historyId, String errorCode, String errorMessage,
+                                           boolean manualReview) {
+        applyRecoveryFailure(historyId, errorCode, errorMessage, manualReview, false);
+    }
+
+    /** 결과 검증·DB 반영 실패는 롤백 종료 후 별도 트랜잭션에서 기록 */
+    @Transactional
+    public void updateRecoveryApplyFailure(Long historyId, RuntimeException exception) {
+        String message = StringUtils.hasText(exception.getMessage())
+                ? exception.getMessage() : exception.getClass().getSimpleName();
+        applyRecoveryFailure(historyId, null, message, false, true);
+    }
+
+    private void applyRecoveryFailure(Long historyId, String errorCode, String errorMessage,
+                                      boolean manualReview, boolean applyFailure) {
+        log.warn("[PAYMENT_CANCEL] stage=RECOVERY_FAILURE_APPLY event=START historyId={} pgCode={} applyFailure={}",
+                historyId, errorCode, applyFailure);
+        PaymentCancellationRecoveryHistory history = historyRepository.findByIdForUpdate(historyId)
+                .orElseThrow(() -> new PaymentCancellationRecoveryHistoryException(
+                        "[결제 취소/RECOVERY_FAILURE_APPLY] 복구 실행 이력이 없습니다."));
+        PaymentCancellationRecovery recovery = history.getPaymentCancellationRecovery();
+        entityManager.refresh(recovery, LockModeType.PESSIMISTIC_WRITE);
+        if (recovery.getStatus() != PaymentRecoveryStatus.PROCESSING
+                || history.getAttemptNumber() != recovery.getRetryCount()
+                || history.getResult() != PaymentRecoveryResult.CREATE
+                || history.getCompletedAt() != null) {
+            log.info("[PAYMENT_CANCEL] stage=RECOVERY_FAILURE_APPLY event=STATE_SKIPPED recoveryId={} historyId={} recoveryStatus={} historyResult={}",
+                    recovery.getId(), historyId, recovery.getStatus(), history.getResult());
+            return;
+        }
+        String message = StringUtils.hasText(errorMessage) ? errorMessage : "결제 취소 복구 중 오류 발생";
+        if (message.length() > RECOVERY_ERROR_MESSAGE_MAX_LENGTH) {
+            message = message.substring(0, RECOVERY_ERROR_MESSAGE_MAX_LENGTH);
+        }
+        // 실행 시작 시 이미 증가한 retryCount 사용. 취소 상태·주문·결제·재고는 변경하지 않는 범위
+        if (manualReview || recovery.getRetryCount() >= recovery.getMaxRetryCount()) {
+            recovery.updateRecoveryToManualCheck(errorCode, message);
+        } else {
+            recovery.updateRecoveryForNextRetry(errorCode, message);
+        }
+        if (applyFailure) {
+            history.updateHistoryForApplyFailure(errorCode, message);
+        } else {
+            history.updateHistoryForNextRetry(errorCode, message);
+        }
+        log.warn("[PAYMENT_CANCEL] stage=RECOVERY_FAILURE_APPLY event=APPLIED_PENDING_COMMIT recoveryId={} historyId={} retryCount={} maxRetryCount={} recoveryStatus={} historyResult={} pgCode={}",
+                recovery.getId(), historyId, recovery.getRetryCount(), recovery.getMaxRetryCount(),
+                recovery.getStatus(), history.getResult(), errorCode);
     }
 
     private PaymentCancellationRecoveryException invalidResult(String message) {
