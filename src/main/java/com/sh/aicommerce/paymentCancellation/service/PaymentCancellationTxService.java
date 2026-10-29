@@ -78,7 +78,7 @@ public class PaymentCancellationTxService {
         PaymentCancellation paymentCancellation = paymentCancellationRepository.findPaymentCancellationByOrderCancellationIdForUpdate(orderCancellation.getId())
                 .orElseThrow(() -> new PaymentCancellationException("결제 취소 내역이 존재하지 않습니다."));
 
-        if(orderCancellation.getCancelStatus() != OrderCancelStatus.CANCEL_REQUEST)
+        if(orderCancellation.getCancelStatus() != OrderCancelStatus.REQUESTED)
             return null;
 
         if(paymentCancellation.getStatus() != PaymentCancellationStatus.READY)
@@ -157,7 +157,7 @@ public class PaymentCancellationTxService {
 
         // 2. OrderCancellation 상태 검증
         if (orderCancellation.getCancelStatus()
-                != OrderCancelStatus.PROCESSING_START) {
+                != OrderCancelStatus.PROCESSING) {
             throw new PaymentCancellationException(
                     "주문 취소가 진행 중인 상태가 아닙니다."
             );
