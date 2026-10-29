@@ -27,6 +27,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
 
@@ -35,6 +36,7 @@ import java.util.Objects;
 @RequiredArgsConstructor
 public class PaymentCancellationRecoveryTxService {
     private static final int RECOVERY_ERROR_MESSAGE_MAX_LENGTH = 1000;
+    private static final long PROCESSING_TIMEOUT_MINUTES = 30;
 
     private final EntityManager entityManager;
     private final PaymentCancellationRepository cancellationRepository;
@@ -44,6 +46,21 @@ public class PaymentCancellationRecoveryTxService {
     @Transactional
     public List<Long> findUnknownPaymentCancellation() {
         return cancellationRepository.findUnknownPaymentCancellation();
+    }
+
+    @Transactional(readOnly = true)
+    public List<Long> findStaleProcessingPaymentCancellation() {
+        LocalDateTime cutoff = LocalDateTime.now().minusMinutes(PROCESSING_TIMEOUT_MINUTES);
+        return cancellationRepository.findStaleProcessingPaymentCancellation(cutoff);
+    }
+
+    /** UNKNOWN 또는 마지막 수정 이후 30분 이상 지난 PROCESSING만 복구 허용 */
+    private boolean isRecoverableCancellation(PaymentCancellation cancellation) {
+        return cancellation.getStatus() == PaymentCancellationStatus.UNKNOWN
+                || (cancellation.getStatus() == PaymentCancellationStatus.PROCESSING
+                    && cancellation.getUpdatedAt() != null
+                    && !cancellation.getUpdatedAt().isAfter(
+                            LocalDateTime.now().minusMinutes(PROCESSING_TIMEOUT_MINUTES)));
     }
 
     /**
@@ -62,8 +79,12 @@ public class PaymentCancellationRecoveryTxService {
         Orders order = orderCancellation.getOrder();
 
 
-        if(paymentCancellation.getStatus() != PaymentCancellationStatus.UNKNOWN)
-            throw new PaymentCancellationException("현재 복구 작업을 처리 할 수 있는 상태가 아닙니다.");
+        // 목록 조회 이후 상태가 변경됐거나 아직 정상 진행 중인 요청은 건너뛰기
+        if (!isRecoverableCancellation(paymentCancellation)) {
+            log.info("[PAYMENT_CANCEL] stage=RECOVERY_VALIDATE event=STATE_SKIPPED paymentCancellationId={} status={} updatedAt={}",
+                    paymentCancellationId, paymentCancellation.getStatus(), paymentCancellation.getUpdatedAt());
+            return null;
+        }
 
         if(orderCancellation.getCancelStatus() != OrderCancelStatus.PROCESSING)
             throw new OrderCancellationException("현재 주문 취수 복구 처리가 가능한 상태가 아닙니다.");
@@ -196,8 +217,7 @@ public class PaymentCancellationRecoveryTxService {
                 || !Objects.equals(dto.getIdempotencyKey(), cancellation.getIdempotencyKey())) {
             throw invalidResult("복구 요청과 주문·결제·취소 작업 연결이 일치하지 않습니다.");
         }
-        if (cancellation.getStatus() != PaymentCancellationStatus.UNKNOWN
-                && cancellation.getStatus() != PaymentCancellationStatus.PROCESSING) {
+        if (!isRecoverableCancellation(cancellation)) {
             throw invalidResult("결과 확인이 필요한 결제 취소 상태가 아닙니다.");
         }
         if (orderCancellation.getCancelStatus() != OrderCancelStatus.PROCESSING

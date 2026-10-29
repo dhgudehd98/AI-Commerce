@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -52,4 +53,11 @@ public interface PaymentCancellationRepository extends JpaRepository<PaymentCanc
     where pc.status = 'UNKNOWN'
     """)
     List<Long> findUnknownPaymentCancellation();
+    @Query("""
+    select pc.id
+    from PaymentCancellation pc
+    where pc.status = 'PROCESSING'
+      and pc.updatedAt <= :cutoff
+    """)
+    List<Long> findStaleProcessingPaymentCancellation(@Param("cutoff") LocalDateTime cutoff);
 }
