@@ -1,4 +1,4 @@
-package com.sh.aicommerce.common.scheduler.orderCancellation;
+package com.sh.aicommerce.paymentCancellation.service;
 
 import com.sh.aicommerce.common.exception.toss.TossCancelException;
 import com.sh.aicommerce.common.exception.toss.TossRestClientException;
@@ -13,7 +13,7 @@ import org.springframework.stereotype.Component;
 @Component
 @Slf4j
 @RequiredArgsConstructor
-public class CancellationProcessor {
+public class PaymentCancellationService {
     private final PaymentCancellationTxService txService;
     private final TossPaymentClient client;
 

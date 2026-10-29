@@ -16,8 +16,8 @@ import com.sh.aicommerce.payment.repository.PaymentRepository;
 import com.sh.aicommerce.payment.repository.history.PaymentRecoveryHistoryRepository;
 import com.sh.aicommerce.payment.repository.recovery.PaymentRecoveryRepository;
 import com.sh.aicommerce.paymentAttempt.repository.PaymentAttemptRepository;
-import com.sh.aicommerce.recovery.dto.record.RecoveryTarget;
-import com.sh.aicommerce.recovery.dto.request.PaymentRecoveryRequestDto;
+import com.sh.aicommerce.paymentRecovery.dto.record.RecoveryTarget;
+import com.sh.aicommerce.paymentRecovery.dto.request.PaymentRecoveryRequestDto;
 import com.sh.aicommerce.toss.dto.response.TossPaymentRequestHistoryResponseDto;
 import com.sh.aicommerce.toss.repository.TossPaymentLogRepository;
 import com.sh.aicommerce.wms.inventory.service.ProductInventoryService;
@@ -39,7 +39,7 @@ import com.sh.aicommerce.enums.paymentRecovery.PaymentRecoveryResult;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class PaymentRetryTxService {
+public class PaymentRecoveryTxService {
     private static final int RECOVERY_ERROR_MESSAGE_MAX_LENGTH = 1000;
     private static final long PROCESSING_TIMEOUT_MINUTES = 30;
     private final PaymentRepository paymentRepository;
@@ -70,9 +70,7 @@ public class PaymentRetryTxService {
                                 )
                         );
 
-        entityManager.refresh(payment, LockModeType.PESSIMISTIC_WRITE);
         Orders order = payment.getOrder();
-        entityManager.refresh(order, LockModeType.PESSIMISTIC_WRITE);
 
         PaymentAttempt attempt =
                 attemptRepository
@@ -84,8 +82,6 @@ public class PaymentRetryTxService {
                                         "결제 승인 시도 내역이 존재하지 않습니다."
                                 )
                         );
-
-        entityManager.refresh(attempt, LockModeType.PESSIMISTIC_WRITE);
         if (!isRecoverableState(payment, attempt, order)
                 || !Objects.equals(attempt.getPayment().getId(), payment.getId())) {
             log.info("[PAYMENT] stage=RECOVERY_VALIDATE event=STATE_SKIPPED paymentId={} paymentStatus={} attemptStatus={} orderStatus={}",

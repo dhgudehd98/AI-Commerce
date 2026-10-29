@@ -1,4 +1,4 @@
-package com.sh.aicommerce.recovery.dto.record;
+package com.sh.aicommerce.paymentRecovery.dto.record;
 
 import com.sh.aicommerce.entity.*;
 

@@ -1,4 +1,4 @@
-package com.sh.aicommerce.recovery.dto.request;
+package com.sh.aicommerce.paymentRecovery.dto.request;
 
 import com.sh.aicommerce.entity.Orders;
 import com.sh.aicommerce.entity.Payment;
@@ -11,24 +11,23 @@ import lombok.NoArgsConstructor;
 @Getter
 @AllArgsConstructor
 @NoArgsConstructor
-public class PaymentRecoveryRequestDto {
+public class ProcessingPaymentRequestDto {
     private Long recoveryId;
     private Long paymentId;
     private Long attemptId;
     private Long orderId;
     private String orderNumber;
-    private String idempotencyKey; // PG 요청 멱등성 키
+
     private String failureCode; // 실패 코드에 대한 값은 따로 설정하기 -> 애초에 Exception에 저장할때 설정하기
     private String failureMessage;
 
 
-    public PaymentRecoveryRequestDto(Payment payment, PaymentAttempt attempt, Orders order, PaymentRecovery recovery) {
+    public ProcessingPaymentRequestDto(Payment payment, PaymentAttempt attempt, Orders order, PaymentRecovery recovery) {
         this.recoveryId = recovery.getId();
         this.paymentId = payment.getId();
         this.attemptId = attempt.getId();
         this.orderId = order.getId();
         this.orderNumber = order.getOrderNumber();
-        this.idempotencyKey = attempt.getIdempotencyKey();
         this.failureMessage = payment.getFailReason();
     }
 }
