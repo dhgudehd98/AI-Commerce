@@ -20,12 +20,14 @@ public class PaymentCancellationScheduler {
 
 //    @Scheduled
     public void findPaymentCancellation() {
+        log.info("[PAYMENT_CANCEL] stage=SCAN event=START");
 
         /**
          * 주문 취소 요청 처리 스케줄러
          * - 상태값 : CANCEL_REQUEST 인 주문 취소 요청 데이터 조회
          */
         List<Long> cancels = paymentCancellationRepository.findTargetPaymentCancellation();
+        log.info("[PAYMENT_CANCEL] stage=SCAN event=CANDIDATES count={}", cancels.size());
 
         if(cancels.isEmpty())
             return;

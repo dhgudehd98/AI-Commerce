@@ -15,7 +15,9 @@ public class OrderCancellationScheduler {
     private final OrderCancellationTransactionService orderCancellationTxService;
 //    @Scheduled
     public void processOrderCancellation() {
+        log.info("[ORDER_CANCEL] stage=SCAN event=START");
         List<Long> cancellationIds = orderCancellationTxService.findTargetOrderCancellation();
+        log.info("[ORDER_CANCEL] stage=SCAN event=CANDIDATES count={}", cancellationIds.size());
 
         if(cancellationIds.isEmpty())
             return;

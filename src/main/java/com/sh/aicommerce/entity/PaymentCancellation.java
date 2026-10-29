@@ -15,6 +15,8 @@ import java.util.UUID;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class PaymentCancellation {
 
+    public static final int FAILURE_MESSAGE_MAX_LENGTH = 1000;
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -41,6 +43,7 @@ public class PaymentCancellation {
     private String cancelReason;
 
     private String failCode;
+    @Column(length = FAILURE_MESSAGE_MAX_LENGTH)
     private String failMessage;
 
     private LocalDateTime createdAt;
@@ -85,7 +88,9 @@ public class PaymentCancellation {
         this.failMessage = message;
     }
 
-    public void updateStatusToUnknown() {
+    public void updateStatusToUnknown(String message) {
+        this.failCode = null;
+        this.failMessage = message;
         this.updatedAt = LocalDateTime.now();
         this.status = PaymentCancellationStatus.UNKNOWN;
     }

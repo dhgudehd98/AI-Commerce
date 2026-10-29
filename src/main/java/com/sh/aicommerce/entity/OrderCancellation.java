@@ -44,7 +44,8 @@ public class OrderCancellation {
     private LocalDateTime reservationReleasedAt; // 상품 선점 해제 완료 시간
 
     private String cancelReason; // 취소 사유
-    private String failReason; // 실패 사유
+    private String failCode; //실패 코드
+    private String failMessage; // 실패 사유
     private String admin; // 관리자
     private String paymentKey; // PG 결제 취소 요처
 

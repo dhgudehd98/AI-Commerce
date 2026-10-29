@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -36,4 +37,11 @@ public interface PaymentCancellationRepository extends JpaRepository<PaymentCanc
     where pc.id = :paymentCancellationId
     """)
     Optional<PaymentCancellation> findByIdForUpdate(@Param("paymentCancellationId")Long paymentCancellationId);
+
+    @Query("""
+    select pc.id
+    from PaymentCancellation pc
+    where pc.status = 'READY'
+    """)
+    List<Long> findTargetPaymentCancellation();
 }

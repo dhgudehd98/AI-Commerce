@@ -1,75 +1,77 @@
 package com.sh.aicommerce.common.scheduler.orderCancellation;
 
-import com.sh.aicommerce.common.exception.orderCancellation.OrderCancellationException;
-import com.sh.aicommerce.common.exception.paymentAttempt.PaymentAttemptException;
 import com.sh.aicommerce.common.exception.toss.TossCancelException;
 import com.sh.aicommerce.common.exception.toss.TossRestClientException;
-import com.sh.aicommerce.entity.*;
-import com.sh.aicommerce.enums.order.OrderStatus;
-import com.sh.aicommerce.enums.payment.PaymentAttemptStatus;
-import com.sh.aicommerce.enums.payment.PaymentStatus;
 import com.sh.aicommerce.orderCancellation.dto.record.CancellationRequestRecord;
-import com.sh.aicommerce.orderCancellation.repository.OrderCancellationRepository;
-import com.sh.aicommerce.paymentAttempt.repository.PaymentAttemptRepository;
-import com.sh.aicommerce.paymentCancellation.repository.PaymentCancellationRepository;
 import com.sh.aicommerce.paymentCancellation.service.PaymentCancellationTxService;
 import com.sh.aicommerce.toss.dto.response.TossPaymentCancelResponseDto;
 import com.sh.aicommerce.toss.service.TossPaymentClient;
-import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 @Component
 @Slf4j
 @RequiredArgsConstructor
 public class CancellationProcessor {
-
     private final PaymentCancellationTxService txService;
     private final TossPaymentClient client;
 
-    /**
-     * 주문 취소 처리 요청 Flow
-     * 1. OrderCancellation Status : CANCEL_REQUEST 데이터 수집
-     * 2. 데이터 검증
-     *   - Payment, Order, PaymentAttempt : PAID 상태인지 확인
-     *   - OrderCancellation , Order 동일한 값을 가지고 있는지 확인
-     *   - PaymentCancellation이 이미 있는지 확인
-     * 3. PaymentCancellation(주문 취소 요청 Entity) 생성
-     *
-     */
-    public void process(Long orderCancellationId) {
+    /** 항목별 예외 격리 및 원인 기록 */
+    public void process(Long paymentCancellationId) {
+        log.info("[PAYMENT_CANCEL] stage=PROCESS event=START paymentCancellationId={}", paymentCancellationId);
         try {
-            cancelPayment(orderCancellationId);
+            cancelPayment(paymentCancellationId);
         } catch (RuntimeException e) {
-            log.error("에러 발생 에러 메세지 : {}", e.getMessage());
+            log.error("[PAYMENT_CANCEL] stage=PROCESS event=FAILED paymentCancellationId={}",
+                    paymentCancellationId, e);
         }
-
     }
 
-    public void cancelPayment(Long orderCancellationId) {
-
-        txService.validateAndPaymentCancellation(orderCancellationId);
-        CancellationRequestRecord record = txService.startCancellation(orderCancellationId);
-
+    /** 검증·선점 커밋 → PG 호출 → 별도 트랜잭션 결과 반영 */
+    public void cancelPayment(Long paymentCancellationId) {
+        // 호출 전 검증 실패는 UNKNOWN 처리 대상에서 제외
+        txService.validateAndPaymentCancellation(paymentCancellationId);
+        CancellationRequestRecord record = txService.startCancellation(paymentCancellationId);
         if (record == null) {
+            log.info("[PAYMENT_CANCEL] stage=CLAIM event=SKIPPED paymentCancellationId={}", paymentCancellationId);
             return;
         }
 
+        log.info("[PAYMENT_CANCEL] stage=CLAIM event=TRANSACTION_RETURNED paymentCancellationId={} orderCancellationId={} orderNumber={}", record.paymentCancellationId(), record.orderCancellationId(), record.orderNumber());
         try {
-            // TossAPI 결제 취소 요청
+            log.info("[PAYMENT_CANCEL] stage=PG_REQUEST event=START paymentCancellationId={} orderNumber={}", record.paymentCancellationId(), record.orderNumber());
             TossPaymentCancelResponseDto response = client.cancel(record);
-            // 결제 취소 요청 완료 시, 상태 값 변경
+            log.info("[PAYMENT_CANCEL] stage=PG_REQUEST event=RESPONSE_RECEIVED paymentCancellationId={} orderNumber={} pgStatus={}", record.paymentCancellationId(), record.orderNumber(), response == null ? null : response.getStatus());
             txService.cancel(response, record);
-        } catch (TossCancelException cancelException) {
-
-        } catch (TossRestClientException restClientException) {
-
-        } catch (RuntimeException runtimeException) {
-
+            log.info("[PAYMENT_CANCEL] stage=RESULT_APPLY event=TRANSACTION_RETURNED paymentCancellationId={} orderNumber={}", record.paymentCancellationId(), record.orderNumber());
+        } catch (TossCancelException e) {
+            log.warn("[PAYMENT_CANCEL] stage=PG_REQUEST event=REJECTED paymentCancellationId={} orderNumber={} pgCode={}", record.paymentCancellationId(), record.orderNumber(), e.getErrorCode());
+            try {
+                txService.rejectCancel(record, e);
+                log.info("[PAYMENT_CANCEL] stage=REJECT_APPLY event=TRANSACTION_RETURNED paymentCancellationId={}", record.paymentCancellationId());
+            } catch (RuntimeException saveException) {
+                saveException.addSuppressed(e);
+                saveUnknown(record, saveException);
+            }
+        } catch (TossRestClientException e) {
+            saveUnknown(record, e);
+        } catch (RuntimeException e) {
+            // PG 응답 정합성 검증 또는 DB 반영 실패
+            saveUnknown(record, e);
         }
     }
 
-
+    private void saveUnknown(CancellationRequestRecord record, RuntimeException cause) {
+        log.error("[PAYMENT_CANCEL] stage=RESULT_APPLY event=RESULT_UNKNOWN orderCancellationId={} paymentCancellationId={} errorType={}",
+                record.orderCancellationId(), record.paymentCancellationId(), cause.getClass().getSimpleName(), cause);
+        try {
+            txService.unknownCancel(record, cause);
+            log.info("[PAYMENT_CANCEL] stage=UNKNOWN_APPLY event=TRANSACTION_RETURNED paymentCancellationId={}", record.paymentCancellationId());
+        } catch (RuntimeException saveException) {
+            saveException.addSuppressed(cause);
+            log.error("[PAYMENT_CANCEL] stage=UNKNOWN_APPLY event=FAILED orderCancellationId={} paymentCancellationId={}",
+                    record.orderCancellationId(), record.paymentCancellationId(), saveException);
+        }
+    }
 }

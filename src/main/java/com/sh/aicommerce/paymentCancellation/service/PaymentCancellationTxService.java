@@ -47,46 +47,55 @@ public class PaymentCancellationTxService {
 
     @Transactional
     public void validateAndPaymentCancellation(Long paymentCancellationId) {
+        log.info("[PAYMENT_CANCEL] stage=VALIDATE event=START paymentCancellationId={}", paymentCancellationId);
 
         PaymentCancellation paymentCancellation = paymentCancellationRepository.findById(paymentCancellationId)
-                .orElseThrow(() -> new PaymentCancellationException("결제 취소 요청 내역이 존재하지 않습니다."));
+                .orElseThrow(() -> new PaymentCancellationException("[결제 취소/VALIDATE] 결제 취소 요청 내역이 존재하지 않습니다."));
 
         OrderCancellation orderCancellation = paymentCancellation.getOrderCancellation();
         Orders order = orderCancellation.getOrder();
         Payment payment = paymentCancellation.getPayment();
         PaymentAttempt attempt = attemptRepository.findPaymentAttemptByOrderNumber(order.getOrderNumber())
-                .orElseThrow(() -> new PaymentAttemptException("주문 번호에 해당하는 결제 승인 요청 내역이 존재하지 않습니다."));
+                .orElseThrow(() -> new PaymentAttemptException("[결제 취소/VALIDATE] 주문 번호에 해당하는 결제 승인 요청 내역이 존재하지 않습니다."));
 
         if(paymentCancellation.getStatus() != PaymentCancellationStatus.READY)
-            throw new PaymentCancellationException("현재 결제 취소가 가능한 상태가 아닙니다.");
+            throw new PaymentCancellationException("[결제 취소/VALIDATE] 현재 결제 취소가 가능한 상태가 아닙니다.");
 
         if(!orderCancellation.getOrder().getId().equals(order.getId()))
-            throw new OrderCancellationException("취소 요청하려는 주문번호가 일치하지 않습니다.");
+            throw new OrderCancellationException("[결제 취소/VALIDATE] 취소 요청하려는 주문번호가 일치하지 않습니다.");
 
         if(payment.getStatus() != PaymentStatus.PAID ||
                 order.getStatus() != OrderStatus.PAID ||
                 attempt.getStatus() != PaymentAttemptStatus.SUCCESS)
-            throw new OrderCancellationException("결제가 완료된 내역이 아닙니다.");
+            throw new OrderCancellationException("[결제 취소/VALIDATE] 결제가 완료된 내역이 아닙니다.");
 
 
+        log.info("[PAYMENT_CANCEL] stage=VALIDATE event=VALIDATED paymentCancellationId={} orderCancellationId={} paymentId={} orderNumber={} attemptId={}",
+                paymentCancellationId, orderCancellation.getId(), payment.getId(), order.getOrderNumber(), attempt.getId());
     }
 
     @Transactional
     public CancellationRequestRecord startCancellation(Long paymentCancellationId) {
+        log.info("[PAYMENT_CANCEL] stage=CLAIM event=START paymentCancellationId={}", paymentCancellationId);
 
         PaymentCancellation paymentCancellation = paymentCancellationRepository.findByIdForUpdate(paymentCancellationId)
-                .orElseThrow(() -> new PaymentCancellationException("결제 취소 요청 내역이 존재하지 않습니다."));
+                .orElseThrow(() -> new PaymentCancellationException("[결제 취소/CLAIM] 결제 취소 요청 내역이 존재하지 않습니다."));
 
         OrderCancellation orderCancellation = paymentCancellation.getOrderCancellation();
 
-        if(orderCancellation.getCancelStatus() != OrderCancelStatus.PROCESSING)
+        if(orderCancellation.getCancelStatus() != OrderCancelStatus.PROCESSING) {
+            log.info("[PAYMENT_CANCEL] stage=CLAIM event=STATE_SKIPPED paymentCancellationId={} orderCancelStatus={}", paymentCancellationId, orderCancellation.getCancelStatus());
             return null;
+        }
 
-        if(paymentCancellation.getStatus() != PaymentCancellationStatus.READY)
+        if(paymentCancellation.getStatus() != PaymentCancellationStatus.READY) {
+            log.info("[PAYMENT_CANCEL] stage=CLAIM event=STATE_SKIPPED paymentCancellationId={} paymentCancelStatus={}", paymentCancellationId, paymentCancellation.getStatus());
             return null;
+        }
 
         // 재고 관련 처리는 결제 취소가 완료된 후에 처리할 수 있도록 해야됨.
         if (orderCancellation.getInventoryStatus() != InventoryCancelStatus.PENDING) {
+            log.info("[PAYMENT_CANCEL] stage=CLAIM event=STATE_SKIPPED paymentCancellationId={} inventoryStatus={}", paymentCancellationId, orderCancellation.getInventoryStatus());
             return null;
         }
 
@@ -94,19 +103,22 @@ public class PaymentCancellationTxService {
         paymentCancellation.startPaymentCancellation();
         orderCancellation.startOrderCancellation();
 
+        log.info("[PAYMENT_CANCEL] stage=CLAIM event=APPLIED_PENDING_COMMIT paymentCancellationId={} orderCancellationId={} orderNumber={} paymentCancelStatus={}",
+                paymentCancellationId, orderCancellation.getId(), orderCancellation.getOrder().getOrderNumber(), paymentCancellation.getStatus());
         return new CancellationRequestRecord(orderCancellation.getId(), paymentCancellation.getId(), orderCancellation.getOrder().getOrderNumber(), paymentCancellation.getIdempotencyKey(), paymentCancellation.getPayment().getPaymentKey());
 
     }
 
     @Transactional
     public void cancel(TossPaymentCancelResponseDto response, CancellationRequestRecord record) {
+        log.info("[PAYMENT_CANCEL] stage=RESULT_APPLY event=START paymentCancellationId={} orderCancellationId={} orderNumber={}", record.paymentCancellationId(), record.orderCancellationId(), record.orderNumber());
 
         PaymentCancellation paymentCancellation =
                 paymentCancellationRepository
                         .findByIdForUpdate(record.paymentCancellationId())
                         .orElseThrow(() ->
                                 new PaymentCancellationException(
-                                        "결제 취소 요청 내역이 존재하지 않습니다."
+                                        "[결제 취소/RESULT_APPLY] 결제 취소 요청 내역이 존재하지 않습니다."
                                 )
                         );
 
@@ -123,12 +135,14 @@ public class PaymentCancellationTxService {
                 || response.getCancels().isEmpty()
                 || response.getCancels().get(0) == null) {
             throw new PaymentCancellationException(
-                    "[결제 취소 응답 검증] 취소 상세 응답이 없습니다."
+                    "[결제 취소/RESULT_APPLY] 취소 상세 응답이 없습니다."
             );
         }
 
         // Toss 응답과 DB 데이터 비교
+        log.info("[PAYMENT_CANCEL] stage=RESPONSE_VALIDATE event=START paymentCancellationId={} paymentId={} orderNumber={}", paymentCancellation.getId(), payment.getId(), order.getOrderNumber());
         validateResponse(response, payment, order, paymentCancellation, orderCancellation);
+        log.info("[PAYMENT_CANCEL] stage=RESPONSE_VALIDATE event=VALIDATED paymentCancellationId={} paymentId={} cancelAmount={}", paymentCancellation.getId(), payment.getId(), paymentCancellation.getCancelAmount());
 
         //검증 통과 후 PaymentCancellation 결제 취소 내역 업데이트
         // OrderCancellation을 취소 상태로 변경하는 것은 여기서 하는 것이 아니라 상품 복귀 확인, 선점 재고 예약 해제가 되면 FAILED로 변경
@@ -138,6 +152,8 @@ public class PaymentCancellationTxService {
         // 결제 취소 내역 후, 결제 취소 내역 TossPaymentLog에 저장
         TossPaymentLog tossPaymentLog = TossPaymentLog.createStatusToCancelSuccess(payment, response, paymentCancellation.getId());
         tossPaymentLogRepository.save(tossPaymentLog);
+        log.info("[PAYMENT_CANCEL] stage=RESULT_APPLY event=APPLIED_PENDING_COMMIT paymentCancellationId={} orderCancellationId={} paymentId={} orderNumber={} paymentStatus={} paymentCancelStatus={}",
+                paymentCancellation.getId(), orderCancellation.getId(), payment.getId(), order.getOrderNumber(), payment.getStatus(), paymentCancellation.getStatus());
     }
 
     private void validateResponse(
@@ -152,7 +168,7 @@ public class PaymentCancellationTxService {
         if (paymentCancellation.getStatus()
                 != PaymentCancellationStatus.PROCESSING) {
             throw new PaymentCancellationException(
-                    "결제 취소 요청이 진행 중인 상태가 아닙니다."
+                    "[결제 취소/RESPONSE_VALIDATE] 결제 취소 요청이 진행 중인 상태가 아닙니다."
             );
         }
 
@@ -160,28 +176,28 @@ public class PaymentCancellationTxService {
         if (orderCancellation.getCancelStatus()
                 != OrderCancelStatus.PROCESSING) {
             throw new PaymentCancellationException(
-                    "주문 취소가 진행 중인 상태가 아닙니다."
+                    "[결제 취소/RESPONSE_VALIDATE] 주문 취소가 진행 중인 상태가 아닙니다."
             );
         }
 
         // 3. Payment 상태 검증
         if (payment.getStatus() != PaymentStatus.PAID) {
             throw new PaymentException(
-                    "결제 완료 상태가 아닙니다."
+                    "[결제 취소/RESPONSE_VALIDATE] 결제 완료 상태가 아닙니다."
             );
         }
 
         // 4. Orders 상태 검증
         if (order.getStatus() != OrderStatus.PAID) {
             throw new OrderException(
-                    "주문이 결제 완료 상태가 아닙니다."
+                    "[결제 취소/RESPONSE_VALIDATE] 주문이 결제 완료 상태가 아닙니다."
             );
         }
 
         // 5. Toss 응답 검증
         if (response == null) {
             throw new PaymentException(
-                    "Toss 결제 취소 응답이 존재하지 않습니다."
+                    "[결제 취소/RESPONSE_VALIDATE] Toss 결제 취소 응답이 존재하지 않습니다."
             );
         }
 
@@ -191,7 +207,7 @@ public class PaymentCancellationTxService {
                 payment.getPaymentKey()
         )) {
             throw new PaymentException(
-                    "Toss paymentKey가 일치하지 않습니다."
+                    "[결제 취소/RESPONSE_VALIDATE] Toss paymentKey가 일치하지 않습니다."
             );
         }
 
@@ -201,14 +217,14 @@ public class PaymentCancellationTxService {
                 order.getOrderNumber()
         )) {
             throw new PaymentException(
-                    "Toss 주문번호가 일치하지 않습니다."
+                    "[결제 취소/RESPONSE_VALIDATE] Toss 주문번호가 일치하지 않습니다."
             );
         }
 
         // 8. 전체 취소 상태 확인
         if (!"CANCELED".equals(response.getStatus())) {
             throw new PaymentException(
-                    "Toss 결제 상태가 CANCELED가 아닙니다."
+                    "[결제 취소/RESPONSE_VALIDATE] Toss 결제 상태가 CANCELED가 아닙니다."
             );
         }
 
@@ -218,7 +234,7 @@ public class PaymentCancellationTxService {
                 payment.getAmount()
         )) {
             throw new PaymentException(
-                    "Toss 원결제 금액이 DB 결제 금액과 일치하지 않습니다."
+                    "[결제 취소/RESPONSE_VALIDATE] Toss 원결제 금액이 DB 결제 금액과 일치하지 않습니다."
             );
         }
 
@@ -227,7 +243,7 @@ public class PaymentCancellationTxService {
 
         if (cancels == null || cancels.isEmpty()) {
             throw new PaymentException(
-                    "Toss 결제 취소 내역이 존재하지 않습니다."
+                    "[결제 취소/RESPONSE_VALIDATE] Toss 결제 취소 내역이 존재하지 않습니다."
             );
         }
 
@@ -238,20 +254,20 @@ public class PaymentCancellationTxService {
 
             if (cancel == null) {
                 throw new PaymentException(
-                        "Toss 취소 상세 내역이 비어 있습니다."
+                        "[결제 취소/RESPONSE_VALIDATE] Toss 취소 상세 내역이 비어 있습니다."
                 );
             }
 
             if (!"DONE".equals(cancel.getCancelStatus())) {
                 throw new PaymentException(
-                        "완료되지 않은 결제 취소 내역이 존재합니다."
+                        "[결제 취소/RESPONSE_VALIDATE] 완료되지 않은 결제 취소 내역이 존재합니다."
                 );
             }
 
             if (cancel.getCancelAmount() == null
                     || cancel.getCancelAmount() <= 0) {
                 throw new PaymentException(
-                        "유효하지 않은 결제 취소 금액입니다."
+                        "[결제 취소/RESPONSE_VALIDATE] 유효하지 않은 결제 취소 금액입니다."
                 );
             }
 
@@ -264,7 +280,7 @@ public class PaymentCancellationTxService {
         // 12. 전체 취소 금액 검증
         if (totalCanceledAmount != payment.getAmount()) {
             throw new PaymentException(
-                    "전체 취소 금액과 원결제 금액이 일치하지 않습니다."
+                    "[결제 취소/RESPONSE_VALIDATE] 전체 취소 금액과 원결제 금액이 일치하지 않습니다."
             );
         }
 
@@ -274,14 +290,14 @@ public class PaymentCancellationTxService {
                 payment.getAmount()
         )) {
             throw new PaymentCancellationException(
-                    "결제 취소 요청 금액과 원결제 금액이 일치하지 않습니다."
+                    "[결제 취소/RESPONSE_VALIDATE] 결제 취소 요청 금액과 원결제 금액이 일치하지 않습니다."
             );
         }
     }
 
     @Transactional
     public void rejectCancel(CancellationRequestRecord record, TossCancelException cancelException) {
-        log.info("[주문 취소 결제 거절]");
+        log.warn("[PAYMENT_CANCEL] stage=REJECT_APPLY event=START paymentCancellationId={} pgCode={}", record.paymentCancellationId(), cancelException.getErrorCode());
         String errorCode = cancelException.getErrorCode();
         String errorMessage = cancelException.getMessage();
 
@@ -289,39 +305,59 @@ public class PaymentCancellationTxService {
         Long orderCancellationId = record.orderCancellationId();
 
         OrderCancellation orderCancellation = orderCancellationRepository.findByIdForUpdate(orderCancellationId)
-                .orElseThrow(() -> new OrderCancellationException("주문 취소 정보 존재하지 않음."));
+                .orElseThrow(() -> new OrderCancellationException("[결제 취소/REJECT_APPLY] 주문 취소 정보 존재하지 않음."));
 
         PaymentCancellation paymentCancellation = paymentCancellationRepository.findByIdForUpdate(paymentCancellationId)
-                .orElseThrow(() -> new PaymentCancellationException("결제 취소 정보 존재하지 않음."));
+                .orElseThrow(() -> new PaymentCancellationException("[결제 취소/REJECT_APPLY] 결제 취소 정보 존재하지 않음."));
 
 
         // 이미 취소가 완료된 데이터들인지 데이터 검증
         if(orderCancellation.getCancelStatus() == OrderCancelStatus.COMPLETED
             || paymentCancellation.getStatus() == PaymentCancellationStatus.SUCCESS)
+        {
+            log.info("[PAYMENT_CANCEL] stage=FAILURE_APPLY event=STATE_SKIPPED paymentCancellationId={} orderCancelStatus={} paymentCancelStatus={}",
+                    paymentCancellationId, orderCancellation.getCancelStatus(), paymentCancellation.getStatus());
             return;
+        }
 
         // 상태 값 업데이트 - 거절(거절 코드 및 거절 사유 저장)
         paymentCancellation.updateStatusToRejected(errorCode, errorMessage);
+        log.warn("[PAYMENT_CANCEL] stage=REJECT_APPLY event=APPLIED_PENDING_COMMIT paymentCancellationId={} orderCancellationId={} pgCode={} paymentCancelStatus={}",
+                paymentCancellationId, orderCancellationId, errorCode, paymentCancellation.getStatus());
     }
 
     @Transactional
-    public void unknownCancel(CancellationRequestRecord record) {
+    public void unknownCancel(CancellationRequestRecord record, RuntimeException exception) {
+        log.warn("[PAYMENT_CANCEL] stage=UNKNOWN_APPLY event=START paymentCancellationId={} orderCancellationId={} errorType={}", record.paymentCancellationId(), record.orderCancellationId(), exception.getClass().getSimpleName());
         Long paymentCancellationId = record.paymentCancellationId();
         Long orderCancellationId = record.orderCancellationId();
 
         OrderCancellation orderCancellation = orderCancellationRepository.findByIdForUpdate(orderCancellationId)
-                .orElseThrow(() -> new OrderCancellationException("주문 취소 정보 존재하지 않음."));
+                .orElseThrow(() -> new OrderCancellationException("[결제 취소/UNKNOWN_APPLY] 주문 취소 정보 존재하지 않음."));
 
         PaymentCancellation paymentCancellation = paymentCancellationRepository.findByIdForUpdate(paymentCancellationId)
-                .orElseThrow(() -> new PaymentCancellationException("결제 취소 정보 존재하지 않음."));
+                .orElseThrow(() -> new PaymentCancellationException("[결제 취소/UNKNOWN_APPLY] 결제 취소 정보 존재하지 않음."));
 
         // 이미 취소가 완료된 데이터들인지 데이터 검증
         if(orderCancellation.getCancelStatus() == OrderCancelStatus.COMPLETED
                 || paymentCancellation.getStatus() == PaymentCancellationStatus.SUCCESS)
+        {
+            log.info("[PAYMENT_CANCEL] stage=FAILURE_APPLY event=STATE_SKIPPED paymentCancellationId={} orderCancelStatus={} paymentCancelStatus={}",
+                    paymentCancellationId, orderCancellation.getCancelStatus(), paymentCancellation.getStatus());
             return;
+        }
 
         // 상태 값 업데이트 RestClientException의 경우 정확히 어디서 에러가 난지 알 수 없음으로 Unknown 상태 값으로 관리
-        paymentCancellation.updateStatusToUnknown();
+        String message = exception.getMessage();
+        if (message == null || message.isBlank()) {
+            message = exception.getClass().getSimpleName();
+        }
+        if (message.length() > PaymentCancellation.FAILURE_MESSAGE_MAX_LENGTH) {
+            message = message.substring(0, PaymentCancellation.FAILURE_MESSAGE_MAX_LENGTH);
+        }
+        paymentCancellation.updateStatusToUnknown(message);
+        log.warn("[PAYMENT_CANCEL] stage=UNKNOWN_APPLY event=APPLIED_PENDING_COMMIT orderCancellationId={} paymentCancellationId={} errorType={}",
+                orderCancellationId, paymentCancellationId, exception.getClass().getSimpleName());
 
     }
 }
