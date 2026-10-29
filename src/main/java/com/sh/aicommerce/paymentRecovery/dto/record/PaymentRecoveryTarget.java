@@ -2,7 +2,7 @@ package com.sh.aicommerce.paymentRecovery.dto.record;
 
 import com.sh.aicommerce.entity.*;
 
-public record RecoveryTarget(
+public record PaymentRecoveryTarget(
         PaymentRecovery recovery,
         PaymentRecoveryHistory history,
         Payment payment,

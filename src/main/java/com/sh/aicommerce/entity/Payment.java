@@ -228,4 +228,9 @@ public class Payment {
     public void updateStatusToPaymentFailed() {
         this.status = PaymentStatus.PAYMENT_FAILED;
     }
+
+    public void updatePaymentStatusToCanceled() {
+        this.status = PaymentStatus.CANCELED;
+        this.updatedAt = LocalDateTime.now();
+    }
 }

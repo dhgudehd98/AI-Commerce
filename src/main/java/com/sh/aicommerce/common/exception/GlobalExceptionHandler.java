@@ -13,7 +13,9 @@ import com.sh.aicommerce.common.exception.outbox.OutboxException;
 import com.sh.aicommerce.common.exception.payment.PaymentException;
 import com.sh.aicommerce.common.exception.payment.PaymentResultUnknownException;
 import com.sh.aicommerce.common.exception.paymentAttempt.PaymentAttemptException;
-import com.sh.aicommerce.common.exception.paymentRecovery.PaymentRecoveryException;
+import com.sh.aicommerce.common.exception.recovery.PaymentCancellationRecoveryException;
+import com.sh.aicommerce.common.exception.recovery.PaymentCancellationRecoveryHistoryException;
+import com.sh.aicommerce.common.exception.recovery.PaymentRecoveryException;
 import com.sh.aicommerce.common.exception.product.ProductException;
 import com.sh.aicommerce.common.exception.productInventory.ProductInventoryException;
 import com.sh.aicommerce.common.exception.refund.RefundException;
@@ -26,7 +28,6 @@ import com.sh.aicommerce.common.exception.wms.InventoryException;
 import com.sh.aicommerce.common.exception.wms.OutboundException;
 import com.sh.aicommerce.common.exception.wms.OutboundNotFoundException;
 import com.sh.aicommerce.common.exception.wms.WarehouseException;
-import com.sh.aicommerce.entity.Outbound;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -40,6 +41,17 @@ import java.util.Map;
 @RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(PaymentCancellationRecoveryHistoryException.class)
+    public ResponseEntity<?> handlePaymentCancellationRecoveryHistoryException(PaymentCancellationRecoveryHistoryException e) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("result", "N", "message", e.getMessage()));
+    }
+    @ExceptionHandler(PaymentCancellationRecoveryException.class)
+    public ResponseEntity<?> handlePaymentCancellationRecoveryException(PaymentCancellationRecoveryException e) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("result", "N", "message", e.getMessage()));
+    }
 
     @ExceptionHandler(PaymentRecoveryException.class)
     public ResponseEntity<?> handlePaymentRecoveryException(PaymentRecoveryException e) {

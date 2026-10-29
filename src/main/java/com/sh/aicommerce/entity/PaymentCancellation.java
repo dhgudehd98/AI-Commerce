@@ -94,4 +94,13 @@ public class PaymentCancellation {
         this.updatedAt = LocalDateTime.now();
         this.status = PaymentCancellationStatus.UNKNOWN;
     }
+
+    public void completeCancel(CancelResponseDto response) {
+        this.status = PaymentCancellationStatus.SUCCESS;
+        this.canceledAt = response.getCanceledAt().toLocalDateTime();
+        this.cancelAmount = response.getCancelAmount();
+
+        this.completedAt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now();
+    }
 }

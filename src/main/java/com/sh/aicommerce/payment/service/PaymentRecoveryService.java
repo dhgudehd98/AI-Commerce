@@ -2,7 +2,7 @@ package com.sh.aicommerce.payment.service;
 
 import com.sh.aicommerce.common.exception.toss.TossPaymentException;
 import com.sh.aicommerce.common.exception.toss.TossRestClientException;
-import com.sh.aicommerce.recovery.dto.request.PaymentRecoveryRequestDto;
+import com.sh.aicommerce.paymentRecovery.dto.request.PaymentRecoveryRequestDto;
 import com.sh.aicommerce.toss.dto.response.TossPaymentRequestHistoryResponseDto;
 import com.sh.aicommerce.toss.service.TossPaymentClient;
 import lombok.RequiredArgsConstructor;
@@ -14,7 +14,7 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 @Slf4j
 public class PaymentRecoveryService {
-    private final PaymentRetryTxService retryTxService;
+    private final PaymentRecoveryTxService recoveryTxService;
     private final TossPaymentClient client;
 
     public void recover(Long paymentId) {
@@ -28,7 +28,7 @@ public class PaymentRecoveryService {
     private void recoverPayment(Long paymentId) {
         log.info("[PAYMENT] stage=RECOVERY_VALIDATE event=START paymentId={}", paymentId);
 
-        PaymentRecoveryRequestDto dto = retryTxService.validateRecoveryTarget(paymentId);
+        PaymentRecoveryRequestDto dto = recoveryTxService.validateRecoveryTarget(paymentId);
 
         if(dto == null) {
             log.info("[PAYMENT] stage=RECOVERY_VALIDATE event=SKIPPED paymentId={}", paymentId);
@@ -36,7 +36,7 @@ public class PaymentRecoveryService {
         }
         log.info("[PAYMENT] stage=RECOVERY_VALIDATE event=COMMITTED paymentId={} orderNumber={} attemptId={} recoveryId={}", dto.getPaymentId(), dto.getOrderNumber(), dto.getAttemptId(), dto.getRecoveryId());
 
-        Long historyId = retryTxService.startPaymentRecovery(dto.getRecoveryId());
+        Long historyId = recoveryTxService.startPaymentRecovery(dto.getRecoveryId());
 
         if(historyId == null) {
             log.info("[PAYMENT] stage=RECOVERY_CLAIM event=SKIPPED paymentId={} recoveryId={}", paymentId, dto.getRecoveryId());
@@ -52,7 +52,7 @@ public class PaymentRecoveryService {
                     tossResponseDto.getStatus(), tossResponseDto.getTotalAmount());
 
             // 결제 내역이 존재하는 경우
-            retryTxService.applyPaymentRecoveryResult(historyId, dto, tossResponseDto);
+            recoveryTxService.applyPaymentRecoveryResult(historyId, dto, tossResponseDto);
             log.info("[PAYMENT] stage=RECOVERY_APPLY event=TRANSACTION_RETURNED paymentId={} attemptId={} orderNumber={} recoveryId={} historyId={}",
                     paymentId, dto.getAttemptId(), dto.getOrderNumber(), dto.getRecoveryId(), historyId);
             // PG 조회 결과가 있는 경우에는 DB 업데이트 결제 완료 및 실패로 변경
@@ -85,15 +85,15 @@ public class PaymentRecoveryService {
 
             try {
                 if (errorCode == null) {
-                    retryTxService.updateRecoveryForManualReview(historyId, paymentException);
+                    recoveryTxService.updateRecoveryForManualReview(historyId, paymentException);
                 } else {
                     switch (errorCode) {
-                        case "NOT_FOUND_PAYMENT" -> retryTxService.updateRecoveryNotFoundPayment(
+                        case "NOT_FOUND_PAYMENT" -> recoveryTxService.updateRecoveryNotFoundPayment(
                                 historyId, errorCode, paymentException.getMessage());
                         case "FORBIDDEN_CONSECUTIVE_REQUEST", "FAILED_PAYMENT_INTERNAL_SYSTEM_PROCESSING" ->
-                                retryTxService.updateRecoveryQueryFailure(
+                                recoveryTxService.updateRecoveryQueryFailure(
                                         historyId, errorCode, paymentException.getMessage());
-                        default -> retryTxService.updateRecoveryForManualReview(historyId, paymentException);
+                        default -> recoveryTxService.updateRecoveryForManualReview(historyId, paymentException);
                     }
                 }
                 log.info("[PAYMENT] stage=RECOVERY_QUERY_FAILURE_APPLY event=TRANSACTION_RETURNED paymentId={} recoveryId={} historyId={} pgCode={}",
@@ -107,7 +107,7 @@ public class PaymentRecoveryService {
             log.warn("[PAYMENT] stage=RECOVERY_QUERY event=RESULT_UNKNOWN paymentId={} recoveryId={} historyId={} errorType={}", paymentId, dto.getRecoveryId(), historyId, restClientException.getClass().getSimpleName());
             // 통신 오류가 있을 때도 해당 내역 값 저장해야되잖아
             try {
-                retryTxService.updatePaymentRecoveryByRestClient(historyId, restClientException);
+                recoveryTxService.updatePaymentRecoveryByRestClient(historyId, restClientException);
                 log.info("[PAYMENT] stage=RECOVERY_QUERY_FAILURE_APPLY event=TRANSACTION_RETURNED paymentId={} recoveryId={} historyId={}",
                         paymentId, dto.getRecoveryId(), historyId);
             } catch (RuntimeException saveException) {
@@ -120,7 +120,7 @@ public class PaymentRecoveryService {
                     paymentId, dto.getAttemptId(), dto.getOrderNumber(), dto.getRecoveryId(), historyId,
                     e.getClass().getSimpleName());
             try {
-                retryTxService.updateRecoveryAndHistoryFail(historyId, e);
+                recoveryTxService.updateRecoveryAndHistoryFail(historyId, e);
             } catch (RuntimeException saveException) {
                 e.addSuppressed(saveException);
 

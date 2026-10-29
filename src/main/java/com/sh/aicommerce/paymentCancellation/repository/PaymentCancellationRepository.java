@@ -43,5 +43,13 @@ public interface PaymentCancellationRepository extends JpaRepository<PaymentCanc
     from PaymentCancellation pc
     where pc.status = 'READY'
     """)
-    List<Long> findTargetPaymentCancellation();
+    List<Long> findReadyPaymentCancellation();
+
+
+    @Query("""
+    select pc.id
+    from PaymentCancellation pc
+    where pc.status = 'UNKNOWN'
+    """)
+    List<Long> findUnknownPaymentCancellation();
 }
