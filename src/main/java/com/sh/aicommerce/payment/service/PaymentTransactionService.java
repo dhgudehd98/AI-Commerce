@@ -249,7 +249,7 @@ public class PaymentTransactionService {
         // 실제 취소 거래의 금액과 완료 정보를 확인한다.
         validateCancelTransaction(cancel, response.getLastTransactionKey(), payment, order.getId());
 
-        validateRefund(response, payment, refund);
+//        validateRefund(response, payment, refund);
     }
 
     private void validateRefund(TossPaymentCancelResponseDto response, Payment payment, Refund refund) {

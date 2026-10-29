@@ -1,6 +1,7 @@
 package com.sh.aicommerce.entity;
 
 import com.sh.aicommerce.enums.paymentCancellation.PaymentCancellationStatus;
+import com.sh.aicommerce.toss.dto.response.CancelResponseDto;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -45,6 +46,8 @@ public class PaymentCancellation {
 
     private LocalDateTime updatedAt;
 
+    private LocalDateTime canceledAt;
+
     public static PaymentCancellation createPaymentCancellation(Payment p, OrderCancellation cancellation) {
         return PaymentCancellation.builder()
                 .orderCancellation(cancellation)
@@ -54,5 +57,19 @@ public class PaymentCancellation {
                 .cancelAmount(p.getAmount())
                 .cancelReason(cancellation.getCancelReason())
                 .build();
+    }
+
+    public void startPaymentCancellation() {
+        this.status = PaymentCancellationStatus.PROCESSING;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public void cancelSuccess(CancelResponseDto cancelResponseDto) {
+        this.cancelAmount = cancelResponseDto.getCancelAmount();
+        this.status = PaymentCancellationStatus.SUCCESS;
+
+        this.canceledAt = cancelResponseDto.getCanceledAt().toLocalDateTime();
+        this.updatedAt = LocalDateTime.now();
+        this.completedAt = LocalDateTime.now();
     }
 }

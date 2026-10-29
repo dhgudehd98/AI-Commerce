@@ -7,6 +7,7 @@ import com.sh.aicommerce.common.exception.payment.PaymentException;
 import com.sh.aicommerce.common.exception.toss.TossCancelException;
 import com.sh.aicommerce.common.exception.toss.TossPaymentException;
 import com.sh.aicommerce.common.exception.toss.TossRestClientException;
+import com.sh.aicommerce.orderCancellation.dto.record.CancellationRequestRecord;
 import com.sh.aicommerce.payment.dto.request.PaymentBillingCardRequestDto;
 import com.sh.aicommerce.toss.dto.request.TossBillingPaymentRequestDto;
 import com.sh.aicommerce.toss.dto.request.TossCancelRequestDto;
@@ -223,7 +224,7 @@ public class TossPaymentClient {
         return new TossRestClientException("[결제/PG_REQUEST] PG 오류로 승인 결과 확인이 필요합니다. | pgCode=" + errorResponse.getCode());
     }
 
-    public TossPaymentCancelResponseDto cancel(String paymentKey){
+    public TossPaymentCancelResponseDto cancel(CancellationRequestRecord record){
         try {
             String encodedSecretKey = Base64.getEncoder()
                     .encodeToString((tossBillingSecretKey +
@@ -232,6 +233,10 @@ public class TossPaymentClient {
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
             headers.set("Authorization", "Basic " + encodedSecretKey);
+            headers.set(
+                    "Idempotency-Key",
+                    record.idempotencyKey()
+            );
 
             TossCancelRequestDto request = new TossCancelRequestDto("고객 요청에 의한 환불 처리");
 
@@ -240,7 +245,7 @@ public class TossPaymentClient {
 
             ResponseEntity<TossPaymentCancelResponseDto> response =
                     tossRestTemplate.exchange(
-                            "https://api.tosspayments.com/v1/payments/" + paymentKey + "/cancel",
+                            "https://api.tosspayments.com/v1/payments/" + record.paymentKey() + "/cancel",
                             HttpMethod.POST,
                             httpEntity,
                             TossPaymentCancelResponseDto.class
@@ -283,7 +288,7 @@ public class TossPaymentClient {
             }
 
             if ("ALREADY_CANCELED_PAYMENT".equals(error.getCode())) {
-                return findPaymentForCancellation(paymentKey);
+                return findPaymentForCancellation(record.paymentKey());
             }
 
             if (e.getStatusCode().is4xxClientError()

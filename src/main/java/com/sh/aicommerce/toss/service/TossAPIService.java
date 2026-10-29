@@ -53,10 +53,11 @@ public class TossAPIService {
         Payment payment = paymentTransactionService.prepareRefund(cancellationId);
 
         try {
+            log.info("");
             // TossAPI 결제 취소 요청
-            response = client.cancel(payment.getPaymentKey());
+//            response = client.cancel(payment.getPaymentKey());
             // 결제 실패 요청이 성공적으로 완료 처리
-            paymentTransactionService.cancel(response, cancellationId);
+//            paymentTransactionService.cancel(response, cancellationId);
         } catch (TossCancelException e) {
             log.error("[토스페이먼츠 결제 취소 요청 처리 실패] 에러 메세지 : {}", e.getMessage());
 

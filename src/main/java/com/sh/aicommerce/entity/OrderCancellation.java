@@ -1,6 +1,7 @@
 package com.sh.aicommerce.entity;
 
 import com.sh.aicommerce.enums.order.OrderCancelStatus;
+import com.sh.aicommerce.enums.paymentCancellation.InventoryCancelStatus;
 import com.sh.aicommerce.toss.dto.response.TossPaymentCancelResponseDto;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
@@ -29,6 +30,10 @@ public class OrderCancellation {
     @Column(nullable = false)
     private OrderCancelStatus cancelStatus;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private InventoryCancelStatus inventoryStatus;
+
     private String cancelReason; // 취소 사유
     private String failReason; // 실패 사유
     private String admin; // 관리자
@@ -46,6 +51,7 @@ public class OrderCancellation {
 
     public OrderCancellation(Orders order, String cancelReason, boolean itemReturnRequired) {
         this.order = order;
+        this.inventoryStatus = InventoryCancelStatus.PENDING;
         this.cancelStatus = OrderCancelStatus.CANCEL_REQUEST;
         this.cancelReason = cancelReason;
         this.itemReturnRequired = itemReturnRequired;
@@ -115,5 +121,10 @@ public class OrderCancellation {
         this.updatedAt = LocalDateTime.now();
         this.cancelStatus = OrderCancelStatus.ITEM_RETURN_FAILED;
         this.failReason = failReason;
+    }
+
+    public void startOrderCancellation() {
+        this.updatedAt = LocalDateTime.now();
+        this.cancelStatus = OrderCancelStatus.PROCESSING_START;
     }
 }

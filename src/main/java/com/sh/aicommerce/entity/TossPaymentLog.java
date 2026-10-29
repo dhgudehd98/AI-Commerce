@@ -64,7 +64,7 @@ public class TossPaymentLog {
     private Integer balanceAmount;
 
     // 취소 로그 전용 필드. amount는 최초 결제 금액으로 유지한다.
-    private Long cancellationId;
+    private Long paymentCancellationId;
     private String cancelTransactionKey;
     private String cancelStatus;
     private String cancelReason;
@@ -229,7 +229,7 @@ public class TossPaymentLog {
      * 원문 응답·HTTP 상태·요청 시각은 이 DTO만으로 확정할 수 없어 임의로 채우지 않는다.
      */
     public static TossPaymentLog createStatusToCancelSuccess(Payment payment,
-            TossPaymentCancelResponseDto response, Long cancellationId) {
+            TossPaymentCancelResponseDto response, Long paymentCancellationId) {
         if (response == null || response.getCancels() == null
                 || response.getCancels().size() != 1 || response.getCancels().get(0) == null) {
             throw new PaymentException("취소 로그에는 검증된 취소 거래 한 건이 필요합니다.");
@@ -237,7 +237,7 @@ public class TossPaymentLog {
         CancelResponseDto cancel = response.getCancels().get(0);
         TossPaymentLog log = new TossPaymentLog();
         log.payment = payment;
-        log.cancellationId = cancellationId;
+        log.paymentCancellationId = paymentCancellationId;
         log.requestType = "CANCEL";
         log.mid = response.getMId();
         log.paymentKey = response.getPaymentKey();
@@ -280,12 +280,12 @@ public class TossPaymentLog {
         return OffsetDateTime.parse(value).toLocalDateTime();
     }
 
-    public static TossPaymentLog createStatusToCancelSuccessInRetry(Long cancellationId, Payment payment, TossPaymentRequestHistoryResponseDto historyResponse) {
+    public static TossPaymentLog createStatusToCancelSuccessInRetry(Long paymentCancellationId, Payment payment, TossPaymentRequestHistoryResponseDto historyResponse) {
         TossPaymentLog log = new TossPaymentLog();
         CancelResponseDto cancel = historyResponse.getCancels().get(0);
 
         log.payment = payment;
-        log.cancellationId = cancellationId;
+        log.paymentCancellationId = paymentCancellationId;
         log.requestType = "CANCEL";
         log.mid = historyResponse.getMId();
         log.paymentKey = historyResponse.getPaymentKey();

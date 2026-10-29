@@ -132,12 +132,7 @@ public interface OrderCancellationRepository extends JpaRepository<OrderCancella
     @Query("""
       select oc.id
       from OrderCancellation oc
-      where oc.cancelStatus in (
-          'PROCESSING_START',
-          'ITEM_RETURNED',
-          'PRODUCT_RESERVATION_RELEASED',
-          'PAYMENT_CANCEL_COMPLETED'
-      )
+      where oc.cancelStatus = 'CANCEL_REQUEST'
       """)
     List<Long> findTargetOrderCancellation();
 

@@ -127,10 +127,6 @@ public class OrderService {
             };
             OrderCancellation orderCancellation = new OrderCancellation(order, requestDto.getReason(), itemReturnRequired);
 
-            // 취소 요청 이력 저장
-            OutboundHistory outboundHistory = OutboundHistory.createOutboundHistoryForOutboundCancel(member, order, outbound);
-
-            historyRepository.save(outboundHistory);
             outboundRepository.save(outbound);
             orderRepository.save(order);
             orderCancellationRepository.save(orderCancellation);
