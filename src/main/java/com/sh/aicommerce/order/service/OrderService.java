@@ -17,6 +17,7 @@ import com.sh.aicommerce.wms.outbound.repository.OutboundRepository;
 import com.sh.aicommerce.wms.outboundHistory.repository.OutboundHistoryRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,8 +39,6 @@ public class OrderService {
     private final OrderCancellationRepository orderCancellationRepository;
     private final OutboundHistoryRepository historyRepository;
     private final ProductVariantRepository productVariantRepository;
-
-
 
     public OrderSheetResponseDto orderSheet(Long memberId, Long variantId, Long optionId) {
         // 회원에 대한 정보 검사 ->
@@ -111,11 +110,6 @@ public class OrderService {
             Outbound outbound = outboundRepository.findOutboundStatusBeforePackedByOrderIdForUpdate(order.getId())
                     .orElseThrow(() -> new OutboundException("현재 출고 상태에서는 주문 취소 요청이 불가능합니다. 고객센터에 문의해주세요."));
 
-            // 출고 상태 취소 요청으로 변경
-            outbound.updateStatusToCancelRequest();
-            // 주문상태 취소 요청으로 변경
-            order.updateStatusToCancelRequest();
-
             // 주문 취소 요청 Entity 생성
             // 상품 복귀 확인 여부
             boolean itemReturnRequired = switch (outbound.getOutBoundStatus()) {
@@ -126,6 +120,11 @@ public class OrderService {
                 );
             };
             OrderCancellation orderCancellation = new OrderCancellation(order, requestDto.getReason(), itemReturnRequired);
+
+            // 출고 상태 취소 요청으로 변경
+            outbound.updateStatusToCancelRequest();
+            // 주문상태 취소 요청으로 변경
+            order.updateStatusToCancelRequest();
 
             outboundRepository.save(outbound);
             orderRepository.save(order);

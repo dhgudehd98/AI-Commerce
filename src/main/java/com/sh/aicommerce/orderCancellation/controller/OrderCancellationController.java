@@ -40,14 +40,7 @@ public class OrderCancellationController {
         return ResponseEntity.ok(orderCancellationService.orderCancellationDetail(cancelId));
     }
 
-    // 주문 취소 요청 시 처리 로직 API
-    @PostMapping("{cancelId}")
-    public ResponseEntity<?> cancel(
-            @PathVariable Long cancelId
-    ) {
-        Long memberId = 3L;
-        return ResponseEntity.ok(orderCancellationService.cancel(memberId, cancelId));
-    }
+
 
     //주문 취소 요청 실패 List API
     @GetMapping("fail")
@@ -61,7 +54,6 @@ public class OrderCancellationController {
         model.addAttribute("cancelFailPages", cancelFailPages);
 
         return "orderCancellation/orderCancelFailList";
-
     }
 
     @GetMapping("fail/{cancellationId}")
@@ -81,12 +73,4 @@ public class OrderCancellationController {
         return ResponseEntity.ok(orderCancellationService.getPaymentRequestHistory(memberId, cancellationId));
     }
 
-    // 주문 취소 요청 재처리
-    @PostMapping("fail/{cancellationId}/retry")
-    public ResponseEntity<?> retry(
-            @PathVariable Long cancellationId
-    ) {
-        Long memberId = 3L;
-        return ResponseEntity.ok(orderCancellationService.retry(memberId, cancellationId));
-    }
 }

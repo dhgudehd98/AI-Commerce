@@ -18,7 +18,7 @@ public class PaymentCancellationRecoveryUnknownScheduler {
     private final PaymentCancellationRecoveryTxService recoveryTxService;
     private final PaymentCancellationRecoveryService recoveryService;
 
-    @Scheduled
+//    @Scheduled
     public void unknownPaymentCancellation() {
         List<Long> targets = recoveryTxService.findUnknownPaymentCancellation();
 

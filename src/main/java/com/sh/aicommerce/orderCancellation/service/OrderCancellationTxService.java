@@ -107,8 +107,8 @@ public class OrderCancellationTxService {
             }
         }
 
-        if(cancelStatus != OrderCancelStatus.PAYMENT_CANCEL_FAILED && cancelStatus != OrderCancelStatus.PAYMENT_CANCEL_FAILED_CHECK)
-            throw new OrderCancellationException("현재 주문 취소 재처리를 할 수 있는 상태가 아닙니다.");
+//        if(cancelStatus != OrderCancelStatus.PAYMENT_CANCEL_FAILED && cancelStatus != OrderCancelStatus.PAYMENT_CANCEL_FAILED_CHECK)
+//            throw new OrderCancellationException("현재 주문 취소 재처리를 할 수 있는 상태가 아닙니다.");
 
         if(refundStatus != RefundStatus.FAILED && refundStatus != RefundStatus.FAILED_CHECK)
             throw new RefundException("현재 재처리 할 수 있는 환불 상태가 아닙니다. 관리자에게 문의해주세요. 환불 내역 번호 : " + refund.getId());
@@ -150,83 +150,83 @@ public class OrderCancellationTxService {
     public void applyRecoveredUpdateStatus(Long cancellationId, TossPaymentRequestHistoryResponseDto paymentRequest) {
 
         // 동일 취소 건의 복구는 취소 행 잠금으로 직렬화한다.
-        OrderCancellation cancellation = orderCancellationRepository.findByIdForUpdate(cancellationId)
-                .orElseThrow(() -> new OrderCancellationException("[취소 복구] 취소 정보 없음: " + cancellationId));
-        Orders order = cancellation.getOrder();
-        if (order == null) throw new OrderCancellationException("[취소 복구] 주문 연결 정보 없음");
-        Payment payment = paymentRepository.findPaymentByOrderIdWithLock(order.getId())
-                .orElseThrow(() -> new PaymentException("[취소 복구] 결제 정보 없음"));
-        Refund refund = refundRepository.findByOrderCancellationIdWithLock(cancellationId)
-                .orElseThrow(() -> new RefundException("[취소 복구] 환불 정보 없음"));
-        Outbound outbound = outboundRepository.findOutboundByOrderIdWithLock(order.getId())
-                .orElseThrow(() -> new OutboundException("[취소 복구] 출고 정보 없음"));
-
-        validateRecoveredPayment(paymentRequest, payment, refund, order);
-        if (refund.getPayment() == null || !Objects.equals(refund.getPayment().getId(), payment.getId())
-                || cancellation.getReservationReleasedAt() == null
-                || (cancellation.isItemReturnRequired() && cancellation.getItemReturnedAt() == null)
-                || !outbound.isCancellationRequest()) {
-            throw new OrderCancellationException("[취소 복구 검증] 결제 연결 또는 선행 작업 불일치: " + cancellationId);
-        }
-
-        TossPaymentLog existingLog = paymentLogRepository.findLogByCancellationIdWithLock(cancellationId).orElse(null);
-        var cancel = paymentRequest.getCancels().get(0);
-        if (existingLog != null && (existingLog.getPayment() == null
-                || !Objects.equals(existingLog.getPayment().getId(), payment.getId())
-                || !Objects.equals(existingLog.getPaymentKey(), paymentRequest.getPaymentKey())
-                || !Objects.equals(existingLog.getOrderNumber(), order.getOrderNumber())
-                || !Objects.equals(existingLog.getCancelTransactionKey(), cancel.getTransactionKey())
-                || !Objects.equals(existingLog.getCancelAmount(), cancel.getCancelAmount())
-                || !"CANCELED".equals(existingLog.getTossStatus())
-                || !"DONE".equals(existingLog.getCancelStatus()))) {
-            throw new PaymentException("[취소 복구 검증] 기존 PG 로그와 취소 거래 불일치: " + cancellationId);
-        }
-        boolean historyExists = historyRepository.existsByOutboundIdAndEventType(
-                outbound.getId(), OutboundHistoryEventType.CANCEL_COMPLETED);
+//        OrderCancellation cancellation = orderCancellationRepository.findByIdForUpdate(cancellationId)
+//                .orElseThrow(() -> new OrderCancellationException("[취소 복구] 취소 정보 없음: " + cancellationId));
+//        Orders order = cancellation.getOrder();
+//        if (order == null) throw new OrderCancellationException("[취소 복구] 주문 연결 정보 없음");
+//        Payment payment = paymentRepository.findPaymentByOrderIdWithLock(order.getId())
+//                .orElseThrow(() -> new PaymentException("[취소 복구] 결제 정보 없음"));
+//        Refund refund = refundRepository.findByOrderCancellationIdWithLock(cancellationId)
+//                .orElseThrow(() -> new RefundException("[취소 복구] 환불 정보 없음"));
+//        Outbound outbound = outboundRepository.findOutboundByOrderIdWithLock(order.getId())
+//                .orElseThrow(() -> new OutboundException("[취소 복구] 출고 정보 없음"));
+//
+//        validateRecoveredPayment(paymentRequest, payment, refund, order);
+//        if (refund.getPayment() == null || !Objects.equals(refund.getPayment().getId(), payment.getId())
+//                || cancellation.getReservationReleasedAt() == null
+//                || (cancellation.isItemReturnRequired() && cancellation.getItemReturnedAt() == null)
+//                || !outbound.isCancellationRequest()) {
+//            throw new OrderCancellationException("[취소 복구 검증] 결제 연결 또는 선행 작업 불일치: " + cancellationId);
+//        }
+//
+//        TossPaymentLog existingLog = paymentLogRepository.findLogByCancellationIdWithLock(cancellationId).orElse(null);
+//        var cancel = paymentRequest.getCancels().get(0);
+//        if (existingLog != null && (existingLog.getPayment() == null
+//                || !Objects.equals(existingLog.getPayment().getId(), payment.getId())
+//                || !Objects.equals(existingLog.getPaymentKey(), paymentRequest.getPaymentKey())
+//                || !Objects.equals(existingLog.getOrderNumber(), order.getOrderNumber())
+//                || !Objects.equals(existingLog.getCancelTransactionKey(), cancel.getTransactionKey())
+//                || !Objects.equals(existingLog.getCancelAmount(), cancel.getCancelAmount())
+//                || !"CANCELED".equals(existingLog.getTossStatus())
+//                || !"DONE".equals(existingLog.getCancelStatus()))) {
+//            throw new PaymentException("[취소 복구 검증] 기존 PG 로그와 취소 거래 불일치: " + cancellationId);
+//        }
+//        boolean historyExists = historyRepository.existsByOutboundIdAndEventType(
+//                outbound.getId(), OutboundHistoryEventType.CANCEL_COMPLETED);
 
         // 조회 중 다른 실행이 완료했다면 일관된 완료 상태와 거래인지 확인한다.
-        if (cancellation.getCancelStatus() == OrderCancelStatus.CANCELED) {
-            if (order.getStatus() != OrderStatus.CANCELED || payment.getStatus() != PaymentStatus.CANCELED
-                    || refund.getRefundStatus() != RefundStatus.COMPLETED
-                    || outbound.getOutBoundStatus() != OutboundStatus.CANCELED
-                    || !historyExists || existingLog == null
-                    || !Objects.equals(refund.getTransactionKey(), cancel.getTransactionKey())
-                    || !Objects.equals(refund.getRefundedAmount(), cancel.getCancelAmount())) {
-                throw new OrderCancellationException("[취소 복구 검증] 완료 상태 또는 이력 불일치: " + cancellationId);
-            }
-            log.info("[취소 복구 중복 요청] 취소 ID: {}", cancellationId);
-            return;
-        }
-
-        boolean matchingFailure =
-                (cancellation.getCancelStatus() == OrderCancelStatus.PAYMENT_CANCEL_FAILED
-                        && refund.getRefundStatus() == RefundStatus.FAILED)
-                || (cancellation.getCancelStatus() == OrderCancelStatus.PAYMENT_CANCEL_FAILED_CHECK
-                        && refund.getRefundStatus() == RefundStatus.FAILED_CHECK);
-        if (!matchingFailure || payment.getStatus() != PaymentStatus.CANCEL_FAILED
-                || order.getStatus() != OrderStatus.CANCEL_REQUEST || historyExists
-                || outbound.getOutBoundStatus() == null
-                || !Set.of(OutboundStatus.PENDING, OutboundStatus.ON_HOLD, OutboundStatus.PICKING,
-                        OutboundStatus.PICKED, OutboundStatus.PACKING, OutboundStatus.PACKED)
-                        .contains(outbound.getOutBoundStatus())) {
-            throw new OrderCancellationException("[취소 복구 검증] 재처리 상태 또는 완료 이력 불일치: " + cancellationId);
-        }
-
-        // 외부 호출 없이 상태 및 두 이력을 한 트랜잭션에서 반영한다.
-        OutboundStatus previousStatus = outbound.getOutBoundStatus();
-        refund.retryUpdateStatusToComplete(paymentRequest);
-        payment.updateCancelStatus();
-        order.updateStatusToCancel();
-        outbound.updateStatusToCancelled();
-        cancellation.updateCancelStatusCanceled();
-        if (existingLog == null) {
-            paymentLogRepository.save(TossPaymentLog.createStatusToCancelSuccessInRetry(
-                    cancellationId, payment, paymentRequest));
-        }
-        historyRepository.save(OutboundHistory.createForCancellationRecovered(
-                outbound, previousStatus, cancellation.getCancelReason()));
-        log.info("[취소 복구 반영 준비 완료] 취소 ID: {}, 주문 ID: {}, 결제 ID: {}, 환불 금액: {}",
-                cancellationId, order.getId(), payment.getId(), cancel.getCancelAmount());
+//        if (cancellation.getCancelStatus() == OrderCancelStatus.CANCELED) {
+//            if (order.getStatus() != OrderStatus.CANCELED || payment.getStatus() != PaymentStatus.CANCELED
+//                    || refund.getRefundStatus() != RefundStatus.COMPLETED
+//                    || outbound.getOutBoundStatus() != OutboundStatus.CANCELED
+//                    || !historyExists || existingLog == null
+//                    || !Objects.equals(refund.getTransactionKey(), cancel.getTransactionKey())
+//                    || !Objects.equals(refund.getRefundedAmount(), cancel.getCancelAmount())) {
+//                throw new OrderCancellationException("[취소 복구 검증] 완료 상태 또는 이력 불일치: " + cancellationId);
+//            }
+//            log.info("[취소 복구 중복 요청] 취소 ID: {}", cancellationId);
+//            return;
+//        }
+//
+//        boolean matchingFailure =
+//                (cancellation.getCancelStatus() == OrderCancelStatus.PAYMENT_CANCEL_FAILED
+//                        && refund.getRefundStatus() == RefundStatus.FAILED)
+//                || (cancellation.getCancelStatus() == OrderCancelStatus.PAYMENT_CANCEL_FAILED_CHECK
+//                        && refund.getRefundStatus() == RefundStatus.FAILED_CHECK);
+//        if (!matchingFailure || payment.getStatus() != PaymentStatus.CANCEL_FAILED
+//                || order.getStatus() != OrderStatus.CANCEL_REQUEST || historyExists
+//                || outbound.getOutBoundStatus() == null
+//                || !Set.of(OutboundStatus.PENDING, OutboundStatus.ON_HOLD, OutboundStatus.PICKING,
+//                        OutboundStatus.PICKED, OutboundStatus.PACKING, OutboundStatus.PACKED)
+//                        .contains(outbound.getOutBoundStatus())) {
+//            throw new OrderCancellationException("[취소 복구 검증] 재처리 상태 또는 완료 이력 불일치: " + cancellationId);
+//        }
+//
+//        // 외부 호출 없이 상태 및 두 이력을 한 트랜잭션에서 반영한다.
+//        OutboundStatus previousStatus = outbound.getOutBoundStatus();
+//        refund.retryUpdateStatusToComplete(paymentRequest);
+//        payment.updateCancelStatus();
+//        order.updateStatusToCancel();
+//        outbound.updateStatusToCancelled();
+//        cancellation.updateCancelStatusCanceled();
+//        if (existingLog == null) {
+//            paymentLogRepository.save(TossPaymentLog.createStatusToCancelSuccessInRetry(
+//                    cancellationId, payment, paymentRequest));
+//        }
+//        historyRepository.save(OutboundHistory.createForCancellationRecovered(
+//                outbound, previousStatus, cancellation.getCancelReason()));
+//        log.info("[취소 복구 반영 준비 완료] 취소 ID: {}, 주문 ID: {}, 결제 ID: {}, 환불 금액: {}",
+//                cancellationId, order.getId(), payment.getId(), cancel.getCancelAmount());
     }
 
     private void validateRecoveredPayment(TossPaymentRequestHistoryResponseDto response,

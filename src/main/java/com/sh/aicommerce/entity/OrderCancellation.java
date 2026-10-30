@@ -62,6 +62,9 @@ public class OrderCancellation {
         this.cancelStatus = OrderCancelStatus.REQUESTED;
         this.cancelReason = cancelReason;
         this.itemReturnRequired = itemReturnRequired;
+        this.itemReturnStatus = itemReturnRequired
+                ? ItemReturnStatus.WAITING
+                : ItemReturnStatus.NOT_REQUIRED;
         this.requestedAt = LocalDateTime.now();
     }
 

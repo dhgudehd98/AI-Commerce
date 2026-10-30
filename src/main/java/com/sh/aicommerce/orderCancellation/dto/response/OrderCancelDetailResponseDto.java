@@ -54,7 +54,7 @@ public class OrderCancelDetailResponseDto {
         this.outboundStatus = data.outbound().getOutBoundStatus().getStatus();
         this.cancelStatus = data.cancellation().getCancelStatus().getStatus();
         this.cancelReason = data.cancellation().getCancelReason();
-        this.failReason = data.cancellation().getFailReason();
+        this.failReason = data.cancellation().getFailMessage();
         this.requestedAt = data.cancellation().getRequestedAt();
         this.updatedAt = data.cancellation().getUpdatedAt();
         this.completedAt = data.cancellation().getCompletedAt();
@@ -83,7 +83,7 @@ public class OrderCancelDetailResponseDto {
         this.cancelStatusCode = data.cancellation().getCancelStatus();
 
         this.cancelReason = cancellation.getCancelReason();
-        this.failReason = cancellation.getFailReason();
+        this.failReason = cancellation.getFailMessage();
         this.admin = cancellation.getAdmin();
 
         this.requestedAt = cancellation.getRequestedAt();

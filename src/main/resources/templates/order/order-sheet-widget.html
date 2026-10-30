@@ -410,15 +410,15 @@
     let fallbackEnabled = true;    // 대체 결제 수단 사용 여부 (토글 상태)
 
     // 토스페이먼츠 - 위젯 관련 SDK 초기화
-    const widgetClientKey = "test_gck_docs_Ovk5rk1EwkEbP0W43n07xlzm";
-    const widgetTossPayments = TossPayments(widgetClientKey);
+    const widgetSdkClientKey = /*[[${widgetSdkClientKey}]]*/ null;
+    const widgetTossPayments = TossPayments(widgetSdkClientKey);
     widgets = widgetTossPayments.widgets({ customerKey: TossPayments.ANONYMOUS });
 
     // 토스페이먼츠 - 자동결제(빌링) 관련 SDK 초기화
-    const billingClientKey = "test_ck_D5GePWvyJnrK0W0k6q8gLzN97Eoq";
+
+    const billingSdkClientKey = /*[[${billingSdkClientKey}]]*/ null;
     const customerKey = /*[[${orderSheet.customerKey}]]*/ "Cus_9f3B2d6e-9c1A-4a7e-8c1F-16b5f6c12a31";
-    console.log("customerKey : " + customerKey);
-    const billingTossPayments = TossPayments(billingClientKey);
+    const billingTossPayments = TossPayments(billingSdkClientKey);
     const payment = billingTossPayments.payment({ customerKey });
 
 

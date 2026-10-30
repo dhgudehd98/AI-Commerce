@@ -15,7 +15,7 @@ public interface TossPaymentLogRepository extends JpaRepository<TossPaymentLog, 
     @Query("""
     select tl
     from TossPaymentLog tl
-    where tl.cancellationId = :cancellationId
+    where tl.paymentCancellationId = :paymentCancellationId
     """)
-    Optional<TossPaymentLog> findLogByCancellationIdWithLock(@Param("cancellationId") Long cancellationId);
+    Optional<TossPaymentLog> findLogByCancellationIdWithLock(@Param("paymentCancellationId") Long paymentCancellationId);
 }

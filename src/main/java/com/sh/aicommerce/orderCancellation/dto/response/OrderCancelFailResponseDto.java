@@ -29,7 +29,7 @@ public class OrderCancelFailResponseDto {
         this.outboundNumber = cancellationFails.outbound().getOutboundNumber();
         this.statusCode = cancellationFails.orderCancellation().getCancelStatus();
         this.cancellationStatus = cancellationFails.orderCancellation().getCancelStatus().getStatus();
-        this.failReason = cancellationFails.orderCancellation().getFailReason();
+        this.failReason = cancellationFails.orderCancellation().getFailMessage();
         this.admin = cancellationFails.orderCancellation().getAdmin();
         this.requestedAt = cancellationFails.orderCancellation().getRequestedAt();
         this.updatedAt = cancellationFails.orderCancellation().getUpdatedAt();
