@@ -86,6 +86,10 @@ public class PaymentCancellationRecoveryTxService {
             return null;
         }
 
+        // 자동 복구가 중단된 요청은 다음 스캔에서도 재조회하지 않습니다.
+        if (orderCancellation.getCancelStatus() == OrderCancelStatus.MANUAL_REVIEW_REQUIRED) {
+            return null;
+        }
         if(orderCancellation.getCancelStatus() != OrderCancelStatus.PROCESSING)
             throw new OrderCancellationException("현재 주문 취수 복구 처리가 가능한 상태가 아닙니다.");
 
@@ -136,8 +140,16 @@ public class PaymentCancellationRecoveryTxService {
         PaymentCancellationRecovery recovery = recoveryRepository.findRecoveryByPaymentCancellationIdForUpdate(recoveryId)
                 .orElseThrow(() -> new PaymentCancellationRecoveryException("결제 취소 복구 내역이 존재하지 않습니다."));
 
-        if(recovery.getRetryCount() >= recovery.getMaxRetryCount())
+        // 마지막(3회차) 조회가 진행 중이면 실패로 단정하지 않습니다.
+        if (recovery.getStatus() == PaymentRecoveryStatus.PROCESSING
+                || recovery.getStatus() == PaymentRecoveryStatus.COMPLETED) {
             return null;
+        }
+        if (recovery.getRetryCount() >= recovery.getMaxRetryCount()) {
+            recovery.updateRecoveryToManualCheck(recovery.getLastErrorCode(), recovery.getLastErrorMessage());
+            markOrderCancellationForManualReview(recovery);
+            return null;
+        }
 
         if(recovery.getStatus() != PaymentRecoveryStatus.WAITING &&
             recovery.getStatus() != PaymentRecoveryStatus.RETRY_WAIT)
@@ -294,9 +306,10 @@ public class PaymentCancellationRecoveryTxService {
         if (message.length() > RECOVERY_ERROR_MESSAGE_MAX_LENGTH) {
             message = message.substring(0, RECOVERY_ERROR_MESSAGE_MAX_LENGTH);
         }
-        // 실행 시작 시 이미 증가한 retryCount 사용. 취소 상태·주문·결제·재고는 변경하지 않는 범위
+        // 실행 시작 시 증가한 횟수로 판단. PG 결과 및 재고는 유지하고 관리자 확인 필요 여부만 반영
         if (manualReview || recovery.getRetryCount() >= recovery.getMaxRetryCount()) {
             recovery.updateRecoveryToManualCheck(errorCode, message);
+            markOrderCancellationForManualReview(recovery);
         } else {
             recovery.updateRecoveryForNextRetry(errorCode, message);
         }
@@ -308,6 +321,21 @@ public class PaymentCancellationRecoveryTxService {
         log.warn("[PAYMENT_CANCEL] stage=RECOVERY_FAILURE_APPLY event=APPLIED_PENDING_COMMIT recoveryId={} historyId={} retryCount={} maxRetryCount={} recoveryStatus={} historyResult={} pgCode={}",
                 recovery.getId(), historyId, recovery.getRetryCount(), recovery.getMaxRetryCount(),
                 recovery.getStatus(), history.getResult(), errorCode);
+    }
+
+    private void markOrderCancellationForManualReview(PaymentCancellationRecovery recovery) {
+        PaymentCancellation cancellation = recovery.getPaymentCancellation();
+        OrderCancellation orderCancellation = cancellation.getOrderCancellation();
+        // 성공 반영과 동일한 잠금 순서. 늦은 실패가 이미 완료된 작업을 덮어쓰지 않습니다.
+        entityManager.refresh(orderCancellation, LockModeType.PESSIMISTIC_WRITE);
+        entityManager.refresh(cancellation, LockModeType.PESSIMISTIC_WRITE);
+        if (!isRecoverableCancellation(cancellation)
+                || orderCancellation.getCancelStatus() != OrderCancelStatus.PROCESSING) {
+            return;
+        }
+        orderCancellation.requireManualReviewForPaymentRecovery();
+        log.warn("[PAYMENT_CANCEL] stage=RECOVERY_MANUAL_REVIEW event=ORDER_UPDATED orderCancellationId={} recoveryId={} retryCount={} maxRetryCount={}",
+                orderCancellation.getId(), recovery.getId(), recovery.getRetryCount(), recovery.getMaxRetryCount());
     }
 
     private PaymentCancellationRecoveryException invalidResult(String message) {

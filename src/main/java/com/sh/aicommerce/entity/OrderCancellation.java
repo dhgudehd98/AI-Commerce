@@ -73,4 +73,30 @@ public class OrderCancellation {
         this.updatedAt = LocalDateTime.now();
         this.cancelStatus = OrderCancelStatus.PROCESSING;
     }
+
+    public void confirmItemReturn(String admin) {
+        this.itemReturnStatus = ItemReturnStatus.RETURNED;
+        this.itemReturnedAt = LocalDateTime.now();
+        this.admin = admin;
+        this.updatedAt = this.itemReturnedAt;
+    }
+
+    public void completeInventory(boolean reservationReleased, String admin) {
+        LocalDateTime now = LocalDateTime.now();
+        this.inventoryStatus = InventoryCancelStatus.COMPLETED;
+        this.inventoryProcessedAt = now;
+        if (reservationReleased) this.reservationReleasedAt = now;
+        this.cancelStatus = OrderCancelStatus.COMPLETED;
+        this.completedAt = now;
+        this.updatedAt = now;
+        this.admin = admin;
+    }
+    public void requireManualReviewForPaymentRecovery() {
+        if (this.cancelStatus != OrderCancelStatus.PROCESSING) return;
+        this.cancelStatus = OrderCancelStatus.MANUAL_REVIEW_REQUIRED;
+        this.failCode = "PAYMENT_CANCEL_RECOVERY_MANUAL_REVIEW";
+        this.failMessage = "결제 취소 자동 복구 중단 - PG 취소 결과 관리자 확인 필요";
+        this.updatedAt = LocalDateTime.now();
+    }
+
 }

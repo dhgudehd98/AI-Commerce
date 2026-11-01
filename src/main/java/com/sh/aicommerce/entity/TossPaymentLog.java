@@ -1,5 +1,6 @@
 package com.sh.aicommerce.entity;
 
+import com.sh.aicommerce.entity.Payment;
 import com.sh.aicommerce.toss.dto.response.TossPaymentRequestHistoryResponseDto;
 import com.sh.aicommerce.toss.dto.response.TossPaymentSuccessResponseDto;
 import com.sh.aicommerce.toss.dto.response.TossPaymentCancelResponseDto;

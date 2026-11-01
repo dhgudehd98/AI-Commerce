@@ -2,10 +2,7 @@ package com.sh.aicommerce.orderCancellation.repository;
 
 import com.sh.aicommerce.entity.OrderCancellation;
 import com.sh.aicommerce.enums.order.OrderCancelStatus;
-import com.sh.aicommerce.orderCancellation.dto.record.OrderCancellationDetailRecord;
-import com.sh.aicommerce.orderCancellation.dto.record.OrderCancellationFailedDetailResponseRecord;
-import com.sh.aicommerce.orderCancellation.dto.record.OrderCancellationRetryRecord;
-import com.sh.aicommerce.orderCancellation.dto.record.OrderCancellationWithOutbound;
+import com.sh.aicommerce.orderCancellation.dto.record.*;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -31,35 +28,40 @@ public interface OrderCancellationRepository extends JpaRepository<OrderCancella
     Optional<OrderCancellation> findByOrderId(@Param("orderId") Long orderId);
 
     @Query(
-    value = """
-    select new com.sh.aicommerce.orderCancellation.dto.record.OrderCancellationWithOutbound(
-       oc,
-       ob,
-       oc.order.id,
-       oc.order.orderNumber
+            value = """
+        select new com.sh.aicommerce.orderCancellation.dto.record.OrderCancellationListRecord(
+            oc,
+            o,
+            p,
+            pc
+        )
+        from OrderCancellation oc
+        join oc.order o
+        join o.payment p
+        left join PaymentCancellation pc on pc.orderCancellation = oc
+        """,
+            countQuery = """
+        select count(oc)
+        from OrderCancellation oc
+        join oc.order o
+        join o.payment p
+        """
     )
-    from OrderCancellation oc 
-    join Outbound ob on ob.order=  oc.order
-    """,
-    countQuery = """
-    select count(oc)
-    from OrderCancellation  oc
-    join Outbound ob on ob.order= oc.order
-    """
-    )
-    Page<OrderCancellationWithOutbound> findOrderCancellationAll(Pageable pageable);
+    Page<OrderCancellationListRecord> findOrderCancellationAll(Pageable pageable);
 
     // 주문 취소 실패 리스트 조회
     @Query(
             value = """
         select new com.sh.aicommerce.orderCancellation.dto.record.OrderCancellationWithOutbound(
             oc,
+            pc,
             ob,
             oc.order.id,
             oc.order.orderNumber
         )
         from OrderCancellation oc
         join Outbound ob on ob.order = oc.order
+        join PaymentCancellation pc on oc.id = pc.orderCancellation.id
         where oc.cancelStatus in :statuses
         """,
             countQuery = """

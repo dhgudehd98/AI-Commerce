@@ -6,6 +6,7 @@ import com.sh.aicommerce.paymentCancellation.repository.PaymentCancellationRepos
 import com.sh.aicommerce.paymentCancellation.service.PaymentCancellationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -19,7 +20,7 @@ public class PaymentCancellationScheduler {
     private final PaymentCancellationRepository paymentCancellationRepository;
     private final PaymentCancellationService paymentCancellationService;
 
-//    @Scheduled
+//    @Scheduled(cron = "0 * * * * *")
     public void findPaymentCancellation() {
         log.info("[PAYMENT_CANCEL] stage=SCAN event=START");
 

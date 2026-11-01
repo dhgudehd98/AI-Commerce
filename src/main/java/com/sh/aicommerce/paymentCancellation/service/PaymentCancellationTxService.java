@@ -65,7 +65,7 @@ public class PaymentCancellationTxService {
             throw new OrderCancellationException("[결제 취소/VALIDATE] 취소 요청하려는 주문번호가 일치하지 않습니다.");
 
         if(payment.getStatus() != PaymentStatus.PAID ||
-                order.getStatus() != OrderStatus.PAID ||
+                order.getStatus() != OrderStatus.CANCEL_REQUEST ||
                 attempt.getStatus() != PaymentAttemptStatus.SUCCESS)
             throw new OrderCancellationException("[결제 취소/VALIDATE] 결제가 완료된 내역이 아닙니다.");
 
@@ -188,9 +188,9 @@ public class PaymentCancellationTxService {
         }
 
         // 4. Orders 상태 검증
-        if (order.getStatus() != OrderStatus.PAID) {
+        if (order.getStatus() != OrderStatus.CANCEL_REQUEST) {
             throw new OrderException(
-                    "[결제 취소/RESPONSE_VALIDATE] 주문이 결제 완료 상태가 아닙니다."
+                    "[결제 취소/RESPONSE_VALIDATE] 주문이 취소 요청 상태가 아닙니다."
             );
         }
 

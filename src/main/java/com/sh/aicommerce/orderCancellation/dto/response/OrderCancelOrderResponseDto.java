@@ -14,12 +14,18 @@ import java.util.List;
 @AllArgsConstructor
 @NoArgsConstructor
 public class OrderCancelOrderResponseDto {
+    private Long orderId;
+    private String orderNumber;
+    private String orderStatus;
     private LocalDateTime orderedAt;
     private Integer totalPrice;
     private List<OrderCancelItemResponseDto> items;
 
     public OrderCancelOrderResponseDto(Orders order, List<OrderItem> orderItems) {
 
+        this.orderId = order.getId();
+        this.orderNumber = order.getOrderNumber();
+        this.orderStatus = order.getStatus().getStatus();
         this.orderedAt = order.getOrderedAt();
         this.totalPrice = order.getTotalPrice();
         this.items = orderItems.stream()

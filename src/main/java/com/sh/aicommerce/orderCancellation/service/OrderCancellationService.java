@@ -20,6 +20,7 @@ import com.sh.aicommerce.orderCancellation.dto.response.OrderCancelListResponseD
 import com.sh.aicommerce.orderCancellation.repository.OrderCancellationRepository;
 import com.sh.aicommerce.orderItem.repository.OrderItemRepository;
 import com.sh.aicommerce.payment.repository.PaymentRepository;
+import com.sh.aicommerce.paymentCancellation.repository.PaymentCancellationRepository;
 import com.sh.aicommerce.payment.service.PaymentService;
 import com.sh.aicommerce.refund.service.RefundService;
 import com.sh.aicommerce.toss.dto.response.PgPaymentHistoryDetailResponseDto;
@@ -48,6 +49,7 @@ public class OrderCancellationService {
     private final OrderItemRepository orderItemRepository;
     private final OrderCancellationRepository orderCancellationRepository;
     private final PaymentRepository paymentRepository;
+    private final PaymentCancellationRepository paymentCancellationRepository;
 
 
     private final AdminService adminService;
@@ -69,10 +71,10 @@ public class OrderCancellationService {
 
         return orderCancellationRepository.findOrderCancellationAll(pageable)
                 .map(row -> new OrderCancelListResponseDto(
-                        row.orderCancellation(),
-                        row.outbound(),
-                        row.orderId(),
-                        row.orderNumber()
+                       row.orderCancellation(),
+                       row.order(),
+                       row.payment(),
+                       row.paymentCancellation()
                 ));
     }
 
@@ -82,7 +84,7 @@ public class OrderCancellationService {
         OrderCancellationDetailRecord detailRecord = orderCancellationRepository.findByIdWithOutbound(cancelId).orElseThrow(() -> new OrderCancellationException("현재 주문 취소 정보를 확인할 수가 없습니다."));
         List<OrderItem> orderItems = orderItemRepository.findByOrderId(detailRecord.order().getId());
 
-        return new OrderCancelDetailResponseDto(detailRecord, orderItems);
+        return new OrderCancelDetailResponseDto(detailRecord, orderItems, paymentCancellationRepository.findByOrderCancellationId(cancelId).orElse(null));
     }
 
     @Transactional
@@ -110,7 +112,7 @@ public class OrderCancellationService {
         List<OrderItem> orderItems =
                 orderItemRepository.findByOrderId(data.order().getId());
 
-        return new OrderCancelDetailResponseDto(data, orderItems);
+        return new OrderCancelDetailResponseDto(data, orderItems, paymentCancellationRepository.findByOrderCancellationId(cancellationId).orElse(null));
     }
 
     @Transactional
@@ -138,10 +140,6 @@ public class OrderCancellationService {
 
     }
 
-    @Transactional
-    public List<Long> findTargetOrderCancellation() {
-        return orderCancellationRepository.findTargetOrderCancellation();
-    }
 
     @Transactional
     public OrderCancellation validateOrderCancellationById(Long cancellationId) {
@@ -149,19 +147,6 @@ public class OrderCancellationService {
                 .findById(cancellationId)
                 .orElseThrow(() -> new OrderCancellationException("[취소 정보 조회] 주문 취소 정보가 없습니다. | 취소 ID: " + cancellationId));
     }
-
-    @Transactional
-    public OrderCancellation validateOrderCancellationByIdWithLock(Long cancellationId) {
-        return orderCancellationRepository
-                .findByIdForUpdate(cancellationId)
-                .orElseThrow(() -> new OrderCancellationException("[취소 정보 조회] 주문 취소 정보가 없습니다. | 취소 ID: " + cancellationId));
-    }
-
-    @Transactional
-    public List<Long> findTargetOrderCancellationFailed() {
-        return orderCancellationRepository.findTargetOrderCancellationFailed();
-    }
-
 
     public PgPaymentHistoryDetailResponseDto getPaymentRequestHistory(Long memberId, Long cancellationId) {
         log.info("[PG Payment 요청 내역 조회] 주문 취소 번호 : {}", cancellationId);

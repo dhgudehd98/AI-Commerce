@@ -15,6 +15,8 @@ import java.util.Optional;
 @Repository
 public interface PaymentCancellationRepository extends JpaRepository<PaymentCancellation, Long> {
 
+    Optional<PaymentCancellation> findByOrderCancellationId(Long orderCancellationId);
+
     @Query("""
     select pc
     from PaymentCancellation pc

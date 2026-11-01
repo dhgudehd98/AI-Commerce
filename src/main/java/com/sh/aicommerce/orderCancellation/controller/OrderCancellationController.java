@@ -16,7 +16,23 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class OrderCancellationController {
 
+    // 관리자 인증 연동 전 개발용 임시 관리자 ID
+    private static final Long TEMP_ADMIN_MEMBER_ID = 3L;
+
     private final OrderCancellationService orderCancellationService;
+    private final com.sh.aicommerce.orderCancellation.service.OrderCancellationInventoryService inventoryService;
+
+    @PostMapping("/{cancelId}/item-return")
+    public ResponseEntity<?> confirmItemReturn(@PathVariable Long cancelId) {
+        inventoryService.confirmReturn(TEMP_ADMIN_MEMBER_ID, cancelId);
+        return ResponseEntity.ok(java.util.Map.of("result", "Y"));
+    }
+
+    @PostMapping("/{cancelId}/inventory")
+    public ResponseEntity<?> applyInventory(@PathVariable Long cancelId) {
+        inventoryService.applyInventory(TEMP_ADMIN_MEMBER_ID, cancelId);
+        return ResponseEntity.ok(java.util.Map.of("result", "Y"));
+    }
 
     // 주문 취소 리스트 출력 API
     @GetMapping("")
@@ -72,5 +88,7 @@ public class OrderCancellationController {
         Long memberId = 3L;
         return ResponseEntity.ok(orderCancellationService.getPaymentRequestHistory(memberId, cancellationId));
     }
+
+    // 결제 취소가 반
 
 }

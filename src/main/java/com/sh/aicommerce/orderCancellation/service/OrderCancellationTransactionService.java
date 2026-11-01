@@ -68,7 +68,7 @@ public class OrderCancellationTransactionService {
                 || !Objects.equals(attempt.getPayment().getId(), payment.getId())) {
             throw new OrderCancellationException("[주문 취소/PREPARE] 주문·결제·승인 내역의 연결 관계가 일치하지 않습니다.");
         }
-        if (order.getStatus() != OrderStatus.PAID
+        if (order.getStatus() != OrderStatus.CANCEL_REQUEST
                 || payment.getStatus() != PaymentStatus.PAID
                 || attempt.getStatus() != PaymentAttemptStatus.SUCCESS) {
             throw new OrderCancellationException("[주문 취소/PREPARE] 결제 완료된 주문만 취소 준비가 가능합니다.");

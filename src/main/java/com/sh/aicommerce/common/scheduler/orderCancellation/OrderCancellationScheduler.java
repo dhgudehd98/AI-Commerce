@@ -3,6 +3,7 @@ package com.sh.aicommerce.common.scheduler.orderCancellation;
 import com.sh.aicommerce.orderCancellation.service.OrderCancellationTransactionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -13,7 +14,7 @@ import java.util.List;
 public class OrderCancellationScheduler {
 
     private final OrderCancellationTransactionService orderCancellationTxService;
-//    @Scheduled
+//    @Scheduled(cron = "0 * * * * *")
     public void processOrderCancellation() {
         log.info("[ORDER_CANCEL] stage=SCAN event=START");
         List<Long> cancellationIds = orderCancellationTxService.findTargetOrderCancellation();
