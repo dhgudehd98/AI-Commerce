@@ -27,6 +27,7 @@ import com.sh.aicommerce.payment.dto.response.PgPaymentSuccessResponseDto;
 import com.sh.aicommerce.payment.dto.response.PreparePaymentResultDto;
 import com.sh.aicommerce.payment.repository.PaymentRepository;
 import com.sh.aicommerce.paymentAttempt.repository.PaymentAttemptRepository;
+import com.sh.aicommerce.paymentCompensation.service.PaymentCompensationTxService;
 import com.sh.aicommerce.productOption.repository.ProductOptionRepository;
 import com.sh.aicommerce.toss.dto.request.TossPaymentRequestDto;
 import com.sh.aicommerce.toss.dto.response.TossPaymentSuccessResponseDto;
@@ -65,6 +66,7 @@ public class PaymentService {
 
     private final PaymentTransactionService paymentTransactionService;
     private final PaymentTxService paymentTxService;
+    private final PaymentCompensationTxService paymentCompensationTxService;
 
     private final TransactionTemplate transactionTemplate;
     private final StringRedisTemplate paymentLockTemplate;
@@ -460,23 +462,13 @@ public class PaymentService {
                     paymentBillingCardRequestDto.getOrderNumber(), paymentBillingCardRequestDto.getPaymentId(),
                     paymentBillingCardRequestDto.getAttemptId());
 
-            try{
-                withPaymentLock(
-                        "UNKNOWN",
-                        paymentBillingCardRequestDto.getOrderNumber(),
-                        () -> {
-                            transactionTemplate.executeWithoutResult(status ->
-                                    paymentTxService.applyPaymentRejected(
-                                            paymentBillingCardRequestDto, e
-                                    )
-                            );
-
-                            return null;
-                        }
-                );
-            } catch(RuntimeException saveException){
+            try {
+                preparePayCompensation(paymentBillingCardRequestDto);
+            } catch (RuntimeException saveException) {
                 e.addSuppressed(saveException);
-                log.error("[PAYMENT] stage=REJECTION_APPLY event=FAILED orderNumber={} errorType={}", paymentBillingCardRequestDto.getOrderNumber(), saveException.getClass().getSimpleName());
+                log.error("[PAYMENT] stage=COMPENSATION_PREPARE event=FAILED orderNumber={} paymentId={} attemptId={} errorType={}",
+                        paymentBillingCardRequestDto.getOrderNumber(), paymentBillingCardRequestDto.getPaymentId(),
+                        paymentBillingCardRequestDto.getAttemptId(), saveException.getClass().getSimpleName());
             }
             throw new PaymentResultUnknownException(e);
 
@@ -484,6 +476,15 @@ public class PaymentService {
             log.error("[PAYMENT] stage=PG_REQUEST event=RESULT_UNKNOWN orderNumber={} paymentId={} attemptId={} errorType={}", paymentBillingCardRequestDto.getOrderNumber(), paymentBillingCardRequestDto.getPaymentId(), paymentBillingCardRequestDto.getAttemptId(), e.getClass().getSimpleName());
             throw new PaymentResultUnknownException(e);
         }
+    }
+
+    /** 외부 PG 호출 없이 보상 작업과 UNKNOWN 상태만 저장한 뒤 락을 해제합니다. */
+    private Long preparePayCompensation(PaymentBillingCardRequestDto request) {
+        return withPaymentLock(
+                "COMPENSATION_PREPARE",
+                request.getOrderNumber(),
+                () -> paymentCompensationTxService.prepareCompensation(request)
+        );
     }
 
     public TossPaymentSuccessResponseDto payByTossWidget(String orderNumber, String paymentKey, Integer amount) throws JsonProcessingException {

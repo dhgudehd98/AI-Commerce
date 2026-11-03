@@ -199,6 +199,9 @@ public class PaymentRecoveryTxService {
         PaymentAttempt attempt = recovery.getPaymentAttempt();
         Payment payment = attempt.getPayment();
         entityManager.refresh(payment, LockModeType.PESSIMISTIC_WRITE);
+        if (payment.isCompensationRequired()) {
+            throw new PaymentRecoveryException("[결제/RECOVERY_VALIDATE] 취소 보상 대상은 승인 복구에서 처리하지 않습니다.");
+        }
         Orders order = payment.getOrder();
         entityManager.refresh(order, LockModeType.PESSIMISTIC_WRITE);
         entityManager.refresh(attempt, LockModeType.PESSIMISTIC_WRITE);
@@ -336,6 +339,9 @@ public class PaymentRecoveryTxService {
         // 이미 영속성 컨텍스트에 로딩된 값도 DB의 최신 값으로 갱신하며 잠근다.
         // 승인 완료 반영과 동일하게 Payment → Orders → Attempt 순서를 유지한다.
         entityManager.refresh(payment, LockModeType.PESSIMISTIC_WRITE);
+        if (payment.isCompensationRequired()) {
+            throw new PaymentRecoveryException("[결제/RECOVERY_VALIDATE] 취소 보상 대상은 승인 복구에서 처리하지 않습니다.");
+        }
         Orders order = payment.getOrder();
         entityManager.refresh(order, LockModeType.PESSIMISTIC_WRITE);
         entityManager.refresh(attempt, LockModeType.PESSIMISTIC_WRITE);
@@ -541,6 +547,7 @@ public class PaymentRecoveryTxService {
 
     /** 결제·승인 시도 상태 조합과 PROCESSING 경과 시간 검증 */
     private boolean isRecoverableState(Payment payment, PaymentAttempt attempt, Orders order) {
+        if (payment.isCompensationRequired()) return false;
         boolean unknown = payment.getStatus() == PaymentStatus.UNKNOWN
                 && attempt.getStatus() == PaymentAttemptStatus.UNKNOWN;
         boolean staleProcessing = payment.getStatus() == PaymentStatus.PROCESSING

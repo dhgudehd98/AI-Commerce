@@ -53,6 +53,7 @@ public class PaymentTxService {
 
         Payment payment = paymentRepository.findById(cardBillingPaymentRequestDto.getPaymentId())
                 .orElseThrow(() -> new PaymentException("[결제/DECIDE] 주문 번호에 존재하는 결제 내역이 존재하지 않습니다."));
+        validateNotCompensationTarget(payment);
         PaymentStatus status = payment.getStatus();
 
         log.info("[PAYMENT] stage=DECIDE event=STATE_READ orderNumber={} paymentId={} attemptId={} paymentStatus={}", cardBillingPaymentRequestDto.getOrderNumber(), payment.getId(), cardBillingPaymentRequestDto.getPaymentAttemptId(), status);
@@ -76,6 +77,7 @@ public class PaymentTxService {
                         new MemberException("[결제/COMPLETED_READ] 회원 정보가 존재하지 않습니다."));
         Payment payment = paymentRepository.findPaymentByIdWithOrder(cardBillingPaymentRequestDto.getPaymentId())
                 .orElseThrow(() -> new PaymentException("[결제/COMPLETED_READ] 주문 번호에 존재하는 결제 내역이 존재하지 않습니다."));
+        validateNotCompensationTarget(payment);
         Orders order = payment.getOrder();
         PaymentAttempt attempt = paymentAttemptRepository.findPaymentAttemptByAttemptId(cardBillingPaymentRequestDto.getPaymentAttemptId())
                 .orElseThrow(() -> new PaymentAttemptException("[결제/COMPLETED_READ] 현재 승인 요청 번호에 일치하는 승인 요청에 대한 데이터가 존재하지 않습니다."));
@@ -134,6 +136,8 @@ public class PaymentTxService {
                 requestDto.getOrderNumber()
         ).orElseThrow(() ->
                 new PaymentException("[결제/APPROVAL_VALIDATE] 주문과 일치하는 결제 정보가 없습니다."));
+
+        validateNotCompensationTarget(payment);
 
         Orders order = orderRepository.findOrderByOrderNumberForUpdate(requestDto.getOrderNumber())
                 .orElseThrow(() -> new OrderException("[결제/APPROVAL_VALIDATE] 주문 번호에 해당하는 주문 내역이 존재하지 않습니다."));
@@ -332,6 +336,8 @@ public class PaymentTxService {
         PaymentAttempt attempt = paymentAttemptRepository.findPaymentAttemptByAttemptIdForUpdate(billingCardRequestDto.getAttemptId())
                 .orElseThrow(() -> new PaymentAttemptException("[결제/APPROVAL_APPLY] 해당 지불 내역 ID에 일치하는 결제 신청 이력이 존재하지 않습니다."));
 
+        validateNotCompensationTarget(payment);
+
         // 토스 응답 내역 저장
         TossPaymentLog tossPaymentLog = TossPaymentLog.confirmSuccess(payment, responseDto, 200, billingCardRequestDto.toString(), responseDto.toString());
         tossPaymentLogRepository.save(tossPaymentLog);
@@ -407,5 +413,11 @@ public class PaymentTxService {
         attempt.updateStatusToUnknown();
     }
 
+
+    private void validateNotCompensationTarget(Payment payment) {
+        if (payment.isCompensationRequired()) {
+            throw new PaymentException("[결제/COMPENSATION_PENDING] 취소 보상 대상 결제는 정상 승인·주문 완료로 처리할 수 없습니다.");
+        }
+    }
 
 }

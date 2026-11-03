@@ -13,6 +13,7 @@ public enum PaymentStatus {
     PAYMENT_FAILED("결제 복구 최종 실패"), // 거래 미조회 복구 횟수 소진으로 종료
     CANCELED("결제 취소 완료"),
     CANCEL_FAILED("결제 취소 실패"),
+    COMPENSATION_PENDING("결과 확인 및 보상 대기"),
     UNKNOWN("결과 확인 필요");
 
     private String status;

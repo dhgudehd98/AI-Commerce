@@ -10,6 +10,7 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
@@ -62,6 +63,14 @@ public class Payment {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private LocalDateTime paidAt;
+
+    @Column(nullable = false)
+    @org.hibernate.annotations.ColumnDefault("false")
+    private boolean compensationRequired;
+
+    public void requireCompensation() {
+        this.compensationRequired = true;
+    }
 
     private String failReason; // 토스 결제 실패 사유 추가
 
@@ -231,6 +240,11 @@ public class Payment {
 
     public void updatePaymentStatusToCanceled() {
         this.status = PaymentStatus.CANCELED;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public void updateStatusToCompensationPending() {
+        this.status = PaymentStatus.COMPENSATION_PENDING;
         this.updatedAt = LocalDateTime.now();
     }
 }
