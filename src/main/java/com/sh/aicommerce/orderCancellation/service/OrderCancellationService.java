@@ -140,14 +140,6 @@ public class OrderCancellationService {
 
     }
 
-
-    @Transactional
-    public OrderCancellation validateOrderCancellationById(Long cancellationId) {
-        return orderCancellationRepository
-                .findById(cancellationId)
-                .orElseThrow(() -> new OrderCancellationException("[취소 정보 조회] 주문 취소 정보가 없습니다. | 취소 ID: " + cancellationId));
-    }
-
     public PgPaymentHistoryDetailResponseDto getPaymentRequestHistory(Long memberId, Long cancellationId) {
         log.info("[PG Payment 요청 내역 조회] 주문 취소 번호 : {}", cancellationId);
         adminService.validateAdminMemberByMemberId(memberId);
