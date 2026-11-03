@@ -14,7 +14,6 @@ import com.sh.aicommerce.toss.dto.request.TossCancelRequestDto;
 import com.sh.aicommerce.toss.dto.request.TossPaymentBillingRequestDto;
 import com.sh.aicommerce.toss.dto.request.TossPaymentRequestDto;
 import com.sh.aicommerce.toss.dto.response.*;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -29,7 +28,6 @@ import java.util.Base64;
 import java.util.Set;
 
 @Component
-@RequiredArgsConstructor
 @Slf4j
 public class TossPaymentClient {
 
@@ -60,10 +58,21 @@ public class TossPaymentClient {
     @Value("${toss.payment.billing.secretKey}")
     private String tossBillingSecretKey;
 
-    @Qualifier("tossRestTemplate")
-    private final RestTemplate tossRestTemplate;
+    private final RestTemplate paymentRestTemplate;
+    private final RestTemplate cancelRestTemplate;
 
     private final ObjectMapper objectMapper;
+
+    public TossPaymentClient(
+            @Qualifier("tossPaymentRestTemplate") RestTemplate paymentRestTemplate,
+            @Qualifier("tossCancelRestTemplate") RestTemplate cancelRestTemplate,
+            ObjectMapper objectMapper
+    ) {
+        this.paymentRestTemplate = paymentRestTemplate;
+        this.cancelRestTemplate = cancelRestTemplate;
+        this.objectMapper = objectMapper;
+    }
+
 
     public TossPaymentSuccessResponseDto confirm(TossPaymentRequestDto request) throws JsonProcessingException {
         try {
@@ -84,7 +93,7 @@ public class TossPaymentClient {
 
             // Toss Payments API 응답 요청
             ResponseEntity<TossPaymentSuccessResponseDto> response =
-                    tossRestTemplate.exchange(
+                    paymentRestTemplate.exchange(
                             "https://api.tosspayments.com/v1/payments/confirm",
                             HttpMethod.POST,
                             httpEntity,
@@ -126,7 +135,7 @@ public class TossPaymentClient {
 
         // Toss Payments API 응답 요청
         ResponseEntity<TossPaymentBillingResponseDto> response =
-                tossRestTemplate.exchange(
+                paymentRestTemplate.exchange(
                         "https://api.tosspayments.com/v1/billing/authorizations/issue",
                         HttpMethod.POST,
                         httpEntity,
@@ -165,7 +174,7 @@ public class TossPaymentClient {
                     new HttpEntity<>(request, headers);
 
             ResponseEntity<TossPaymentSuccessResponseDto> response =
-                    tossRestTemplate.exchange(
+                    paymentRestTemplate.exchange(
                             "https://api.tosspayments.com/v1/billing/" + billingCardRequestDto.getCardBillingKey(),
                             HttpMethod.POST,
                             httpEntity,
@@ -244,7 +253,7 @@ public class TossPaymentClient {
                     new HttpEntity<>(request, headers);
 
             ResponseEntity<TossPaymentCancelResponseDto> response =
-                    tossRestTemplate.exchange(
+                    cancelRestTemplate.exchange(
                             "https://api.tosspayments.com/v1/payments/" + record.paymentKey() + "/cancel",
                             HttpMethod.POST,
                             httpEntity,
@@ -337,7 +346,7 @@ public class TossPaymentClient {
 
         try {
             ResponseEntity<TossPaymentCancelResponseDto> response =
-                    tossRestTemplate.exchange(
+                    cancelRestTemplate.exchange(
 
                             "https://api.tosspayments.com/v1/payments/{paymentKey}",
                             HttpMethod.GET,
@@ -377,7 +386,7 @@ public class TossPaymentClient {
 
         try {
             ResponseEntity<TossPaymentRequestHistoryResponseDto> response =
-                    tossRestTemplate.exchange(
+                    cancelRestTemplate.exchange(
 
                             "https://api.tosspayments.com/v1/payments/{paymentKey}",
                             HttpMethod.GET,
@@ -426,7 +435,7 @@ public class TossPaymentClient {
 
         try {
             ResponseEntity<TossPaymentRequestHistoryResponseDto> response =
-                    tossRestTemplate.exchange(
+                    cancelRestTemplate.exchange(
                             "https://api.tosspayments.com/v1/payments/orders/{orderId}",
                             HttpMethod.GET,
                             httpEntity,
