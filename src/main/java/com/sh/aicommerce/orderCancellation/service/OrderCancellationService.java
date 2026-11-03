@@ -45,18 +45,13 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class OrderCancellationService {
 
-    private final ProductInventoryRepository inventoryRepository;
     private final OrderItemRepository orderItemRepository;
     private final OrderCancellationRepository orderCancellationRepository;
-    private final PaymentRepository paymentRepository;
     private final PaymentCancellationRepository paymentCancellationRepository;
 
 
     private final AdminService adminService;
-    private final OutboundService outboundService;
-    private final RefundService refundService;
     private final OrderCancellationTxService cancellationTxService;
-
     private final TossPaymentClient client;
 
 
@@ -138,6 +133,14 @@ public class OrderCancellationService {
                 .findFailedOrderCancellations(statuses,pageable)
                 .map(OrderCancelFailResponseDto::new);
 
+    }
+
+
+    @Transactional
+    public OrderCancellation validateOrderCancellationById(Long cancellationId) {
+        return orderCancellationRepository
+                .findById(cancellationId)
+                .orElseThrow(() -> new OrderCancellationException("[취소 정보 조회] 주문 취소 정보가 없습니다. | 취소 ID: " + cancellationId));
     }
 
     public PgPaymentHistoryDetailResponseDto getPaymentRequestHistory(Long memberId, Long cancellationId) {
