@@ -187,46 +187,4 @@ public class OrderCancellationService {
         OrderCancellation cancellation = validateOrderCancellationById(cancellationId);
         return cancellation.getOrder().getPayment();
     }
-
-    /**
-     * 조회된 대상 결제와 전액 취소 상태를 확인한 뒤 내부 결과를 복구한다.
-     * 취소 상세·금액·잔액·거래 식별자는 TxService에서 최신 데이터로 재검증한다.
-     * 복구 트랜잭션이 정상 반환한 경우에만 성공 응답을 생성한다.
-     */
-    private Map<String, String> validatePgResponseWithPayment(Long cancellationId, OrderCancellationRetryRecord data, TossPaymentRequestHistoryResponseDto paymentRequestHistory) {
-
-        Orders order = data.order();
-        Payment payment = data.payment();
-
-        // 정합성 검사에 실패한 경우
-        if(paymentRequestHistory == null){
-            throw new TossPaymentException("[주문 취소 재처리 요청 실패] PG 요청 내역이 존재하지 않습니다.");
-        }
-
-        if(paymentRequestHistory.getPaymentKey() == null || !paymentRequestHistory.getPaymentKey().equals(payment.getPaymentKey())) {
-            throw new OrderCancellationException("[주문 취소 재처리 요청 실패] PG 결제 내역과 지불 내역 값이 일치하지 않습니다.");
-        }
-
-        if(paymentRequestHistory.getOrderId() == null || !paymentRequestHistory.getOrderId().equals(order.getOrderNumber())) {
-            throw new PaymentException("[주문 취소 재처리 요청 실패] 결제 시, 주문 번호에 대한 내역이 다릅니다.");
-        }
-
-        if(paymentRequestHistory.getTotalAmount() == null || !paymentRequestHistory.getTotalAmount().equals(payment.getAmount())) {
-            throw new PaymentException("[주문 취소 재처리 요청 실패] 실제 결제 금액과 과거 결제 금액 내역이 다릅니다.");
-        }
-
-        if (!"CANCELED".equals(paymentRequestHistory.getStatus())) {
-            throw new OrderCancellationException(
-                    "[주문 취소 복구 불가] PG 전액 취소 완료가 확인되지 않았습니다. 취소 ID: " + cancellationId);
-        }
-
-        // 상세 거래 검증과 저장은 TxService에서 수행하며 정상 반환 이후 커밋이 완료된다.
-        cancellationTxService.applyRecoveredUpdateStatus(cancellationId, paymentRequestHistory);
-        log.info("[주문 취소 복구 완료] 취소 ID: {}, 주문 ID: {}, 결제 ID: {}",
-                cancellationId, order.getId(), payment.getId());
-        return Map.of(
-                "result", "Y",
-                "message", "PG 취소 결과를 반영하여 주문 취소 처리가 완료되었습니다. 취소 ID: " + cancellationId
-        );
-    }
 }
