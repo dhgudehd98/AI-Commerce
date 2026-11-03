@@ -51,7 +51,6 @@ public class OrderCancellationService {
 
 
     private final AdminService adminService;
-    private final OrderCancellationTxService cancellationTxService;
     private final TossPaymentClient client;
 
 
