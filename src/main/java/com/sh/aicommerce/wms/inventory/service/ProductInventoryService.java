@@ -10,12 +10,14 @@ import com.sh.aicommerce.enums.wms.StockMovementStatus;
 import com.sh.aicommerce.order.orderRepository.OrderRepository;
 import com.sh.aicommerce.payment.dto.request.PaymentBillingCardRequestDto;
 import com.sh.aicommerce.payment.repository.PaymentRepository;
+import com.sh.aicommerce.product.redis.ProductIndexEventRecord;
 import com.sh.aicommerce.productOption.repository.ProductOptionRepository;
 import com.sh.aicommerce.wms.inBound.dto.InboundType;
 import com.sh.aicommerce.wms.inventory.repository.ProductInventoryRepository;
 import com.sh.aicommerce.wms.stockMovement.repository.StockMovementRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,6 +27,7 @@ import java.time.LocalDateTime;
 @RequiredArgsConstructor
 @Slf4j
 public class ProductInventoryService {
+    private final ApplicationEventPublisher events;
     private final ProductInventoryRepository inventoryRepository;
     private final StockMovementRepository stockMovementRepository;
     private final ProductOptionRepository optionRepository;
@@ -138,6 +141,30 @@ public class ProductInventoryService {
         );
 
         stockMovementRepository.save(stockMovement);
+    }
+
+    // 호출시 기존에 사용하던 트랜잭션 안에서 사용
+    // 호출된 부분은 결제 보상 트랜잭션에서 결제 조회 내역이 존재하지 않을 때, 결제 내역, 결제 시도 내역, 주문에 대한 내역을 업데이트 하는 과정에 있어서
+    // 동일한 트랜잭션을 사용하기 위해서 설정
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.MANDATORY)
+    public void releaseCompensationReservation(Orders order) {
+        if (order.getOrderItems().isEmpty()) {
+            throw new ProductInventoryException("보상 예약 해제 대상 상품이 없습니다.");
+        }
+        order.getOrderItems().stream()
+                .sorted(java.util.Comparator.comparing(item -> item.getProductOption().getId()))
+                .forEach(item -> {
+                    ProductInventory inventory = inventoryRepository.findProductInventoryByOptionIdForUpdate(
+                                    item.getProductOption().getId())
+                            .orElseThrow(() -> new ProductInventoryException("보상 예약 해제 대상 재고가 없습니다."));
+                    int before = inventory.getReservedQuantity();
+                    inventory.updateReleasedReservationQuantity(item.getQuantity());
+                    stockMovementRepository.save(new StockMovement(inventory, StockMovementStatus.RESERVATION_RELEASE,
+                            StockMovementReferenceType.ORDER, order.getId(), item.getQuantity(), before,
+                            inventory.getReservedQuantity(), LocalDateTime.now()));
+                    events.publishEvent(new ProductIndexEventRecord(
+                            item.getProductOption().getProduct().getId(), "INBOUND"));
+                });
     }
 
     public void releasedReservationQuantity(Orders order, PaymentBillingCardRequestDto paymentBillingCardRequestDto) {

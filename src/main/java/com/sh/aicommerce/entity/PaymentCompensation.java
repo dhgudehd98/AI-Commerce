@@ -2,6 +2,7 @@ package com.sh.aicommerce.entity;
 
 import com.sh.aicommerce.common.exception.payment.PaymentException;
 import com.sh.aicommerce.enums.paymentCompensation.PaymentCompensationStatus;
+import com.sh.aicommerce.enums.paymentCompensation.PaymentCompensationResult;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -16,6 +17,8 @@ import java.time.LocalDateTime;
         name = "uk_payment_compensation_attempt", columnNames = "payment_attempt_id"))
 public class PaymentCompensation {
 
+    public static final int MAX_RETRY_COUNT = 3;
+
     private static final String APPROVAL_RESULT_UNKNOWN = "APPROVAL_RESULT_UNKNOWN";
 
     @Id
@@ -29,6 +32,16 @@ public class PaymentCompensation {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private PaymentCompensationStatus status;
+
+    @Enumerated(EnumType.STRING)
+    private PaymentCompensationResult result;
+
+    private LocalDateTime checkedAt;
+
+    /** 최초 실행을 제외한 추가 실행 횟수입니다. */
+    @Column(nullable = false)
+    @org.hibernate.annotations.ColumnDefault("0")
+    private int retryCount;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "payment_cancellation_id")
@@ -75,6 +88,11 @@ public class PaymentCompensation {
         this.updatedAt = LocalDateTime.now();
     }
 
+    public void startRetryProcessing() {
+        this.retryCount++;
+        startProcessing();
+    }
+
     public void handOffCancellation(PaymentCancellation cancellation) {
         this.paymentCancellation = cancellation;
         this.status = PaymentCompensationStatus.CANCELLATION_PENDING;
@@ -83,15 +101,31 @@ public class PaymentCompensation {
     }
 
     public void defer(String errorCode, boolean manualReview) {
+
+        // 이미 PaymentCompensationStatus : CANCELLATION_PENDING 인 경우에는 상태값을 PENDING으로 바꾸지 않고 return;
         if (this.status != PaymentCompensationStatus.PROCESSING
                 && !(manualReview && this.status == PaymentCompensationStatus.PENDING)) return;
-        this.status = manualReview ? PaymentCompensationStatus.MANUAL_REVIEW_REQUIRED
+        this.status = manualReview || this.retryCount >= MAX_RETRY_COUNT
+                ? PaymentCompensationStatus.MANUAL_REVIEW_REQUIRED
                 : PaymentCompensationStatus.PENDING;
         this.lastErrorCode = errorCode;
         this.updatedAt = LocalDateTime.now();
     }
 
+    public void completePaymentNotFound() {
+        completeUnapproved(PaymentCompensationResult.PAYMENT_NOT_FOUND, "NOT_FOUND_PAYMENT");
+    }
+
+    public void completeUnapproved(PaymentCompensationResult result, String reasonCode) {
+        this.result = result;
+        this.lastErrorCode = reasonCode;
+        this.checkedAt = LocalDateTime.now();
+        this.status = PaymentCompensationStatus.COMPLETED;
+        this.updatedAt = this.checkedAt;
+    }
+
     public void complete() {
+        this.result = PaymentCompensationResult.PG_CANCELED;
         this.status = PaymentCompensationStatus.COMPLETED;
         this.updatedAt = LocalDateTime.now();
     }

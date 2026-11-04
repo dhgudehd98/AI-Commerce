@@ -24,4 +24,11 @@ public interface PaymentCompensationRepository extends JpaRepository<PaymentComp
     Optional<PaymentCompensation> findByIdForUpdate(@Param("id") Long id);
 
     java.util.List<PaymentCompensation> findAllByPaymentCancellationId(Long cancellationId);
+    @Query("""
+    select c.id from PaymentCompensation c
+    where c.status = 'PENDING' and c.updatedAt <= :cutoff
+    order by c.updatedAt, c.id
+    """)
+    java.util.List<Long> findPendingRetryIds(@Param("cutoff") java.time.LocalDateTime cutoff,
+                                           org.springframework.data.domain.Pageable pageable);
 }

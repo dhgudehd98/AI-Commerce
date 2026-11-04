@@ -10,5 +10,6 @@ public enum PaymentAttemptStatus {
     PAYMENT_REJECTED, // PG가 명확한 승인 거절을 응답
 
     UNKNOWN,      // 승인 결과 불명확: 타임아웃, 응답 유실 등으로 PG 결과 확인 필요
+    CANCELED,     // PG 조회 내역 없음으로 승인 시도 종료
     PAYMENT_FAILED // 최종적으로 결제 승인이 실패한 상태(상태 복구 과정도 실패 )
 }

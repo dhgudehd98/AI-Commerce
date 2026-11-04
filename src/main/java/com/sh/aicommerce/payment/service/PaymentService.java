@@ -402,21 +402,9 @@ public class PaymentService {
                         paymentBillingCardRequestDto.getOrderNumber(), paymentBillingCardRequestDto.getPaymentId(),
                         paymentBillingCardRequestDto.getAttemptId(), applyException.getClass().getSimpleName());
 
-                //DB 저장 실패시,UNKNOWN으로 저장
-                try{
-                    withPaymentLock(
-                            "UNKNOWN",
-                            paymentBillingCardRequestDto.getOrderNumber(),
-                            () -> {
-                                transactionTemplate.executeWithoutResult(status ->
-                                        paymentTxService.applyPaymentRejected(
-                                                paymentBillingCardRequestDto, applyException
-                                        )
-                                );
-
-                                return null;
-                            }
-                    );
+                try {
+                    // 결제 승인은 정상적으로 처리 되었지만, DB반영 과정에서 에러가 발생한 경우에는 보상 트랜잭션 로직을 타도록 설정해서 실패 처리
+                    preparePaymentCompensation(paymentBillingCardRequestDto);
                 } catch(RuntimeException saveException){
                     applyException.addSuppressed(saveException);
                     log.error("[PAYMENT] stage=REJECTION_APPLY event=FAILED orderNumber={} errorType={}", paymentBillingCardRequestDto.getOrderNumber(), saveException.getClass().getSimpleName());
@@ -472,11 +460,19 @@ public class PaymentService {
 
         } catch (JsonProcessingException e) {
             log.error("[PAYMENT] stage=PG_REQUEST event=RESULT_UNKNOWN orderNumber={} paymentId={} attemptId={} errorType={}", paymentBillingCardRequestDto.getOrderNumber(), paymentBillingCardRequestDto.getPaymentId(), paymentBillingCardRequestDto.getAttemptId(), e.getClass().getSimpleName());
+            try {
+                preparePaymentCompensation(paymentBillingCardRequestDto);
+            } catch (RuntimeException saveException) {
+                e.addSuppressed(saveException);
+                log.error("[PAYMENT] stage=COMPENSATION_PREPARE event=FAILED orderNumber={} paymentId={} attemptId={} errorType={}",
+                        paymentBillingCardRequestDto.getOrderNumber(), paymentBillingCardRequestDto.getPaymentId(),
+                        paymentBillingCardRequestDto.getAttemptId(), saveException.getClass().getSimpleName());
+            }
             throw new PaymentResultUnknownException(e);
         }
     }
 
-    /** 외부 PG 호출 없이 보상 작업과 UNKNOWN 상태만 저장한 뒤 락을 해제합니다. */
+    /** 외부 PG 호출 없이 보상 작업과 보상 대기 상태만 저장한 뒤 락을 해제합니다. */
     private Long preparePaymentCompensation(PaymentBillingCardRequestDto request) {
         return withPaymentLock(
                 "COMPENSATION_PREPARE",

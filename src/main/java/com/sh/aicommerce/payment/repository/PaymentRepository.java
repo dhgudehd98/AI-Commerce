@@ -222,4 +222,21 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     and p.updatedAt <= :updatedAt
     """)
     List<Long> findPaymentStatusProcessing(@Param("updatedAt") LocalDateTime updatedAt);
+
+    // 기존 승인 시도는 있지만 보상 작업이 없는 장시간 진행상태에 건만 수집
+    @Query("""
+    select new com.sh.aicommerce.paymentCompensation.record.PaymentCompensationScanRecord(p.id, o.orderNumber)
+    from Payment p
+    join p.order o
+    where p.status = 'PROCESSING'
+      and p.updatedAt <= :cutoff
+      and exists (select a.id from PaymentAttempt a where a.payment = p)
+      and not exists (
+          select c.id from PaymentCompensation c
+          where c.paymentAttempt.payment = p
+      )
+    order by p.updatedAt, p.id
+    """)
+    List<com.sh.aicommerce.paymentCompensation.record.PaymentCompensationScanRecord> findMissingProcessingCompensations(
+            @Param("cutoff") LocalDateTime cutoff, org.springframework.data.domain.Pageable pageable);
 }

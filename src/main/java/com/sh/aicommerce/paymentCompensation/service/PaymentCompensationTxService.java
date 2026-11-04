@@ -9,6 +9,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import com.sh.aicommerce.entity.*;
 import com.sh.aicommerce.enums.order.*;
 import com.sh.aicommerce.enums.paymentCompensation.PaymentCompensationStatus;
+import com.sh.aicommerce.enums.paymentCompensation.PaymentCompensationResult;
 import com.sh.aicommerce.enums.paymentCancellation.PaymentCancellationStatus;
 import com.sh.aicommerce.orderCancellation.repository.OrderCancellationRepository;
 import com.sh.aicommerce.paymentCancellation.repository.PaymentCancellationRepository;
@@ -30,6 +31,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.EnumSet;
 import java.util.Objects;
 import java.util.Optional;
@@ -39,6 +41,7 @@ import java.util.Optional;
 @Slf4j
 public class PaymentCompensationTxService {
 
+    private final com.sh.aicommerce.wms.inventory.service.ProductInventoryService inventoryService;
     private final ApplicationEventPublisher eventPublisher;
     private final OrderCancellationRepository orderCancellationRepository;
     private final PaymentCancellationRepository paymentCancellations;
@@ -78,9 +81,50 @@ public class PaymentCompensationTxService {
             throw new PaymentException("[결제/COMPENSATION_PREPARE] 주문·결제·승인 시도의 연결 또는 금액이 일치하지 않습니다.");
         }
 
-        // Payment 잠금으로 동일 결제의 동시 준비를 직렬화하고 고유 제약으로 중복 저장을 방어합니다.
+        return createPaymentCompensation(payment, attempt);
+    }
+
+    /** 스캔 이후 승인·거절 반영이 끝난 결제는 보상으로 전환하지 않습니다. */
+    @Transactional
+    public Long prepareProcessingCompensation(Long paymentId, String orderNumber, LocalDateTime cutoff) {
+
+        Payment payment = paymentRepository.findPaymentByIdWithOrderForUpdate(paymentId, orderNumber)
+                .orElseThrow(() -> invalid("결제 내역이 없습니다."));
+
+        if (payment.getStatus() != PaymentStatus.PROCESSING ||
+                payment.getUpdatedAt() == null ||
+                 payment.getUpdatedAt().isAfter(cutoff)) {
+            return null;
+        }
+
+        Orders order = payment.getOrder();
+        entityManager.refresh(order, LockModeType.PESSIMISTIC_WRITE);
+
+        if (!EnumSet.of(OrderStatus.PENDING_PAYMENT, OrderStatus.PAYMENT_PROCESSING, OrderStatus.UNKNOWN)
+                .contains(order.getStatus())) {
+            throw invalid("장시간 진행 결제의 주문 상태를 확인해야 합니다.");
+        }
+
+        PaymentAttempt latest = attemptRepository.findFirstByPaymentIdOrderByIdDesc(paymentId)
+                .orElseThrow(() -> invalid("보상 생성 대상 승인 시도가 없습니다."));
+        PaymentAttempt attempt = attemptRepository.findPaymentAttemptByAttemptIdForUpdate(latest.getId())
+                .orElseThrow(() -> invalid("보상 생성 대상 승인 시도가 없습니다."));
+
+        if (!Objects.equals(attempt.getOrderNumber(), order.getOrderNumber())
+                || !Objects.equals(attempt.getRequestAmount(), payment.getAmount())
+                || !Objects.equals(payment.getAmount(), order.getTotalPrice())) {
+            throw invalid("장시간 진행 결제의 주문·승인 시도·금액이 일치하지 않습니다.");
+        }
+        return createPaymentCompensation(payment, attempt);
+    }
+
+
+    private Long createPaymentCompensation(Payment payment, PaymentAttempt attempt) {
+
         Optional<PaymentCompensation> existing = compensationRepository.findByPaymentAttemptId(attempt.getId());
-        if (existing.isPresent()) return existing.get().getId();
+
+        if (existing.isPresent())
+            return existing.get().getId();
 
         PaymentAttempt latest = attemptRepository.findFirstByPaymentIdOrderByIdDesc(payment.getId())
                 .orElseThrow(() -> new PaymentException("[결제/COMPENSATION_PREPARE] 최신 승인 시도가 없습니다."));
@@ -94,11 +138,11 @@ public class PaymentCompensationTxService {
 
         payment.requireCompensation();
 
-        // 이미 확인된 승인 사실은 보존합니다. 예약 재고는 어떤 경우에도 여기서 해제하지 않습니다.
         if (payment.getStatus() != PaymentStatus.PAID && attempt.getStatus() != PaymentAttemptStatus.SUCCESS) {
             payment.updateStatusToCompensationPending();
             attempt.updateStatusToUnknown();
         }
+
         PaymentCompensation saved = compensationRepository.save(PaymentCompensation.create(attempt));
         log.warn("[PAYMENT] stage=COMPENSATION_PREPARE event=SAVED_PENDING_COMMIT paymentId={} attemptId={} compensationId={}",
                 payment.getId(), attempt.getId(), saved.getId());
@@ -112,17 +156,43 @@ public class PaymentCompensationTxService {
     /** 보상 작업을 먼저 선점하고, PG 호출용 스냅샷을 반환합니다. */
     @Transactional
     public PaymentCompensationRequestRecord findPaymentAndAttempt(Long compensationId) {
+        return claimPendingCompensation(compensationId, null);
+    }
+
+    @Transactional
+    public PaymentCompensationRequestRecord findPaymentAndAttemptForRetry(
+            Long compensationId, java.time.LocalDateTime cutoff) {
+        return claimPendingCompensation(compensationId, cutoff);
+    }
+
+    private PaymentCompensationRequestRecord claimPendingCompensation(
+            Long compensationId, java.time.LocalDateTime retryCutoff) {
         PaymentCompensation compensation = lock(compensationId);
 
         if (compensation.getStatus() != PaymentCompensationStatus.PENDING)
             return null;
+
+        if (retryCutoff != null) {
+            if (compensation.getUpdatedAt().isAfter(retryCutoff)) return null;
+
+            // 재시도 횟수가 초과되면 그대로 종료
+            if (compensation.getRetryCount() >= PaymentCompensation.MAX_RETRY_COUNT) {
+                compensation.defer("COMPENSATION_RETRY_EXHAUSTED", true);
+                return null;
+            }
+        }
 
         PaymentAttempt attempt = compensation.getPaymentAttempt();
         Payment payment = attempt.getPayment();
         Orders order = payment.getOrder();
 
         validateForCompensation(compensation, attempt, payment, order);
-        compensation.startProcessing();
+
+        if (retryCutoff == null)
+            compensation.startProcessing();
+        else
+            compensation.startRetryProcessing();
+
         return new PaymentCompensationRequestRecord(compensationId, payment.getId(), attempt.getId(),
                 order.getId(), compensation.getOrderNumber(), compensation.getRequestAmount());
     }
@@ -216,6 +286,81 @@ public class PaymentCompensationTxService {
         }
         // READY만 기존 취소 서비스에 넘깁니다. PROCESSING·UNKNOWN은 기존 취소 복구가 담당합니다.
         return pc.getStatus() == PaymentCancellationStatus.READY ? pc.getId() : null;
+    }
+
+    /** 미조회 종료·예약 해제·보상 완료는 하나의 트랜잭션에서 반영합니다. */
+    @Transactional
+    public void completePaymentNotFound(Long compensationId) {
+        completeUnapproved(lock(compensationId),
+                PaymentCompensationResult.PAYMENT_NOT_FOUND,
+                "NOT_FOUND_PAYMENT", "PG 결제 조회 내역이 없어 내부 취소 처리했습니다.");
+    }
+
+    /** 조회 객체의 승인 실패·만료를 검증한 뒤 기존 미승인 종료 경로를 사용합니다. */
+    @Transactional
+    public void completeUnapprovedPayment(Long compensationId, TossPaymentRequestHistoryResponseDto response) {
+        PaymentCompensation compensation = lock(compensationId);
+
+        if (compensation.getStatus() == PaymentCompensationStatus.COMPLETED)
+            return;
+        if (response == null || !("ABORTED".equals(response.getStatus()) || "EXPIRED".equals(response.getStatus()))
+                || !Objects.equals(response.getOrderId(), compensation.getOrderNumber())
+                || !Objects.equals(response.getTotalAmount(), compensation.getRequestAmount())
+                || !"KRW".equals(response.getCurrency())
+                || response.getApprovedAt() != null
+                || response.getCancels() != null && !response.getCancels().isEmpty()) {
+            throw invalid("PG 미승인 종료 상태·주문번호·금액·통화·승인 이력이 유효하지 않습니다.");
+        }
+        boolean aborted = "ABORTED".equals(response.getStatus());
+        completeUnapproved(compensation,
+                aborted ? PaymentCompensationResult.APPROVAL_ABORTED : PaymentCompensationResult.PAYMENT_EXPIRED,
+                response.getStatus(), aborted ? "PG 승인 실패로 내부 취소 처리했습니다." : "PG 거래 만료로 내부 취소 처리했습니다.");
+    }
+
+    private void completeUnapproved(PaymentCompensation compensation,
+            PaymentCompensationResult result,
+            String reasonCode, String reasonMessage) {
+
+        if (compensation.getStatus() == PaymentCompensationStatus.COMPLETED)
+            return;
+
+        if (compensation.getStatus() != PaymentCompensationStatus.PROCESSING) {
+            throw invalid("미승인 종료 가능한 보상 상태가 아닙니다.");
+        }
+
+        PaymentAttempt attempt = compensation.getPaymentAttempt();
+        Payment payment = attempt.getPayment();
+        Orders order = payment.getOrder();
+
+        entityManager.refresh(payment, LockModeType.PESSIMISTIC_WRITE);
+        entityManager.refresh(order, LockModeType.PESSIMISTIC_WRITE);
+        entityManager.refresh(attempt, LockModeType.PESSIMISTIC_WRITE);
+
+        validateForCompensation(compensation, attempt, payment, order);
+        PaymentAttempt latest = attemptRepository.findFirstByPaymentIdOrderByIdDesc(payment.getId())
+                .orElseThrow(() -> invalid("최신 승인 시도가 없습니다."));
+
+        if (!Objects.equals(latest.getId(), attempt.getId())
+                || compensation.getPaymentCancellation() != null
+                || !EnumSet.of(PaymentStatus.COMPENSATION_PENDING, PaymentStatus.UNKNOWN).contains(payment.getStatus())
+                || !EnumSet.of(PaymentAttemptStatus.PROCESSING, PaymentAttemptStatus.UNKNOWN).contains(attempt.getStatus())
+                || !EnumSet.of(OrderStatus.PENDING_PAYMENT, OrderStatus.PAYMENT_PROCESSING, OrderStatus.UNKNOWN).contains(order.getStatus())
+                || StringUtils.hasText(payment.getPaymentKey()) || StringUtils.hasText(attempt.getPaymentKey())
+                || orderCancellationRepository.findByOrderId(order.getId()).isPresent()
+                || outbounds.findOutboundByOrderIdWithLock(order.getId()).isPresent()) {
+            throw invalid("이미 승인·취소·출고가 반영되었거나 최신 시도가 아니므로 미승인 종료할 수 없습니다.");
+        }
+
+        // PG 취소 요청 없이 내부 취소와 예약 해제를 함께 반영합니다.
+        inventoryService.releaseCompensationReservation(order);
+
+        payment.updatePaymentStatusToCanceled();
+        attempt.cancelUnapproved(reasonCode, reasonMessage);
+        order.updateStatusToCancel();
+        compensation.completeUnapproved(result, reasonCode);
+
+        log.info("[PAYMENT] stage=COMPENSATION event=UNAPPROVED_COMPLETED_PENDING_COMMIT compensationId={} paymentId={} attemptId={} orderNumber={} reasonCode={}",
+                compensation.getId(), payment.getId(), attempt.getId(), order.getOrderNumber(), reasonCode);
     }
 
     @Transactional
