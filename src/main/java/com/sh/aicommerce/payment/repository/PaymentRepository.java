@@ -207,14 +207,6 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     """)
     Optional<Payment> findPaymentByOrderId(@Param("orderId") Long orderId);
 
-
-    @Query("""
-    select p.id
-    from Payment p
-    where p.status = 'UNKNOWN'
-    """)
-    List<Long> findPaymentStatusUnknown();
-
     @Query("""
     select p.id
     from Payment p
