@@ -1,107 +1,53 @@
 package com.sh.aicommerce.orderCancellation.dto.response;
 
-import com.sh.aicommerce.entity.OrderCancellation;
-import com.sh.aicommerce.entity.OrderItem;
-import com.sh.aicommerce.entity.Refund;
-import com.sh.aicommerce.enums.order.OrderCancelStatus;
-import com.sh.aicommerce.enums.order.OrderStatus;
+import com.sh.aicommerce.entity.*;
 import com.sh.aicommerce.orderCancellation.dto.record.OrderCancellationDetailRecord;
 import com.sh.aicommerce.orderCancellation.dto.record.OrderCancellationFailedDetailResponseRecord;
 import com.sh.aicommerce.refund.dto.response.OrderCancelFailRefundResponseDto;
-import lombok.AllArgsConstructor;
 import lombok.Getter;
-import lombok.NoArgsConstructor;
-
-import java.time.LocalDateTime;
 import java.util.List;
 
 @Getter
-@AllArgsConstructor
-@NoArgsConstructor
 public class OrderCancelDetailResponseDto {
-    private Long cancelId;
-    private Long orderId;
-    private String orderNumber;
-    private Long outboundId;
-    private String outboundNumber;
-    private String orderStatus;
-    private String outboundStatus;
-    private String cancelStatus;
-    private OrderCancelStatus cancelStatusCode;
-    private String cancelReason;
-    private String failReason;
-    private LocalDateTime requestedAt;
-    private LocalDateTime updatedAt;
-    private LocalDateTime completedAt;
-    private String admin;
-    private boolean itemReturnRequired;
-    private LocalDateTime itemReturnedAt;
-    private LocalDateTime reservationReleasedAt;
-
+    // 회원 관련 상세 정보
     private OrderCancelMemberResponseDto member;
+    // 주문 관련 상세 정보
     private OrderCancelOrderResponseDto order;
-    private OrderCancelDeliveryResponseDto delivery;
+    // 주문 취소 관련 상세 정보
+    private OrderCancellationInfoResponseDto cancellation;
+    // 결제 관련 상세 정보
     private OrderCancelPaymentResponseDto payment;
+    // 결제 취소 관련 상세 정보 (미시작 시 null)
+    private PaymentCancellationInfoResponseDto paymentCancellation;
+    // 출고 및 배송 관련 상세 정보
+    private OrderCancelOutboundResponseDto outbound;
+    private OrderCancelDeliveryResponseDto delivery;
+    // 상품 복귀 및 재고 처리 관련 상세 정보
+    private OrderCancelInventoryResponseDto inventory;
+    private OrderCancelActionsResponseDto actions;
+    // 기존 별도 환불 처리 내역
     private OrderCancelFailRefundResponseDto refund;
 
-    public OrderCancelDetailResponseDto(OrderCancellationDetailRecord data, List<OrderItem> orderItems) {
-        this.cancelId = data.cancellation().getId();
-        this.orderId = data.order().getId();
-        this.orderNumber = data.order().getOrderNumber();
-        this.outboundId = data.outbound().getId();
-        this.outboundNumber = data.outbound().getOutboundNumber();
-        this.orderStatus = data.order().getStatus().getStatus();
-        this.outboundStatus = data.outbound().getOutBoundStatus().getStatus();
-        this.cancelStatus = data.cancellation().getCancelStatus().getStatus();
-        this.cancelReason = data.cancellation().getCancelReason();
-        this.failReason = data.cancellation().getFailReason();
-        this.requestedAt = data.cancellation().getRequestedAt();
-        this.updatedAt = data.cancellation().getUpdatedAt();
-        this.completedAt = data.cancellation().getCompletedAt();
-        this.admin = data.cancellation().getAdmin();
-        this.itemReturnRequired = data.cancellation().isItemReturnRequired();
-        this.itemReturnedAt = data.cancellation().getItemReturnedAt();
-        this.reservationReleasedAt = data.cancellation().getReservationReleasedAt();
-        this.member = new OrderCancelMemberResponseDto(data.member());
-        this.order = new OrderCancelOrderResponseDto(data.order(), orderItems);
-        this.delivery = new OrderCancelDeliveryResponseDto(data.delivery());
-        this.payment = new OrderCancelPaymentResponseDto(data.payment());
+    private OrderCancelDetailResponseDto(OrderCancellation cancellation, Orders order, Member member,
+            Payment payment, Outbound outbound, Delivery delivery, List<OrderItem> items,
+            PaymentCancellation paymentCancellation) {
+        this.member = member == null ? null : new OrderCancelMemberResponseDto(member);
+        this.order = new OrderCancelOrderResponseDto(order, items);
+        this.cancellation = new OrderCancellationInfoResponseDto(cancellation);
+        this.payment = payment == null ? null : new OrderCancelPaymentResponseDto(payment);
+        this.paymentCancellation = paymentCancellation == null ? null : new PaymentCancellationInfoResponseDto(paymentCancellation);
+        this.outbound = outbound == null ? null : new OrderCancelOutboundResponseDto(outbound);
+        this.delivery = delivery == null ? null : new OrderCancelDeliveryResponseDto(delivery);
+        this.inventory = new OrderCancelInventoryResponseDto(cancellation);
+        this.actions = OrderCancelActionsResponseDto.from(cancellation, paymentCancellation);
     }
 
-    public OrderCancelDetailResponseDto(OrderCancellationFailedDetailResponseRecord data, List<OrderItem> orderItems) {
-        OrderCancellation cancellation = data.cancellation();
+    public OrderCancelDetailResponseDto(OrderCancellationDetailRecord data, List<OrderItem> items, PaymentCancellation pc) {
+        this(data.cancellation(), data.order(), data.member(), data.payment(), data.outbound(), data.delivery(), items, pc);
+    }
 
-        this.cancelId = cancellation.getId();
-        this.orderId = data.order().getId();
-        this.orderNumber = data.order().getOrderNumber();
-        this.outboundId = data.outbound().getId();
-        this.outboundNumber = data.outbound().getOutboundNumber();
-
-        this.orderStatus = data.order().getStatus().getStatus();
-        this.outboundStatus = data.outbound().getOutBoundStatus().getStatus();
-        this.cancelStatus = cancellation.getCancelStatus().getStatus();
-        this.cancelStatusCode = data.cancellation().getCancelStatus();
-
-        this.cancelReason = cancellation.getCancelReason();
-        this.failReason = cancellation.getFailReason();
-        this.admin = cancellation.getAdmin();
-
-        this.requestedAt = cancellation.getRequestedAt();
-        this.updatedAt = cancellation.getUpdatedAt();
-        this.completedAt = cancellation.getCompletedAt();
-
-        this.itemReturnRequired = cancellation.isItemReturnRequired();
-        this.itemReturnedAt = cancellation.getItemReturnedAt();
-        this.reservationReleasedAt = cancellation.getReservationReleasedAt();
-
-        this.member = new OrderCancelMemberResponseDto(data.member());
-        this.order = new OrderCancelOrderResponseDto(data.order(), orderItems);
-        this.payment = new OrderCancelPaymentResponseDto(data.payment());
-
-        this.delivery = data.delivery() == null
-                ? null
-                : new OrderCancelDeliveryResponseDto(data.delivery());
-
+    public OrderCancelDetailResponseDto(OrderCancellationFailedDetailResponseRecord data, List<OrderItem> items, PaymentCancellation pc) {
+        this(data.cancellation(), data.order(), data.member(), data.payment(), data.outbound(), data.delivery(), items, pc);
         Refund r = data.refund();
 
         // 앞서 제안한 OrderCancelFailRefundResponseDto record 기준

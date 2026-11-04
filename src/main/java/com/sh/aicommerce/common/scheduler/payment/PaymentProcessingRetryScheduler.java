@@ -1,25 +1,21 @@
 package com.sh.aicommerce.common.scheduler.payment;
 
-import com.sh.aicommerce.payment.service.PaymentRecoveryService;
-import com.sh.aicommerce.payment.service.PaymentRetryTxService;
+import com.sh.aicommerce.paymentCompensation.service.PaymentCompensationScanService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-import java.util.List;
 
 @Component
 @RequiredArgsConstructor
 @Slf4j
 public class PaymentProcessingRetryScheduler {
-    private final PaymentRetryTxService retryTxService;
-    private final PaymentRecoveryService recoveryService;
+    private final PaymentCompensationScanService compensationScanService;
 
-    /** PROCESSING 결제 대상 조회 후 공통 복구 서비스 호출 */
-//    @Scheduled
+    /** 장시간 PROCESSING의 보상 누락을 수집하며 정상 주문 승인 복구는 수행하지 않습니다. */
+//    @Scheduled(fixedDelayString = "${payment.compensation.processing.fixed-delay-ms:60000}")
     public void processingPaymentRetry() {
-        log.info("[PAYMENT] stage=RECOVERY_SCAN event=START paymentStatus=PROCESSING");
-        List<Long> targets = retryTxService.findPaymentStatusProcessing();
-        log.info("[PAYMENT] stage=RECOVERY_SCAN event=CANDIDATES paymentStatus=PROCESSING count={}", targets.size());
-        targets.forEach(recoveryService::recover);
+        log.info("[PAYMENT] stage=COMPENSATION_SCAN event=START paymentStatus=PROCESSING");
+        compensationScanService.collectMissingCompensations();
     }
 }

@@ -6,6 +6,7 @@ import com.sh.aicommerce.order.dto.OrderSheetResponseDto;
 import com.sh.aicommerce.order.service.OrderService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
@@ -19,6 +20,12 @@ import org.springframework.web.bind.annotation.*;
 public class OrderController {
 
     private final OrderService orderService;
+
+    @Value("${toss.payment.widget.sdk-client-key}")
+    private String widgetSdkClientKey;
+
+    @Value("${toss.payment.billing.sdk-client-key}")
+    private String billingSdkClientKey;
 
 
     @GetMapping("/sheet/{variantId}")
@@ -35,6 +42,8 @@ public class OrderController {
                 orderService.orderSheet(memberId, variantId, optionId);
 
         model.addAttribute("orderSheet", orderSheetResponseDto);
+        model.addAttribute("widgetSdkClientKey", widgetSdkClientKey);
+        model.addAttribute("billingSdkClientKey", billingSdkClientKey);
 
         return "order/order-sheet-widget";
     }

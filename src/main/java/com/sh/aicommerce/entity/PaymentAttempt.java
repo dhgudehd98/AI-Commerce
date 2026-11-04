@@ -92,6 +92,17 @@ public class PaymentAttempt {
         this.status = PaymentAttemptStatus.PAYMENT_REJECTED;
     }
 
+    public void cancelPaymentNotFound() {
+        cancelUnapproved("NOT_FOUND_PAYMENT", "PG 결제 조회 내역이 없어 내부 취소 처리했습니다.");
+    }
+
+    public void cancelUnapproved(String reasonCode, String reasonMessage) {
+        this.status = PaymentAttemptStatus.CANCELED;
+        this.failureCode = reasonCode;
+        this.failureMessage = reasonMessage;
+        this.completedAt = LocalDateTime.now();
+    }
+
     public void updateStatusToUnknown() {
         this.status = PaymentAttemptStatus.UNKNOWN;
     }

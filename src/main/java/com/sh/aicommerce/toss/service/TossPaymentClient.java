@@ -7,13 +7,14 @@ import com.sh.aicommerce.common.exception.payment.PaymentException;
 import com.sh.aicommerce.common.exception.toss.TossCancelException;
 import com.sh.aicommerce.common.exception.toss.TossPaymentException;
 import com.sh.aicommerce.common.exception.toss.TossRestClientException;
+import com.sh.aicommerce.orderCancellation.dto.record.CancellationRequestRecord;
 import com.sh.aicommerce.payment.dto.request.PaymentBillingCardRequestDto;
-import com.sh.aicommerce.toss.dto.request.TossBillingPaymentRequestDto;
-import com.sh.aicommerce.toss.dto.request.TossCancelRequestDto;
-import com.sh.aicommerce.toss.dto.request.TossPaymentBillingRequestDto;
-import com.sh.aicommerce.toss.dto.request.TossPaymentRequestDto;
+import com.sh.aicommerce.toss.dto.cancel.request.TossCancelRequestDto;
+import com.sh.aicommerce.toss.dto.payment.request.TossBillingPaymentRequestDto;
+import com.sh.aicommerce.toss.dto.cancel.request.TossFailReasonRequestDto;
+import com.sh.aicommerce.toss.dto.payment.request.TossPaymentBillingRequestDto;
+import com.sh.aicommerce.toss.dto.payment.request.TossPaymentRequestDto;
 import com.sh.aicommerce.toss.dto.response.*;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -28,7 +29,6 @@ import java.util.Base64;
 import java.util.Set;
 
 @Component
-@RequiredArgsConstructor
 @Slf4j
 public class TossPaymentClient {
 
@@ -59,10 +59,21 @@ public class TossPaymentClient {
     @Value("${toss.payment.billing.secretKey}")
     private String tossBillingSecretKey;
 
-    @Qualifier("tossRestTemplate")
-    private final RestTemplate tossRestTemplate;
+    private final RestTemplate paymentRestTemplate;
+    private final RestTemplate cancelRestTemplate;
 
     private final ObjectMapper objectMapper;
+
+    public TossPaymentClient(
+            @Qualifier("tossPaymentRestTemplate") RestTemplate paymentRestTemplate,
+            @Qualifier("tossCancelRestTemplate") RestTemplate cancelRestTemplate,
+            ObjectMapper objectMapper
+    ) {
+        this.paymentRestTemplate = paymentRestTemplate;
+        this.cancelRestTemplate = cancelRestTemplate;
+        this.objectMapper = objectMapper;
+    }
+
 
     public TossPaymentSuccessResponseDto confirm(TossPaymentRequestDto request) throws JsonProcessingException {
         try {
@@ -83,7 +94,7 @@ public class TossPaymentClient {
 
             // Toss Payments API 응답 요청
             ResponseEntity<TossPaymentSuccessResponseDto> response =
-                    tossRestTemplate.exchange(
+                    paymentRestTemplate.exchange(
                             "https://api.tosspayments.com/v1/payments/confirm",
                             HttpMethod.POST,
                             httpEntity,
@@ -99,7 +110,7 @@ public class TossPaymentClient {
             // 결제 승인이 성공적으로 완료되었다면 , DB에 저장된 Payment, Order에 대한 값 업데이트
             return response.getBody();
         } catch (HttpStatusCodeException e) {
-            throw convertException(e);
+            throw cardBillingConvertException(e);
         } catch (RestClientException e) {
             log.warn("[PAYMENT] stage=WIDGET_PG_REQUEST event=RESULT_UNKNOWN orderNumber={} errorType={}", request.getOrderId(), e.getClass().getSimpleName());
 
@@ -125,7 +136,7 @@ public class TossPaymentClient {
 
         // Toss Payments API 응답 요청
         ResponseEntity<TossPaymentBillingResponseDto> response =
-                tossRestTemplate.exchange(
+                paymentRestTemplate.exchange(
                         "https://api.tosspayments.com/v1/billing/authorizations/issue",
                         HttpMethod.POST,
                         httpEntity,
@@ -164,7 +175,7 @@ public class TossPaymentClient {
                     new HttpEntity<>(request, headers);
 
             ResponseEntity<TossPaymentSuccessResponseDto> response =
-                    tossRestTemplate.exchange(
+                    paymentRestTemplate.exchange(
                             "https://api.tosspayments.com/v1/billing/" + billingCardRequestDto.getCardBillingKey(),
                             HttpMethod.POST,
                             httpEntity,
@@ -182,14 +193,14 @@ public class TossPaymentClient {
 
         } catch (HttpStatusCodeException e) {
             log.warn("[PAYMENT] stage=PG_REQUEST event=HTTP_ERROR orderNumber={} paymentId={} attemptId={} httpStatus={} outcome=CHECK_REQUIRED", billingCardRequestDto.getOrderNumber(), billingCardRequestDto.getPaymentId(), billingCardRequestDto.getAttemptId(), e.getStatusCode().value());
-            throw convertException(e);
+            throw cardBillingConvertException(e);
         } catch (RestClientException e) {
             log.warn("[PAYMENT] stage=PG_REQUEST event=RESULT_UNKNOWN orderNumber={} paymentId={} attemptId={} errorType={}", billingCardRequestDto.getOrderNumber(), billingCardRequestDto.getPaymentId(), billingCardRequestDto.getAttemptId(), e.getClass().getSimpleName());
             throw new TossRestClientException("[결제/PG_REQUEST] 통신 또는 응답 변환 오류로 승인 결과 확인이 필요합니다.", e);
         }
     }
 
-    private RuntimeException convertException(HttpStatusCodeException codeException) {
+    private RuntimeException cardBillingConvertException(HttpStatusCodeException codeException) {
 
         if (codeException.getStatusCode().is5xxServerError()) {
             return new TossRestClientException(
@@ -223,7 +234,7 @@ public class TossPaymentClient {
         return new TossRestClientException("[결제/PG_REQUEST] PG 오류로 승인 결과 확인이 필요합니다. | pgCode=" + errorResponse.getCode());
     }
 
-    public TossPaymentCancelResponseDto cancel(String paymentKey){
+    public TossPaymentCancelResponseDto cancel(TossCancelRequestDto dto){
         try {
             String encodedSecretKey = Base64.getEncoder()
                     .encodeToString((tossBillingSecretKey +
@@ -232,79 +243,92 @@ public class TossPaymentClient {
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
             headers.set("Authorization", "Basic " + encodedSecretKey);
+            headers.set(
+                    "Idempotency-Key",
+                    dto.getIdempotencyKey()
+            );
 
-            TossCancelRequestDto request = new TossCancelRequestDto("고객 요청에 의한 환불 처리");
+            TossFailReasonRequestDto request = new TossFailReasonRequestDto(dto.getCancelReason());
 
-            HttpEntity<TossCancelRequestDto> httpEntity =
+            HttpEntity<TossFailReasonRequestDto> httpEntity =
                     new HttpEntity<>(request, headers);
 
             ResponseEntity<TossPaymentCancelResponseDto> response =
-                    tossRestTemplate.exchange(
-                            "https://api.tosspayments.com/v1/payments/" + paymentKey + "/cancel",
+                    cancelRestTemplate.exchange(
+                            "https://api.tosspayments.com/v1/payments/" + dto.getPaymentKey() + "/cancel",
                             HttpMethod.POST,
                             httpEntity,
                             TossPaymentCancelResponseDto.class
                     );
 
             if(response.getBody() == null)
-                throw new TossRestClientException("[PG 결제 취소 결과 확인 필요] 응답 본문이 비어 있습니다.");
+                throw new TossRestClientException("[결제 취소/PG_REQUEST] 응답 본문이 비어 있습니다.");
 
             return response.getBody();
         } catch (HttpStatusCodeException e) {
-            TossPaymentErrorResponseDto error;
-
-            try{
-                error = objectMapper.readValue(e.getResponseBodyAsString(), TossPaymentErrorResponseDto.class);
-
-            }catch (JsonProcessingException parseException) {
-                throw new TossRestClientException(
-                        "[PG 결제 취소 결과 확인 필요] 오류 응답을 해석하지 못했습니다. | HTTP 상태: "
-                                + e.getStatusCode().value(),
-                        e
-                );
-            }
-            if (error == null || error.getCode() == null) {
-                throw new TossRestClientException(
-                        "[PG 결제 취소 결과 확인 필요] 오류 응답에 코드가 없습니다.",
-                        e
-                );
-            }
-            log.warn(
-                    "[토스 결제 취소 오류 응답] status: {}, code: {}, message : {}",
-                    e.getStatusCode().value(),
-                    error.getCode(),
-                    error.getMessage()
-            );
-
-            // 서버 오류는 코드가 있어도 실제 취소 결과를 확정할 수 없다.
-            if (e.getStatusCode().is5xxServerError()) {
-                throw new TossRestClientException(
-                        "[PG 결제 취소 결과 확인 필요] 서버 오류로 결과를 확정할 수 없습니다. | PG 오류 코드: " + error.getCode(), e);
-            }
-
-            if ("ALREADY_CANCELED_PAYMENT".equals(error.getCode())) {
-                return findPaymentForCancellation(paymentKey);
-            }
-
-            if (e.getStatusCode().is4xxClientError()
-                    && DEFINITE_CANCEL_REJECTION_CODES.contains(error.getCode())) {
-                throw new TossCancelException(
-                        error.getCode(),     // Refund.failureCode에 저장할 PG 오류 코드
-                        "[PG 결제 취소 거절] " + error.getMessage() + " | PG 오류 코드: " + error.getCode(),
-                        e                    // 원인 예외 보존
-                );
-            }
-
-            // 아직 분류하지 않은 코드는 실패로 단정하지 않고 조회·복구 대상으로 보낸다.
-            throw new TossRestClientException(
-                    "[PG 결제 취소 결과 확인 필요] 미분류 오류로 결과를 확정할 수 없습니다. | PG 오류 코드: " + error.getCode(), e);
+            throw cancelConvertException(e);
         } catch (RestClientException e) {
             // 타임아웃·통신 오류·성공 응답 변환 오류 등
             throw new TossRestClientException(
-                    "[PG 결제 취소 결과 확인 필요] 통신 또는 응답 변환 오류로 결과를 확인하지 못했습니다.",
+                    "[결제 취소/PG_REQUEST] 통신 또는 응답 변환 오류로 결과를 확인하지 못했습니다.",
                     e
             );
         }
+    }
+
+    private RuntimeException cancelConvertException(HttpStatusCodeException e) {
+
+        if (e.getStatusCode().is5xxServerError()) {
+            return new TossRestClientException(
+                    "[결제 취소/PG_REQUEST] PG 서버 오류",e);
+        }
+
+        TossPaymentErrorResponseDto error ;
+
+        try{
+            error = objectMapper.readValue(e.getResponseBodyAsString(), TossPaymentErrorResponseDto.class);
+
+        }catch (JsonProcessingException parseException) {
+            throw new TossRestClientException(
+                    "[결제 취소/PG_REQUEST] 오류 응답을 해석하지 못했습니다. | HTTP 상태: "
+                            + e.getStatusCode().value(),
+                    e
+            );
+        }
+        if (error == null || error.getCode() == null) {
+            throw new TossRestClientException(
+                    "[결제 취소/PG_REQUEST] 오류 응답에 코드가 없습니다.",
+                    e
+            );
+        }
+        log.warn(
+                "[PAYMENT_CANCEL] stage=PG_REQUEST event=HTTP_ERROR httpStatus={} pgCode={}",
+                e.getStatusCode().value(),
+                error.getCode()
+        );
+
+        // 서버 오류는 코드가 있어도 실제 취소 결과를 확정할 수 없다.
+        if (e.getStatusCode().is5xxServerError()) {
+            throw new TossRestClientException(
+                    "[결제 취소/PG_REQUEST] 서버 오류로 결과를 확정할 수 없습니다. | PG 오류 코드: " + error.getCode(), e);
+        }
+
+//        if ("ALREADY_CANCELED_PAYMENT".equals(error.getCode())) {
+//            return findPaymentForCancellation(record.paymentKey());
+//        }
+
+        if (e.getStatusCode().is4xxClientError()
+                && DEFINITE_CANCEL_REJECTION_CODES.contains(error.getCode())) {
+            throw new TossCancelException(
+                    error.getCode(),     // Refund.failureCode에 저장할 PG 오류 코드
+                    "[결제 취소/PG_REQUEST] " + error.getMessage() + " | PG 오류 코드: " + error.getCode(),
+                    e                    // 원인 예외 보존
+            );
+        }
+
+        // 아직 분류하지 않은 코드는 실패로 단정하지 않고 조회·복구 대상으로 보낸다.
+        throw new TossRestClientException(
+                "[결제 취소/PG_REQUEST] 미분류 오류로 결과를 확정할 수 없습니다. | PG 오류 코드: " + error.getCode(), e);
     }
 
     private TossPaymentCancelResponseDto findPaymentForCancellation(
@@ -323,7 +347,7 @@ public class TossPaymentClient {
 
         try {
             ResponseEntity<TossPaymentCancelResponseDto> response =
-                    tossRestTemplate.exchange(
+                    cancelRestTemplate.exchange(
 
                             "https://api.tosspayments.com/v1/payments/{paymentKey}",
                             HttpMethod.GET,
@@ -363,7 +387,7 @@ public class TossPaymentClient {
 
         try {
             ResponseEntity<TossPaymentRequestHistoryResponseDto> response =
-                    tossRestTemplate.exchange(
+                    cancelRestTemplate.exchange(
 
                             "https://api.tosspayments.com/v1/payments/{paymentKey}",
                             HttpMethod.GET,
@@ -412,7 +436,7 @@ public class TossPaymentClient {
 
         try {
             ResponseEntity<TossPaymentRequestHistoryResponseDto> response =
-                    tossRestTemplate.exchange(
+                    cancelRestTemplate.exchange(
                             "https://api.tosspayments.com/v1/payments/orders/{orderId}",
                             HttpMethod.GET,
                             httpEntity,

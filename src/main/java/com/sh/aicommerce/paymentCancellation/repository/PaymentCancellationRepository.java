@@ -1,0 +1,65 @@
+package com.sh.aicommerce.paymentCancellation.repository;
+
+import com.sh.aicommerce.entity.PaymentCancellation;
+import jakarta.persistence.LockModeType;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
+
+@Repository
+public interface PaymentCancellationRepository extends JpaRepository<PaymentCancellation, Long> {
+
+    Optional<PaymentCancellation> findByOrderCancellationId(Long orderCancellationId);
+
+    @Query("""
+    select pc
+    from PaymentCancellation pc
+    where pc.payment.id = :paymentId
+    """)
+    Optional<PaymentCancellation> findByPaymentId(@Param("paymentId") Long paymentId);
+
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+    select pc
+    from PaymentCancellation pc
+    where pc.orderCancellation.id = :orderCancellationId
+    """)
+    Optional<PaymentCancellation> findPaymentCancellationByOrderCancellationIdForUpdate(@Param("orderCancellationId")Long orderCancellationId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+    select pc
+    from PaymentCancellation pc
+    where pc.id = :paymentCancellationId
+    """)
+    Optional<PaymentCancellation> findByIdForUpdate(@Param("paymentCancellationId")Long paymentCancellationId);
+
+    @Query("""
+    select pc.id
+    from PaymentCancellation pc
+    where pc.status = 'READY'
+    """)
+    List<Long> findReadyPaymentCancellation();
+
+
+    @Query("""
+    select pc.id
+    from PaymentCancellation pc
+    where pc.status = 'UNKNOWN'
+    """)
+    List<Long> findUnknownPaymentCancellation();
+    @Query("""
+    select pc.id
+    from PaymentCancellation pc
+    where pc.status = 'PROCESSING'
+      and pc.updatedAt <= :cutoff
+    """)
+    List<Long> findStaleProcessingPaymentCancellation(@Param("cutoff") LocalDateTime cutoff);
+}

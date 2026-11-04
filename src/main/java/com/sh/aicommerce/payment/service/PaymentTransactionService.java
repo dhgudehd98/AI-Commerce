@@ -3,21 +3,16 @@ package com.sh.aicommerce.payment.service;
 
 import com.sh.aicommerce.auth.repository.AuthRepository;
 import com.sh.aicommerce.card.repository.CardRepository;
-import com.sh.aicommerce.common.exception.card.CardException;
-import com.sh.aicommerce.common.exception.member.MemberException;
-import com.sh.aicommerce.common.exception.orderCancellation.OrderCancellationException;
 import com.sh.aicommerce.common.exception.payment.PaymentException;
 import com.sh.aicommerce.common.exception.product.ProductException;
 import com.sh.aicommerce.common.exception.refund.RefundException;
 import com.sh.aicommerce.entity.*;
-import com.sh.aicommerce.enums.order.OrderCancelStatus;
 import com.sh.aicommerce.enums.payment.PaymentStatus;
-import com.sh.aicommerce.enums.refund.RefundStatus;
 import com.sh.aicommerce.orderCancellation.repository.OrderCancellationRepository;
 import com.sh.aicommerce.orderCancellation.service.OrderCancellationService;
 import com.sh.aicommerce.payment.repository.PaymentRepository;
 import com.sh.aicommerce.refund.service.RefundService;
-import com.sh.aicommerce.toss.dto.request.TossPaymentRequestDto;
+import com.sh.aicommerce.toss.dto.payment.request.TossPaymentRequestDto;
 import com.sh.aicommerce.toss.dto.response.CancelResponseDto;
 import com.sh.aicommerce.toss.dto.response.TossPaymentCancelResponseDto;
 import com.sh.aicommerce.toss.dto.response.TossPaymentSuccessResponseDto;
@@ -29,7 +24,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.Objects;
 
 @Service
@@ -152,89 +146,7 @@ public class PaymentTransactionService {
 
     }
 
-    @Transactional
-    public void cancel(TossPaymentCancelResponseDto response, Long cancellationId) {
-        OrderCancellation cancellation =
-                cancellationService.validateOrderCancellationByIdWithLock(
-                        cancellationId
-                );
 
-        Orders order = cancellation.getOrder();
-
-        Payment payment = paymentRepository
-                .findPaymentByOrderIdWithLock(order.getId())
-                .orElseThrow(() -> new PaymentException(
-                        "[결제 취소 결과 반영] 취소 대상 결제 정보가 없습니다."
-                ));
-
-        Refund refund = refundService.findRefundByCancellationIdWithLock(cancellation.getId());
-
-        OrderCancelStatus status = cancellation.getCancelStatus();
-
-
-        // 이미 반영된 결과라면 상태 일치 여부 확인 후 종료
-        if (status == OrderCancelStatus.PAYMENT_CANCEL_COMPLETED
-                || status == OrderCancelStatus.CANCELED) {
-
-            if (payment.getStatus() != PaymentStatus.CANCELED
-                    || refund.getRefundStatus() != RefundStatus.COMPLETED) {
-                log.error("[결제 취소 완료 상태 불일치] cancellationId: {}, paymentId: {}, refundId: {}, paymentStatus: {}, refundStatus: {}",
-                        cancellationId, payment.getId(), refund.getId(), payment.getStatus(), refund.getRefundStatus());
-                throw new RefundException(
-                        "[결제 취소 완료 검증] 결제·환불 상태가 일치하지 않습니다. | 취소 ID: " + cancellationId
-                );
-            }
-
-            log.info("[결제 취소 중복 반영 건너뜀] cancellationId: {}, paymentId: {}, refundId: {}",
-                    cancellationId, payment.getId(), refund.getId());
-            return;
-        }
-
-        if (status != OrderCancelStatus.PAYMENT_CANCEL_PROCESSING) {
-            throw new OrderCancellationException(
-                    "[결제 취소 결과 반영] 취소 상태가 처리 중이 아닙니다."
-            );
-        }
-
-        // 신규 결과는 취소 건과 환불 건이 모두 처리 중일 때만 반영한다.
-        if (refund.getRefundStatus() != RefundStatus.PROCESSING) {
-            log.error("[결제 취소 반영 불가: 환불 상태] cancellationId: {}, refundId: {}, refundStatus: {}",
-                    cancellationId, refund.getId(), refund.getRefundStatus());
-            throw new RefundException("[결제 취소 결과 반영] 환불 상태가 처리 중이 아닙니다. | 환불 ID: " + refund.getId());
-        }
-
-        // get(0)을 호출하기 전에 검사
-        if (response == null
-                || response.getCancels() == null
-                || response.getCancels().isEmpty()
-                || response.getCancels().get(0) == null) {
-            throw new PaymentException(
-                    "[결제 취소 응답 검증] 취소 상세 응답이 없습니다."
-            );
-        }
-
-        // 기존 메서드: 대상 결제·주문번호·취소 상태·금액 검증
-        validateOrderCancelResponse(response, payment, order, refund);
-
-        /**
-         * 동일한 트랜잭션에서 함꼐 저장
-         * PaymentStatus : CANCELED로 저장
-         * OrderCancelStatus : PAYMENT_CANCEL_COMPLETED 저장
-         * Refund : 결제 취소 요청 완료에 대한 정보와 환불 상태에 대한 값을 저장
-         */
-        refund.updateStatusToCompleted(response);
-        payment.updateCancelStatus();
-        cancellation.updateCancelStatusToCancelFailCompleted();
-
-        TossPaymentLog tossPaymentLog = TossPaymentLog.createStatusToCancelSuccess(payment, response, cancellationId);
-        logRepository.save(tossPaymentLog);
-
-        log.info(
-                "[결제 취소 반영 완료] cancellationId: {}, paymentId: {}",
-                cancellationId,
-                payment.getId()
-        );
-    }
 
     /**
      * PG 응답을 응답 구조 → 대상 결제 → 취소 거래 순서로 검증한다.
@@ -249,7 +161,7 @@ public class PaymentTransactionService {
         // 실제 취소 거래의 금액과 완료 정보를 확인한다.
         validateCancelTransaction(cancel, response.getLastTransactionKey(), payment, order.getId());
 
-        validateRefund(response, payment, refund);
+//        validateRefund(response, payment, refund);
     }
 
     private void validateRefund(TossPaymentCancelResponseDto response, Payment payment, Refund refund) {
@@ -354,46 +266,5 @@ public class PaymentTransactionService {
                 orderId, payment.getId(), paymentAmount, cancel.getCancelAmount());
     }
 
-    @Transactional
-    public Payment prepareRefund(Long cancellationId) {
-        log.info("[주문 취소 처리 요청 전 데이터 검증] 주문 취소 ID : {}", cancellationId);
-        OrderCancellation cancellation = cancellationService.validateOrderCancellationByIdWithLock(cancellationId);
-        OrderCancelStatus status = cancellation.getCancelStatus();
 
-        if (status == OrderCancelStatus.PAYMENT_CANCEL_PROCESSING) {
-            throw new OrderCancellationException(
-                    "[환불 준비] 이미 결제 취소가 진행 중입니다."
-            );
-        }
-
-        // 모든 취소 건에서 선점 해제 예약 완료시간 확인
-        if(cancellation.getReservationReleasedAt() == null)
-            throw new OrderCancellationException("[환불 준비] 재고 선점 해제 완료 시간이 없습니다.");
-
-        // 현재 처리 단계와 관계없이, 상품 복귀가 필요한 건은 복귀 완료를 확인한다.
-        if(cancellation.isItemReturnRequired() && cancellation.getItemReturnedAt() == null)
-            throw new OrderCancellationException("[환불 준비] 필요한 상품 복귀가 확인되지 않았습니다.");
-
-        Payment payment = paymentRepository
-                .findPaymentByOrderIdWithLock(cancellation.getOrder().getId())
-                .orElseThrow(() -> new PaymentException("[환불 준비] 주문에 해당하는 결제 정보가 없습니다."));
-
-        if (status != OrderCancelStatus.PRODUCT_RESERVATION_RELEASED
-                && status != OrderCancelStatus.PAYMENT_CANCEL
-                && status != OrderCancelStatus.PAYMENT_CANCEL_FAILED) {
-            log.error("[주문 취소 처리 요청 실패] 주문 취소 상태에 따른 요청 실패 주문 취소 ID : {} , 현재 상태: {}", cancellationId, cancellation.getCancelStatus().getStatus());
-            throw new OrderCancellationException("[환불 준비] 결제 취소 요청을 허용하지 않는 상태입니다. | 취소 ID: " + cancellationId + " 현재 상태: " + cancellation.getCancelStatus().getStatus());
-        }
-
-        if(payment.getStatus() != PaymentStatus.PAID)
-            throw new PaymentException("[환불 준비] 원결제가 결제 완료 상태가 아닙니다.");
-
-        // 환불 정보 생성
-        Refund refund = refundService.createRefund(cancellation, payment);
-        log.info("[주문 취소 처리 요청 전 환불 데이터 생성 완료] 환불 ID : {}", refund.getId());
-
-        // 모든 상태 검증에 통과한 경우 -> 다음 로직은 TossAPI 결제 취소 요청 과정이기 때문에 해당 요청에 대한 데이터를 결제취소 요청 진행중으로 변경
-        cancellation.updateCancelStatusToPaymentCancelProcessing();
-        return payment;
-    }
 }

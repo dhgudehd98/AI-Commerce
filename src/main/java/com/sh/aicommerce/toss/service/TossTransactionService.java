@@ -5,21 +5,15 @@ import com.sh.aicommerce.auth.repository.AuthRepository;
 import com.sh.aicommerce.card.repository.CardRepository;
 import com.sh.aicommerce.common.exception.card.CardException;
 import com.sh.aicommerce.common.exception.member.MemberException;
-import com.sh.aicommerce.common.exception.payment.PaymentException;
 import com.sh.aicommerce.entity.*;
 import com.sh.aicommerce.payment.repository.PaymentRepository;
 import com.sh.aicommerce.payment.service.PaymentService;
-import com.sh.aicommerce.toss.dto.request.TossPaymentRequestDto;
 import com.sh.aicommerce.toss.dto.response.TossPaymentBillingResponseDto;
-import com.sh.aicommerce.toss.dto.response.TossPaymentSuccessResponseDto;
 import com.sh.aicommerce.toss.repository.TossPaymentLogRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor

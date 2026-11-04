@@ -3,7 +3,7 @@ package com.sh.aicommerce.entity;
 import com.sh.aicommerce.common.exception.payment.PaymentException;
 import com.sh.aicommerce.enums.payment.*;
 import com.sh.aicommerce.payment.dto.request.PaymentRequestDto;
-import com.sh.aicommerce.toss.dto.request.TossPaymentRequestDto;
+import com.sh.aicommerce.toss.dto.payment.request.TossPaymentRequestDto;
 import com.sh.aicommerce.toss.dto.response.TossPaymentRequestHistoryResponseDto;
 import com.sh.aicommerce.toss.dto.response.TossPaymentSuccessResponseDto;
 import jakarta.persistence.*;
@@ -62,6 +62,14 @@ public class Payment {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private LocalDateTime paidAt;
+
+    @Column(nullable = false)
+    @org.hibernate.annotations.ColumnDefault("false")
+    private boolean compensationRequired;
+
+    public void requireCompensation() {
+        this.compensationRequired = true;
+    }
 
     private String failReason; // 토스 결제 실패 사유 추가
 
@@ -227,5 +235,24 @@ public class Payment {
 
     public void updateStatusToPaymentFailed() {
         this.status = PaymentStatus.PAYMENT_FAILED;
+    }
+
+    public void updatePaymentStatusToCanceled() {
+        this.status = PaymentStatus.CANCELED;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public void updateStatusToCompensationPending() {
+        this.status = PaymentStatus.COMPENSATION_PENDING;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    /** 보상 취소를 위한 승인 사실만 기록합니다. 주문 완료·출고는 생성하지 않습니다. */
+    public void recordApprovalForCompensation(TossPaymentRequestHistoryResponseDto response) {
+        this.paymentKey = response.getPaymentKey();
+        this.paidAt = response.getApprovedAt().toLocalDateTime();
+        this.provider = response.getMethod();
+        this.status = PaymentStatus.PAID;
+        this.updatedAt = LocalDateTime.now();
     }
 }

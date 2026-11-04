@@ -10,6 +10,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 public class OrderCancelDeliveryResponseDto {
+    private String deliveryStatus;
     private String recipientName;
     private String recipientPhone;
     private String zipCode;
@@ -19,6 +20,7 @@ public class OrderCancelDeliveryResponseDto {
     private String trackingNumber;
 
     public OrderCancelDeliveryResponseDto(Delivery delivery) {
+        this.deliveryStatus = delivery.getDeliveryStatus().name();
         this.recipientName = delivery.getRecipientName();
         this.recipientPhone = delivery.getRecipientPhone();
         this.zipCode = delivery.getZipCode();

@@ -17,20 +17,12 @@ public class OrderCancelPaymentResponseDto {
     private String paymentMethodLabel;
     private Integer paidAmount;
     private LocalDateTime paidAt;
-    private String refundStatus;
-    private Integer refundedAmount;
-    private LocalDateTime refundedAt;
-
     public OrderCancelPaymentResponseDto(Payment payment) {
         this.paymentId = payment.getId();
         this.paymentStatus = payment.getStatus().getStatus();
-        this.paymentMethodLabel = paymentMethodLabel;
+        this.paymentMethodLabel = payment.getPaymentMethodLabel();
         this.paidAmount = payment.getAmount();
         this.paidAt = payment.getPaidAt();
 
-        //! refund에 대한 부분은 나중에 처리
-        this.refundStatus = null;
-        this.refundedAmount = null;
-        this.refundedAt = null;
     }
 }

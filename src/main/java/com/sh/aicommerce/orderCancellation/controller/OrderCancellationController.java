@@ -16,7 +16,23 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class OrderCancellationController {
 
+    // 관리자 인증 연동 전 개발용 임시 관리자 ID
+    private static final Long TEMP_ADMIN_MEMBER_ID = 3L;
+
     private final OrderCancellationService orderCancellationService;
+    private final com.sh.aicommerce.orderCancellation.service.OrderCancellationInventoryService inventoryService;
+
+    @PostMapping("/{cancelId}/item-return")
+    public ResponseEntity<?> confirmItemReturn(@PathVariable Long cancelId) {
+        inventoryService.confirmReturn(TEMP_ADMIN_MEMBER_ID, cancelId);
+        return ResponseEntity.ok(java.util.Map.of("result", "Y"));
+    }
+
+    @PostMapping("/{cancelId}/inventory")
+    public ResponseEntity<?> applyInventory(@PathVariable Long cancelId) {
+        inventoryService.applyInventory(TEMP_ADMIN_MEMBER_ID, cancelId);
+        return ResponseEntity.ok(java.util.Map.of("result", "Y"));
+    }
 
     // 주문 취소 리스트 출력 API
     @GetMapping("")
@@ -40,14 +56,7 @@ public class OrderCancellationController {
         return ResponseEntity.ok(orderCancellationService.orderCancellationDetail(cancelId));
     }
 
-    // 주문 취소 요청 시 처리 로직 API
-    @PostMapping("{cancelId}")
-    public ResponseEntity<?> cancel(
-            @PathVariable Long cancelId
-    ) {
-        Long memberId = 3L;
-        return ResponseEntity.ok(orderCancellationService.cancel(memberId, cancelId));
-    }
+
 
     //주문 취소 요청 실패 List API
     @GetMapping("fail")
@@ -61,7 +70,6 @@ public class OrderCancellationController {
         model.addAttribute("cancelFailPages", cancelFailPages);
 
         return "orderCancellation/orderCancelFailList";
-
     }
 
     @GetMapping("fail/{cancellationId}")
@@ -81,12 +89,6 @@ public class OrderCancellationController {
         return ResponseEntity.ok(orderCancellationService.getPaymentRequestHistory(memberId, cancellationId));
     }
 
-    // 주문 취소 요청 재처리
-    @PostMapping("fail/{cancellationId}/retry")
-    public ResponseEntity<?> retry(
-            @PathVariable Long cancellationId
-    ) {
-        Long memberId = 3L;
-        return ResponseEntity.ok(orderCancellationService.retry(memberId, cancellationId));
-    }
+    // 결제 취소가 반
+
 }

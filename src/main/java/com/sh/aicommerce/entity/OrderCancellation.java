@@ -1,6 +1,8 @@
 package com.sh.aicommerce.entity;
 
 import com.sh.aicommerce.enums.order.OrderCancelStatus;
+import com.sh.aicommerce.enums.paymentCancellation.InventoryCancelStatus;
+import com.sh.aicommerce.enums.paymentCancellation.ItemReturnStatus;
 import com.sh.aicommerce.toss.dto.response.TossPaymentCancelResponseDto;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
@@ -29,14 +31,23 @@ public class OrderCancellation {
     @Column(nullable = false)
     private OrderCancelStatus cancelStatus;
 
-    private String cancelReason; // 취소 사유
-    private String failReason; // 실패 사유
-    private String admin; // 관리자
-    private String paymentKey; // PG 결제 취소 요처
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private InventoryCancelStatus inventoryStatus;
+    private LocalDateTime inventoryProcessedAt;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private ItemReturnStatus itemReturnStatus;
     private boolean itemReturnRequired; // 상품 복귀 확인 필요 여부
     private LocalDateTime itemReturnedAt; // 상품 복귀 시간
     private LocalDateTime reservationReleasedAt; // 상품 선점 해제 완료 시간
+
+    private String cancelReason; // 취소 사유
+    private String failCode; //실패 코드
+    private String failMessage; // 실패 사유
+    private String admin; // 관리자
+    private String paymentKey; // PG 결제 취소 요처
 
     @Column(nullable = false)
     private LocalDateTime requestedAt; // 취소 요청 시간
@@ -44,76 +55,48 @@ public class OrderCancellation {
     private LocalDateTime updatedAt; // 취소 상태 변경 될 떄마다 업데이트
     private LocalDateTime completedAt; // 취소 완료 시간
 
+    // 주문 취소 요청시, 생성자
     public OrderCancellation(Orders order, String cancelReason, boolean itemReturnRequired) {
         this.order = order;
-        this.cancelStatus = OrderCancelStatus.CANCEL_REQUEST;
+        this.inventoryStatus = InventoryCancelStatus.PENDING;
+        this.cancelStatus = OrderCancelStatus.REQUESTED;
         this.cancelReason = cancelReason;
         this.itemReturnRequired = itemReturnRequired;
+        this.itemReturnStatus = itemReturnRequired
+                ? ItemReturnStatus.WAITING
+                : ItemReturnStatus.NOT_REQUIRED;
         this.requestedAt = LocalDateTime.now();
     }
 
-    public void startOrderCancel(String adminName) {
-        this.cancelStatus = OrderCancelStatus.PROCESSING_START;
-        this.startedAt = LocalDateTime.now();
-        this.admin = adminName;
+    // 주문 취소 스케줄러에서 해당 취소건 처리 시작
+    public void startOrderCancellation() {
+        this.updatedAt = LocalDateTime.now();
+        this.cancelStatus = OrderCancelStatus.PROCESSING;
     }
 
-    public void updateCancelStatus(OrderCancelStatus orderCancelStatus) {
-        this.cancelStatus = orderCancelStatus;
-
+    public void confirmItemReturn(String admin) {
+        this.itemReturnStatus = ItemReturnStatus.RETURNED;
+        this.itemReturnedAt = LocalDateTime.now();
+        this.admin = admin;
+        this.updatedAt = this.itemReturnedAt;
     }
 
-    public void updateCancelStatusToReservationReleased(OrderCancelStatus orderCancelStatus) {
-        this.cancelStatus = orderCancelStatus;
-        this.reservationReleasedAt = LocalDateTime.now();
+    public void completeInventory(boolean reservationReleased, String admin) {
+        LocalDateTime now = LocalDateTime.now();
+        this.inventoryStatus = InventoryCancelStatus.COMPLETED;
+        this.inventoryProcessedAt = now;
+        if (reservationReleased) this.reservationReleasedAt = now;
+        this.cancelStatus = OrderCancelStatus.COMPLETED;
+        this.completedAt = now;
+        this.updatedAt = now;
+        this.admin = admin;
     }
-
-    public void updateCancelStatusToReservationReleaseFailed(OrderCancelStatus orderCancelStatus, String failReason) {
-        this.cancelStatus = orderCancelStatus;
-        this.failReason = failReason;
+    public void requireManualReviewForPaymentRecovery() {
+        if (this.cancelStatus != OrderCancelStatus.PROCESSING) return;
+        this.cancelStatus = OrderCancelStatus.MANUAL_REVIEW_REQUIRED;
+        this.failCode = "PAYMENT_CANCEL_RECOVERY_MANUAL_REVIEW";
+        this.failMessage = "결제 취소 자동 복구 중단 - PG 취소 결과 관리자 확인 필요";
         this.updatedAt = LocalDateTime.now();
     }
 
-    public void updateCancelStatusToCancelFail(String failReason, OrderCancelStatus orderCancelStatus) {
-        this.failReason = failReason;
-        this.cancelStatus = orderCancelStatus;
-        this.updatedAt = LocalDateTime.now();
-    }
-
-    public void updateCancelStatusToCancelFailCheck(String failReason, OrderCancelStatus orderCancelStatus) {
-        this.failReason = failReason;
-        this.cancelStatus = orderCancelStatus;
-        this.updatedAt = LocalDateTime.now();
-    }
-
-    // 실제로 PG사 결제 취소 요청까지 성공적으로 진행된 경우
-    public void updateCancelStatusToCancelFailCompleted() {
-        this.cancelStatus = OrderCancelStatus.PAYMENT_CANCEL_COMPLETED;
-        this.failReason = null;
-        this.updatedAt = LocalDateTime.now();
-    }
-
-    //실제 주문취소의 모든 상태가 완료된 경우 CANCELED로 상태 변경 처리
-    public void updateCancelStatusCanceled() {
-        this.failReason = null;
-        this.updatedAt = LocalDateTime.now();
-        this.completedAt = LocalDateTime.now();
-        this.cancelStatus = OrderCancelStatus.CANCELED; //
-    }
-
-    public void updateCancelStatusToPaymentCancelProcessing() {
-        this.updatedAt = LocalDateTime.now();
-        this.cancelStatus = OrderCancelStatus.PAYMENT_CANCEL_PROCESSING;
-    }
-
-    public void updateCancelStatusToItemReturnRequest() {
-        this.updatedAt = LocalDateTime.now();
-        this.cancelStatus = OrderCancelStatus.ITEM_RETURN_REQUEST;
-    }
-
-    public void updateCancelStatusItemReturnFailed(String failReason) {
-        this.updatedAt = LocalDateTime.now();
-        this.cancelStatus = OrderCancelStatus.ITEM_RETURN_FAILED;
-        this.failReason = failReason;
-    }
 }

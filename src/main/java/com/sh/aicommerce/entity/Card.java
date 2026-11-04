@@ -51,7 +51,7 @@ public class Card {
         this.billingKey = response.getBillingKey();
         this.cardCompany = CardCompany.fromCode(response.getCard().getIssuerCode());
         this.cardName = response.getCardCompany() + "카드";
-        this.maskedCardNumber = response.getCardNumber();
+        this.maskedCardNumber = response.getCard().getNumber();
         this.cardType = CardType.fromLabel(response.getCard().getCardType());
         this.defaultCard = true;
         this.active = true;

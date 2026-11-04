@@ -1,15 +1,9 @@
 package com.sh.aicommerce.toss.service;
 
 
-import com.sh.aicommerce.common.exception.orderCancellation.OrderCancellationException;
-import com.sh.aicommerce.common.exception.payment.PaymentException;
-import com.sh.aicommerce.common.exception.refund.RefundException;
-import com.sh.aicommerce.common.exception.toss.TossCancelException;
-import com.sh.aicommerce.common.exception.toss.TossRestClientException;
-import com.sh.aicommerce.entity.Payment;
 import com.sh.aicommerce.orderCancellation.service.OrderCancellationService;
 import com.sh.aicommerce.payment.service.PaymentTransactionService;
-import com.sh.aicommerce.toss.dto.request.TossPaymentBillingRequestDto;
+import com.sh.aicommerce.toss.dto.payment.request.TossPaymentBillingRequestDto;
 import com.sh.aicommerce.toss.dto.response.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,6 +25,8 @@ public class TossAPIService {
 
         transactionService.validateMemberByCustomerKey(customerKey);
         TossPaymentBillingResponseDto response = client.getBillingKey(new TossPaymentBillingRequestDto(customerKey, authKey));
+        log.info("[등록된 카드 정보]");
+        log.info(response.toString());
         log.info("[토스페이먼츠 API 자동결제(Billing)] 카드 BillingKey 정상적으로 발급 완료");
         // 이미 등로된 BillingKey에 대한 값이 존재하면 중복 카드 등록
         transactionService.validateCard(response);
@@ -45,67 +41,5 @@ public class TossAPIService {
         log.error("[토스페이먼츠 결제 위젯 오류 발생] 에러 코드 : {}, 에러 메세지 : {}", errorCode, errorMessage);
 
         paymentTransactionService.payFailTossPayment(orderNumber, errorMessage);
-    }
-
-    public void cancel(Long cancellationId) {
-        log.info("[토스페이먼츠 결제 취소 요청]");
-        TossPaymentCancelResponseDto response;
-        Payment payment = paymentTransactionService.prepareRefund(cancellationId);
-
-        try {
-            // TossAPI 결제 취소 요청
-            response = client.cancel(payment.getPaymentKey());
-            // 결제 실패 요청이 성공적으로 완료 처리
-            paymentTransactionService.cancel(response, cancellationId);
-        } catch (TossCancelException e) {
-            log.error("[토스페이먼츠 결제 취소 요청 처리 실패] 에러 메세지 : {}", e.getMessage());
-
-            try {
-                // 카드 정지나 TossAPI에서 설정된 에러 코드를 보내주는 경우에 Failed로 작성
-                cancellationService.paymentCancelFailed(
-                        cancellationId,
-                        payment.getPaymentKey(),
-                        e.getErrorCode(),
-                        e.getMessage());
-
-            } catch (RuntimeException saveException) {
-                e.addSuppressed(saveException);
-            }
-            throw e;
-
-        } catch (TossRestClientException e) {
-            log.error("[토스페이먼츠 결제 취소 요청 통신 에러 발생] 메세지 : {}", e.getMessage());
-
-            try {
-                // 타임아웃 외부 API의 연결에 실패한 경우 해당 내역을 확인할 수 있도록 상태 업데이트
-                cancellationService.paymentCancelFailedCheck(payment.getPaymentKey(), e.getMessage(), cancellationId);
-            } catch (RuntimeException saveException) {
-                e.addSuppressed(saveException);
-
-                log.error(
-                        "[결제 취소 결과 확인 필요] cancellationId: {}",
-                        cancellationId,
-                        e
-                );
-            }
-
-            throw e;
-        } catch (RuntimeException e) {
-            try {
-                cancellationService.paymentCancelFailedCheck(payment.getPaymentKey(),
-                        // 검증 원인은 보존하되 DB 오류 전문 등은 관리자 사유에 노출하지 않는다.
-                        (e instanceof PaymentException || e instanceof RefundException
-                                || e instanceof OrderCancellationException)
-                                ? e.getMessage()
-                                : "[결제 취소 내부 처리] 응답 처리 또는 DB 반영 중 오류가 발생했습니다. PG 결과 확인이 필요합니다."
-                                        + " | 취소 ID: " + cancellationId,
-                        cancellationId
-                );
-            } catch (RuntimeException saveException) {
-                e.addSuppressed(saveException);
-            }
-
-            throw e;
-        }
     }
 }
