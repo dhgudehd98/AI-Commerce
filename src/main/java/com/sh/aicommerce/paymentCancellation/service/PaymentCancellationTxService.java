@@ -105,7 +105,7 @@ public class PaymentCancellationTxService {
 
         log.info("[PAYMENT_CANCEL] stage=CLAIM event=APPLIED_PENDING_COMMIT paymentCancellationId={} orderCancellationId={} orderNumber={} paymentCancelStatus={}",
                 paymentCancellationId, orderCancellation.getId(), orderCancellation.getOrder().getOrderNumber(), paymentCancellation.getStatus());
-        return new CancellationRequestRecord(orderCancellation.getId(), paymentCancellation.getId(), orderCancellation.getOrder().getOrderNumber(), paymentCancellation.getIdempotencyKey(), paymentCancellation.getPayment().getPaymentKey());
+        return new CancellationRequestRecord(orderCancellation.getId(), paymentCancellation.getId(), orderCancellation.getOrder().getOrderNumber(), paymentCancellation.getIdempotencyKey(), paymentCancellation.getPayment().getPaymentKey(), orderCancellation.getCancelReason());
 
     }
 

@@ -16,7 +16,6 @@ import com.sh.aicommerce.common.exception.product.ProductException;
 import com.sh.aicommerce.common.exception.toss.TossPaymentException;
 import com.sh.aicommerce.common.exception.toss.TossRestClientException;
 import com.sh.aicommerce.entity.*;
-import com.sh.aicommerce.enums.order.OrderStatus;
 import com.sh.aicommerce.enums.payment.*;
 import com.sh.aicommerce.order.orderRepository.OrderRepository;
 import com.sh.aicommerce.payment.dto.request.CardBillingPaymentRequestDto;
@@ -29,7 +28,7 @@ import com.sh.aicommerce.payment.repository.PaymentRepository;
 import com.sh.aicommerce.paymentAttempt.repository.PaymentAttemptRepository;
 import com.sh.aicommerce.paymentCompensation.service.PaymentCompensationTxService;
 import com.sh.aicommerce.productOption.repository.ProductOptionRepository;
-import com.sh.aicommerce.toss.dto.request.TossPaymentRequestDto;
+import com.sh.aicommerce.toss.dto.payment.request.TossPaymentRequestDto;
 import com.sh.aicommerce.toss.dto.response.TossPaymentSuccessResponseDto;
 import com.sh.aicommerce.toss.service.TossPaymentClient;
 import com.sh.aicommerce.wms.inventory.repository.ProductInventoryRepository;
@@ -43,7 +42,6 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Duration;
 import java.util.Collections;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Supplier;
@@ -463,7 +461,7 @@ public class PaymentService {
                     paymentBillingCardRequestDto.getAttemptId());
 
             try {
-                preparePayCompensation(paymentBillingCardRequestDto);
+                preparePaymentCompensation(paymentBillingCardRequestDto);
             } catch (RuntimeException saveException) {
                 e.addSuppressed(saveException);
                 log.error("[PAYMENT] stage=COMPENSATION_PREPARE event=FAILED orderNumber={} paymentId={} attemptId={} errorType={}",
@@ -479,11 +477,11 @@ public class PaymentService {
     }
 
     /** 외부 PG 호출 없이 보상 작업과 UNKNOWN 상태만 저장한 뒤 락을 해제합니다. */
-    private Long preparePayCompensation(PaymentBillingCardRequestDto request) {
+    private Long preparePaymentCompensation(PaymentBillingCardRequestDto request) {
         return withPaymentLock(
                 "COMPENSATION_PREPARE",
                 request.getOrderNumber(),
-                () -> paymentCompensationTxService.prepareCompensation(request)
+                () -> paymentCompensationTxService.preparePaymentCompensation(request)
         );
     }
 

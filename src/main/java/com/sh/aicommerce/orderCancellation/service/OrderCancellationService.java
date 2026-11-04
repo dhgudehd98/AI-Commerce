@@ -96,7 +96,7 @@ public class OrderCancellationService {
         if (data.order() == null
                 || data.member() == null
                 || data.payment() == null
-                || data.outbound() == null) {
+                || data.outbound() == null && !data.payment().isCompensationRequired()) {
             throw new OrderCancellationException(
                     "[취소 실패 상세 조회] 필수 연결 정보가 누락되었습니다."
                             + " | 취소 ID: " + cancellationId

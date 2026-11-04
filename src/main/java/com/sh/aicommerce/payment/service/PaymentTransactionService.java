@@ -3,21 +3,16 @@ package com.sh.aicommerce.payment.service;
 
 import com.sh.aicommerce.auth.repository.AuthRepository;
 import com.sh.aicommerce.card.repository.CardRepository;
-import com.sh.aicommerce.common.exception.card.CardException;
-import com.sh.aicommerce.common.exception.member.MemberException;
-import com.sh.aicommerce.common.exception.orderCancellation.OrderCancellationException;
 import com.sh.aicommerce.common.exception.payment.PaymentException;
 import com.sh.aicommerce.common.exception.product.ProductException;
 import com.sh.aicommerce.common.exception.refund.RefundException;
 import com.sh.aicommerce.entity.*;
-import com.sh.aicommerce.enums.order.OrderCancelStatus;
 import com.sh.aicommerce.enums.payment.PaymentStatus;
-import com.sh.aicommerce.enums.refund.RefundStatus;
 import com.sh.aicommerce.orderCancellation.repository.OrderCancellationRepository;
 import com.sh.aicommerce.orderCancellation.service.OrderCancellationService;
 import com.sh.aicommerce.payment.repository.PaymentRepository;
 import com.sh.aicommerce.refund.service.RefundService;
-import com.sh.aicommerce.toss.dto.request.TossPaymentRequestDto;
+import com.sh.aicommerce.toss.dto.payment.request.TossPaymentRequestDto;
 import com.sh.aicommerce.toss.dto.response.CancelResponseDto;
 import com.sh.aicommerce.toss.dto.response.TossPaymentCancelResponseDto;
 import com.sh.aicommerce.toss.dto.response.TossPaymentSuccessResponseDto;
@@ -29,7 +24,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.Objects;
 
 @Service

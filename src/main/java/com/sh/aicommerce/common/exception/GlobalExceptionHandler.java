@@ -13,6 +13,7 @@ import com.sh.aicommerce.common.exception.outbox.OutboxException;
 import com.sh.aicommerce.common.exception.payment.PaymentException;
 import com.sh.aicommerce.common.exception.payment.PaymentResultUnknownException;
 import com.sh.aicommerce.common.exception.paymentAttempt.PaymentAttemptException;
+import com.sh.aicommerce.common.exception.paymentCompensation.PaymentCompensationException;
 import com.sh.aicommerce.common.exception.recovery.PaymentCancellationRecoveryException;
 import com.sh.aicommerce.common.exception.recovery.PaymentCancellationRecoveryHistoryException;
 import com.sh.aicommerce.common.exception.recovery.PaymentRecoveryException;
@@ -42,6 +43,12 @@ import java.util.Map;
 @Slf4j
 public class GlobalExceptionHandler {
 
+
+    @ExceptionHandler(PaymentCompensationException.class)
+    public ResponseEntity<?> handlePaymentCompensationException(PaymentCompensationException e) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("result", "N", "message", e.getMessage()));
+    }
     @ExceptionHandler(PaymentCancellationRecoveryHistoryException.class)
     public ResponseEntity<?> handlePaymentCancellationRecoveryHistoryException(PaymentCancellationRecoveryHistoryException e) {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)

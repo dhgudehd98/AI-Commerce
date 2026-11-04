@@ -9,10 +9,11 @@ import com.sh.aicommerce.common.exception.toss.TossPaymentException;
 import com.sh.aicommerce.common.exception.toss.TossRestClientException;
 import com.sh.aicommerce.orderCancellation.dto.record.CancellationRequestRecord;
 import com.sh.aicommerce.payment.dto.request.PaymentBillingCardRequestDto;
-import com.sh.aicommerce.toss.dto.request.TossBillingPaymentRequestDto;
-import com.sh.aicommerce.toss.dto.request.TossCancelRequestDto;
-import com.sh.aicommerce.toss.dto.request.TossPaymentBillingRequestDto;
-import com.sh.aicommerce.toss.dto.request.TossPaymentRequestDto;
+import com.sh.aicommerce.toss.dto.cancel.request.TossCancelRequestDto;
+import com.sh.aicommerce.toss.dto.payment.request.TossBillingPaymentRequestDto;
+import com.sh.aicommerce.toss.dto.cancel.request.TossFailReasonRequestDto;
+import com.sh.aicommerce.toss.dto.payment.request.TossPaymentBillingRequestDto;
+import com.sh.aicommerce.toss.dto.payment.request.TossPaymentRequestDto;
 import com.sh.aicommerce.toss.dto.response.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -233,7 +234,7 @@ public class TossPaymentClient {
         return new TossRestClientException("[결제/PG_REQUEST] PG 오류로 승인 결과 확인이 필요합니다. | pgCode=" + errorResponse.getCode());
     }
 
-    public TossPaymentCancelResponseDto cancel(CancellationRequestRecord record){
+    public TossPaymentCancelResponseDto cancel(TossCancelRequestDto dto){
         try {
             String encodedSecretKey = Base64.getEncoder()
                     .encodeToString((tossBillingSecretKey +
@@ -244,17 +245,17 @@ public class TossPaymentClient {
             headers.set("Authorization", "Basic " + encodedSecretKey);
             headers.set(
                     "Idempotency-Key",
-                    record.idempotencyKey()
+                    dto.getIdempotencyKey()
             );
 
-            TossCancelRequestDto request = new TossCancelRequestDto("고객 요청에 의한 환불 처리");
+            TossFailReasonRequestDto request = new TossFailReasonRequestDto(dto.getCancelReason());
 
-            HttpEntity<TossCancelRequestDto> httpEntity =
+            HttpEntity<TossFailReasonRequestDto> httpEntity =
                     new HttpEntity<>(request, headers);
 
             ResponseEntity<TossPaymentCancelResponseDto> response =
                     cancelRestTemplate.exchange(
-                            "https://api.tosspayments.com/v1/payments/" + record.paymentKey() + "/cancel",
+                            "https://api.tosspayments.com/v1/payments/" + dto.getPaymentKey() + "/cancel",
                             HttpMethod.POST,
                             httpEntity,
                             TossPaymentCancelResponseDto.class

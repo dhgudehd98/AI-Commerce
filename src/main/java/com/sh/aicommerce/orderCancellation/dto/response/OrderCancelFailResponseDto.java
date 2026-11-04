@@ -26,7 +26,7 @@ public class OrderCancelFailResponseDto {
     public OrderCancelFailResponseDto(OrderCancellationWithOutbound cancellationFails) {
         this.orderCancellationId = cancellationFails.orderCancellation().getId();
         this.orderNumber = cancellationFails.orderNumber();
-        this.outboundNumber = cancellationFails.outbound().getOutboundNumber();
+        this.outboundNumber = cancellationFails.outbound() == null ? null : cancellationFails.outbound().getOutboundNumber();
         this.statusCode = cancellationFails.orderCancellation().getCancelStatus();
         this.cancellationStatus = cancellationFails.orderCancellation().getCancelStatus().getStatus();
         this.failReason = cancellationFails.orderCancellation().getFailMessage();

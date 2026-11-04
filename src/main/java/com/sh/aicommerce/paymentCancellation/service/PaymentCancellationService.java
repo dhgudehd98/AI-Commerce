@@ -4,6 +4,7 @@ import com.sh.aicommerce.common.exception.toss.TossCancelException;
 import com.sh.aicommerce.common.exception.toss.TossRestClientException;
 import com.sh.aicommerce.orderCancellation.dto.record.CancellationRequestRecord;
 import com.sh.aicommerce.paymentCancellation.service.PaymentCancellationTxService;
+import com.sh.aicommerce.toss.dto.cancel.request.TossCancelRequestDto;
 import com.sh.aicommerce.toss.dto.response.TossPaymentCancelResponseDto;
 import com.sh.aicommerce.toss.service.TossPaymentClient;
 import lombok.RequiredArgsConstructor;
@@ -41,7 +42,8 @@ public class PaymentCancellationService {
         log.info("[PAYMENT_CANCEL] stage=CLAIM event=TRANSACTION_RETURNED paymentCancellationId={} orderCancellationId={} orderNumber={}", record.paymentCancellationId(), record.orderCancellationId(), record.orderNumber());
         try {
             log.info("[PAYMENT_CANCEL] stage=PG_REQUEST event=START paymentCancellationId={} orderNumber={}", record.paymentCancellationId(), record.orderNumber());
-            TossPaymentCancelResponseDto response = client.cancel(record);
+            TossCancelRequestDto dto = new TossCancelRequestDto(record.paymentKey(), record.orderNumber(), record.idempotencyKey(), record.cancelReason());
+            TossPaymentCancelResponseDto response = client.cancel(dto);
             log.info("[PAYMENT_CANCEL] stage=PG_REQUEST event=RESPONSE_RECEIVED paymentCancellationId={} orderNumber={} pgStatus={}", record.paymentCancellationId(), record.orderNumber(), response == null ? null : response.getStatus());
             txService.cancel(response, record);
             log.info("[PAYMENT_CANCEL] stage=RESULT_APPLY event=TRANSACTION_RETURNED paymentCancellationId={} orderNumber={}", record.paymentCancellationId(), record.orderNumber());

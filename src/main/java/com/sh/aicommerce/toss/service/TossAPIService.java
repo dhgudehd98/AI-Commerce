@@ -1,15 +1,9 @@
 package com.sh.aicommerce.toss.service;
 
 
-import com.sh.aicommerce.common.exception.orderCancellation.OrderCancellationException;
-import com.sh.aicommerce.common.exception.payment.PaymentException;
-import com.sh.aicommerce.common.exception.refund.RefundException;
-import com.sh.aicommerce.common.exception.toss.TossCancelException;
-import com.sh.aicommerce.common.exception.toss.TossRestClientException;
-import com.sh.aicommerce.entity.Payment;
 import com.sh.aicommerce.orderCancellation.service.OrderCancellationService;
 import com.sh.aicommerce.payment.service.PaymentTransactionService;
-import com.sh.aicommerce.toss.dto.request.TossPaymentBillingRequestDto;
+import com.sh.aicommerce.toss.dto.payment.request.TossPaymentBillingRequestDto;
 import com.sh.aicommerce.toss.dto.response.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

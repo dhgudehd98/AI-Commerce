@@ -3,7 +3,6 @@ package com.sh.aicommerce.toss.controller;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.sh.aicommerce.payment.service.PaymentService;
-import com.sh.aicommerce.toss.dto.request.TossPaymentRequestDto;
 import com.sh.aicommerce.toss.dto.response.TossPaymentSuccessResponseDto;
 import com.sh.aicommerce.toss.service.TossAPIService;
 import lombok.RequiredArgsConstructor;

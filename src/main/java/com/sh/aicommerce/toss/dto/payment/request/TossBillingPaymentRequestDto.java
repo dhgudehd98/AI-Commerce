@@ -1,4 +1,4 @@
-package com.sh.aicommerce.toss.dto.request;
+package com.sh.aicommerce.toss.dto.payment.request;
 
 import com.sh.aicommerce.payment.dto.request.PaymentBillingCardRequestDto;
 import lombok.AllArgsConstructor;

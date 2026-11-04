@@ -1,14 +1,29 @@
 package com.sh.aicommerce.paymentCompensation.service;
 
 import com.sh.aicommerce.common.exception.payment.PaymentException;
-import com.sh.aicommerce.entity.Payment;
-import com.sh.aicommerce.entity.PaymentAttempt;
-import com.sh.aicommerce.entity.PaymentCompensation;
+import com.sh.aicommerce.common.exception.paymentCompensation.PaymentCompensationException;
 import com.sh.aicommerce.enums.payment.PaymentAttemptStatus;
 import com.sh.aicommerce.enums.payment.PaymentStatus;
+import com.sh.aicommerce.event.payment.compensation.PaymentCompensationRequested;
+import org.springframework.context.ApplicationEventPublisher;
+import com.sh.aicommerce.entity.*;
+import com.sh.aicommerce.enums.order.*;
+import com.sh.aicommerce.enums.paymentCompensation.PaymentCompensationStatus;
+import com.sh.aicommerce.enums.paymentCancellation.PaymentCancellationStatus;
+import com.sh.aicommerce.orderCancellation.repository.OrderCancellationRepository;
+import com.sh.aicommerce.paymentCancellation.repository.PaymentCancellationRepository;
+import com.sh.aicommerce.wms.outbound.repository.OutboundRepository;
+import com.sh.aicommerce.wms.outbound.enums.OutboundStatus;
+import com.sh.aicommerce.toss.dto.response.TossPaymentRequestHistoryResponseDto;
+import com.sh.aicommerce.toss.dto.response.CancelResponseDto;
+import com.sh.aicommerce.toss.repository.TossPaymentLogRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
+import org.springframework.util.StringUtils;
 import com.sh.aicommerce.payment.dto.request.PaymentBillingCardRequestDto;
 import com.sh.aicommerce.payment.repository.PaymentRepository;
 import com.sh.aicommerce.paymentAttempt.repository.PaymentAttemptRepository;
+import com.sh.aicommerce.paymentCompensation.record.PaymentCompensationRequestRecord;
 import com.sh.aicommerce.paymentCompensation.repository.PaymentCompensationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,6 +39,12 @@ import java.util.Optional;
 @Slf4j
 public class PaymentCompensationTxService {
 
+    private final ApplicationEventPublisher eventPublisher;
+    private final OrderCancellationRepository orderCancellationRepository;
+    private final PaymentCancellationRepository paymentCancellations;
+    private final OutboundRepository outbounds;
+    private final TossPaymentLogRepository paymentLogs;
+    private final EntityManager entityManager;
     private final PaymentRepository paymentRepository;
     private final PaymentAttemptRepository attemptRepository;
     private final PaymentCompensationRepository compensationRepository;
@@ -34,7 +55,7 @@ public class PaymentCompensationTxService {
      * 보상 실행은 별도 작업자가 담당하며 이 메서드에서 실행하지 않습니다.
      */
     @Transactional
-    public Long prepareCompensation(PaymentBillingCardRequestDto request) {
+    public Long preparePaymentCompensation(PaymentBillingCardRequestDto request) {
         if (request == null || request.getPaymentId() == null || request.getAttemptId() == null
                 || request.getOrderId() == null || request.getOrderNumber() == null) {
             throw new PaymentException("[결제/COMPENSATION_PREPARE] 결제·주문·승인 시도 식별자가 필요합니다.");
@@ -81,6 +102,187 @@ public class PaymentCompensationTxService {
         PaymentCompensation saved = compensationRepository.save(PaymentCompensation.create(attempt));
         log.warn("[PAYMENT] stage=COMPENSATION_PREPARE event=SAVED_PENDING_COMMIT paymentId={} attemptId={} compensationId={}",
                 payment.getId(), attempt.getId(), saved.getId());
+
+        // 결제 실패 보상 처리 : 결제 승인 요청 내역 확인 + 결제 승인 취소 처리
+        eventPublisher.publishEvent(new PaymentCompensationRequested(saved.getId()));
+
         return saved.getId();
+    }
+
+    /** 보상 작업을 먼저 선점하고, PG 호출용 스냅샷을 반환합니다. */
+    @Transactional
+    public PaymentCompensationRequestRecord findPaymentAndAttempt(Long compensationId) {
+        PaymentCompensation compensation = lock(compensationId);
+
+        if (compensation.getStatus() != PaymentCompensationStatus.PENDING)
+            return null;
+
+        PaymentAttempt attempt = compensation.getPaymentAttempt();
+        Payment payment = attempt.getPayment();
+        Orders order = payment.getOrder();
+
+        validateForCompensation(compensation, attempt, payment, order);
+        compensation.startProcessing();
+        return new PaymentCompensationRequestRecord(compensationId, payment.getId(), attempt.getId(),
+                order.getId(), compensation.getOrderNumber(), compensation.getRequestAmount());
+    }
+
+    /** 승인 확인 후 취소 작업을 생성합니다. PG 호출 전 반드시 커밋합니다. */
+    @Transactional
+    public Long prepareCancellation(Long compensationId, TossPaymentRequestHistoryResponseDto response) {
+        PaymentCompensation compensation = lock(compensationId);
+
+        if (compensation.getStatus() != PaymentCompensationStatus.PROCESSING)
+            return null;
+
+        PaymentAttempt attempt = compensation.getPaymentAttempt();
+        Payment payment = attempt.getPayment();
+        Orders order = payment.getOrder();
+
+        // 기존 취소 작업이 있으면 취소 결과 반영과 동일하게 OC → PC → Payment 순으로 잠급니다.
+        OrderCancellation cancellation = orderCancellationRepository.findByOrderId(order.getId()).orElse(null);
+        if (cancellation != null)
+            entityManager.refresh(cancellation, LockModeType.PESSIMISTIC_WRITE);
+
+        PaymentCancellation pc = cancellation == null ? null
+                : paymentCancellations.findPaymentCancellationByOrderCancellationIdForUpdate(cancellation.getId()).orElse(null);
+
+        entityManager.refresh(payment, LockModeType.PESSIMISTIC_WRITE);
+        entityManager.refresh(order, LockModeType.PESSIMISTIC_WRITE);
+        entityManager.refresh(attempt, LockModeType.PESSIMISTIC_WRITE);
+
+        // 데이터 검증 로직 작성
+        validateForCompensation(compensation, attempt, payment, order);
+        validatePgApproval(compensation, payment, attempt, order, response);
+
+        boolean canceled = "CANCELED".equals(response.getStatus());
+
+        // 이미 취소된 상태인지 확인 - 해당 로직은 거의 탈일은 없을거 같긴함.
+        if (canceled) validatePgCancellation(response);
+
+        if (pc != null && (!Objects.equals(pc.getPayment().getId(), payment.getId())
+                || !Objects.equals(pc.getCancelAmount(), compensation.getRequestAmount()))) {
+            throw invalid("기존 취소 작업의 결제 또는 금액이 일치하지 않습니다.");
+        }
+        if (payment.getStatus() == PaymentStatus.CANCELED && !canceled
+                && (pc == null || pc.getStatus() != PaymentCancellationStatus.SUCCESS)) {
+            throw invalid("이미 취소된 내부 결제와 PG 조회 결과가 일치하지 않습니다.");
+        }
+        // 이미 반영된 성공은 과거 조회 응답으로 되돌리지 않습니다.
+        if (pc != null && pc.getStatus() == PaymentCancellationStatus.SUCCESS) {
+            compensation.handOffCancellation(pc);
+            return null;
+        }
+
+        // 출고 관련 취소 요청으로 상태 값 업데이트
+        Outbound outbound = outbounds.findOutboundByOrderIdWithLock(order.getId()).orElse(null);
+        boolean itemReturnRequired = outbound != null && switch (outbound.getOutBoundStatus()) {
+            case PENDING, ON_HOLD -> false;
+            case PICKING, PICKED, PACKING, PACKED -> true;
+            default -> throw invalid("현재 출고 단계는 자동 보상 취소 대상이 아닙니다.");
+        };
+
+        if (cancellation == null) {
+            cancellation = orderCancellationRepository.save(new OrderCancellation(order,
+                    "승인 결과 불명확에 따른 시스템 보상 취소", itemReturnRequired));
+        } else if (cancellation.getCancelStatus() != OrderCancelStatus.PROCESSING
+                && cancellation.getCancelStatus() != OrderCancelStatus.REQUESTED) {
+            throw invalid("기존 주문 취소 상태를 확인해야 합니다.");
+        }
+
+        cancellation.startOrderCancellation();
+        order.updateStatusToCancelRequest();
+
+        if (outbound != null)
+            outbound.updateStatusToCancelRequest();
+
+        // 승인 사실은 기록하되 order.PAID·출고 생성 경로는 호출하지 않습니다.
+        payment.recordApprovalForCompensation(response);
+        attempt.updateAttemptSuccessPayByRecovery(response);
+
+        if (pc == null)
+            pc = paymentCancellations.save(PaymentCancellation.createPaymentCancellation(payment, cancellation));
+
+        // 결제 완료 확인했으니, 취소 대기로 상태 값 변경
+        compensation.handOffCancellation(pc);
+
+        if (canceled) {
+            pc.completeCancel(response.getCancels().get(0));
+            payment.updatePaymentStatusToCanceled();
+            if (paymentLogs.findLogByCancellationIdWithLock(pc.getId()).isEmpty()) {
+                paymentLogs.save(TossPaymentLog.createStatusToCancelSuccess(payment, response, pc.getId()));
+            }
+            return null;
+        }
+        // READY만 기존 취소 서비스에 넘깁니다. PROCESSING·UNKNOWN은 기존 취소 복구가 담당합니다.
+        return pc.getStatus() == PaymentCancellationStatus.READY ? pc.getId() : null;
+    }
+
+    @Transactional
+    public void defer(Long compensationId, String errorCode, boolean manualReview) {
+        lock(compensationId).defer(errorCode, manualReview);
+    }
+
+    private PaymentCompensation lock(Long compensationId) {
+        return compensationRepository.findByIdForUpdate(compensationId)
+                .orElseThrow(() -> invalid("보상 작업이 없습니다."));
+    }
+
+    // PaymentCompensation에 대한 데이터 검증
+    private void validateForCompensation(PaymentCompensation compensation, PaymentAttempt attempt,
+                                         Payment payment, Orders order) {
+        if (!payment.isCompensationRequired()
+                || !Objects.equals(attempt.getPayment().getId(), payment.getId())
+                || !Objects.equals(payment.getOrder().getId(), order.getId())
+                || !Objects.equals(compensation.getOrderNumber(), order.getOrderNumber())
+                || !Objects.equals(attempt.getOrderNumber(), order.getOrderNumber())
+                || !Objects.equals(compensation.getRequestAmount(), payment.getAmount())
+                || !Objects.equals(compensation.getRequestAmount(), attempt.getRequestAmount())
+                || !Objects.equals(compensation.getRequestAmount(), order.getTotalPrice())) {
+            throw invalid("보상 대상의 주문·결제·승인 시도 연결 또는 금액이 일치하지 않습니다.");
+        }
+        if (!EnumSet.of(PaymentStatus.COMPENSATION_PENDING, PaymentStatus.UNKNOWN, PaymentStatus.PAID,
+                PaymentStatus.CANCELED).contains(payment.getStatus())
+                || !EnumSet.of(PaymentAttemptStatus.PROCESSING, PaymentAttemptStatus.UNKNOWN,
+                PaymentAttemptStatus.SUCCESS).contains(attempt.getStatus())) {
+            throw invalid("보상 처리가 가능한 상태가 아닙니다.");
+        }
+    }
+
+    // PG에서 결제 승인 요청 내역과 기존 결제 내역에 대한 데이터 검증
+    private void validatePgApproval(PaymentCompensation compensation, Payment payment, PaymentAttempt attempt,
+                                    Orders order, TossPaymentRequestHistoryResponseDto response) {
+        if (response == null || !("DONE".equals(response.getStatus()) || "CANCELED".equals(response.getStatus()))
+                || !Objects.equals(response.getOrderId(), order.getOrderNumber())
+                || !Objects.equals(response.getTotalAmount(), compensation.getRequestAmount())
+                || !"KRW".equals(response.getCurrency()) || response.getApprovedAt() == null
+                || !StringUtils.hasText(response.getPaymentKey())
+                || StringUtils.hasText(payment.getPaymentKey()) && !Objects.equals(payment.getPaymentKey(), response.getPaymentKey())
+                || StringUtils.hasText(attempt.getPaymentKey()) && !Objects.equals(attempt.getPaymentKey(), response.getPaymentKey())) {
+            throw invalid("PG 승인 상태·주문번호·금액·통화·결제키가 유효하지 않습니다.");
+        }
+        if ("DONE".equals(response.getStatus())
+                && (!Objects.equals(response.getTotalAmount(), response.getBalanceAmount())
+                || response.getCancels() != null && !response.getCancels().isEmpty())) {
+            throw invalid("전체 취소 전제와 PG 잔액·취소 내역이 일치하지 않습니다.");
+        }
+    }
+
+    private void validatePgCancellation(TossPaymentRequestHistoryResponseDto response) {
+        if (!Integer.valueOf(0).equals(response.getBalanceAmount())
+                || response.getCancels() == null || response.getCancels().size() != 1) {
+            throw invalid("전액 취소가 확인된 단일 거래가 아닙니다.");
+        }
+        CancelResponseDto cancel = response.getCancels().get(0);
+        if (cancel == null || !"DONE".equals(cancel.getCancelStatus()) || cancel.getCanceledAt() == null
+                || !StringUtils.hasText(cancel.getTransactionKey())
+                || !Objects.equals(cancel.getCancelAmount(), response.getTotalAmount())
+                || !Integer.valueOf(0).equals(cancel.getRefundableAmount())) {
+            throw invalid("PG 취소 거래가 유효하지 않습니다.");
+        }
+    }
+
+    private PaymentCompensationException invalid(String message) {
+        return new PaymentCompensationException("[결제/COMPENSATION] " + message);
     }
 }

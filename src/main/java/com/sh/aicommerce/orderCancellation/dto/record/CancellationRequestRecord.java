@@ -9,6 +9,7 @@ public record CancellationRequestRecord(
         Long paymentCancellationId,
         String orderNumber,
         String idempotencyKey,
-        String paymentKey
+        String paymentKey,
+        String cancelReason
 ) {
 }

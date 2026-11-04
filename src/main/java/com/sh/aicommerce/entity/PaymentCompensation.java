@@ -30,6 +30,13 @@ public class PaymentCompensation {
     @Column(nullable = false)
     private PaymentCompensationStatus status;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "payment_cancellation_id")
+    private PaymentCancellation paymentCancellation;
+
+    @Column(length = 100)
+    private String lastErrorCode;
+
     @Column(nullable = false, updatable = false)
     private Integer requestAmount;
 
@@ -61,5 +68,31 @@ public class PaymentCompensation {
         compensation.createdAt = now;
         compensation.updatedAt = now;
         return compensation;
+    }
+
+    public void startProcessing() {
+        this.status = PaymentCompensationStatus.PROCESSING;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public void handOffCancellation(PaymentCancellation cancellation) {
+        this.paymentCancellation = cancellation;
+        this.status = PaymentCompensationStatus.CANCELLATION_PENDING;
+        this.lastErrorCode = null;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public void defer(String errorCode, boolean manualReview) {
+        if (this.status != PaymentCompensationStatus.PROCESSING
+                && !(manualReview && this.status == PaymentCompensationStatus.PENDING)) return;
+        this.status = manualReview ? PaymentCompensationStatus.MANUAL_REVIEW_REQUIRED
+                : PaymentCompensationStatus.PENDING;
+        this.lastErrorCode = errorCode;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public void complete() {
+        this.status = PaymentCompensationStatus.COMPLETED;
+        this.updatedAt = LocalDateTime.now();
     }
 }

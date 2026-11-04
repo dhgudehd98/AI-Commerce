@@ -60,14 +60,14 @@ public interface OrderCancellationRepository extends JpaRepository<OrderCancella
             oc.order.orderNumber
         )
         from OrderCancellation oc
-        join Outbound ob on ob.order = oc.order
-        join PaymentCancellation pc on oc.id = pc.orderCancellation.id
+        left join Outbound ob on ob.order = oc.order
+        left join PaymentCancellation pc on oc.id = pc.orderCancellation.id
         where oc.cancelStatus in :statuses
         """,
             countQuery = """
         select count(oc)
         from OrderCancellation oc
-        join Outbound ob on ob.order = oc.order
+        left join Outbound ob on ob.order = oc.order
         where oc.cancelStatus in :statuses
         """
     )
@@ -112,8 +112,8 @@ public interface OrderCancellationRepository extends JpaRepository<OrderCancella
         p 
     )
     from OrderCancellation oc
-    join Outbound ob on ob.order = oc.order
-    join Delivery d on d.order = oc.order
+    left join Outbound ob on ob.order = oc.order
+    left join Delivery d on d.order = oc.order
     join Payment p on p.order = oc.order
     join Member m on oc.order.member = m 
     where oc.id = :cancelId
