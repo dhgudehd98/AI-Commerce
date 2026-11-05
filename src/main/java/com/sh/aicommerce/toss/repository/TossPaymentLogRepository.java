@@ -11,6 +11,9 @@ import java.util.Optional;
 
 public interface TossPaymentLogRepository extends JpaRepository<TossPaymentLog, Long> {
 
+    boolean existsByPaymentIdAndRequestTypeAndTossStatus(
+            Long paymentId, String requestType, String tossStatus);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
     select tl

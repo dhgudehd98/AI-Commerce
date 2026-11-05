@@ -1,10 +1,12 @@
 package com.sh.aicommerce.paymentCompensation.service;
 
+import co.elastic.clients.elasticsearch.tasks.CancelResponse;
 import com.sh.aicommerce.common.exception.payment.PaymentException;
 import com.sh.aicommerce.common.exception.paymentCompensation.PaymentCompensationException;
 import com.sh.aicommerce.enums.payment.PaymentAttemptStatus;
 import com.sh.aicommerce.enums.payment.PaymentStatus;
 import com.sh.aicommerce.event.payment.compensation.PaymentCompensationRequested;
+import com.sh.aicommerce.paymentLedger.service.PaymentLedgerService;
 import org.springframework.context.ApplicationEventPublisher;
 import com.sh.aicommerce.entity.*;
 import com.sh.aicommerce.enums.order.*;
@@ -51,6 +53,7 @@ public class PaymentCompensationTxService {
     private final PaymentRepository paymentRepository;
     private final PaymentAttemptRepository attemptRepository;
     private final PaymentCompensationRepository compensationRepository;
+    private final PaymentLedgerService ledgerService;
 
     /**
      * 보상 작업의 영속화만 수행합니다. 외부 PG 호출·예약 해제·출고 변경은 하지 않습니다.
@@ -240,6 +243,7 @@ public class PaymentCompensationTxService {
         }
         // 이미 반영된 성공은 과거 조회 응답으로 되돌리지 않습니다.
         if (pc != null && pc.getStatus() == PaymentCancellationStatus.SUCCESS) {
+            saveCompensationLedger(payment, pc, response);
             compensation.handOffCancellation(pc);
             return null;
         }
@@ -276,17 +280,22 @@ public class PaymentCompensationTxService {
         // 결제 완료 확인했으니, 취소 대기로 상태 값 변경
         compensation.handOffCancellation(pc);
 
+        saveCompensationLedger(payment, pc, response);
+
         if (canceled) {
-            pc.completeCancel(response.getCancels().get(0));
+            CancelResponseDto cancel = response.getCancels().get(0);
+            pc.completeCancel(cancel);
             payment.updatePaymentStatusToCanceled();
             if (paymentLogs.findLogByCancellationIdWithLock(pc.getId()).isEmpty()) {
                 paymentLogs.save(TossPaymentLog.createStatusToCancelSuccess(payment, response, pc.getId()));
             }
             return null;
         }
+
         // READY만 기존 취소 서비스에 넘깁니다. PROCESSING·UNKNOWN은 기존 취소 복구가 담당합니다.
         return pc.getStatus() == PaymentCancellationStatus.READY ? pc.getId() : null;
     }
+
 
     /** 미조회 종료·예약 해제·보상 완료는 하나의 트랜잭션에서 반영합니다. */
     @Transactional
@@ -372,8 +381,8 @@ public class PaymentCompensationTxService {
         return compensationRepository.findByIdForUpdate(compensationId)
                 .orElseThrow(() -> invalid("보상 작업이 없습니다."));
     }
-
     // PaymentCompensation에 대한 데이터 검증
+
     private void validateForCompensation(PaymentCompensation compensation, PaymentAttempt attempt,
                                          Payment payment, Orders order) {
         if (!payment.isCompensationRequired()
@@ -393,8 +402,8 @@ public class PaymentCompensationTxService {
             throw invalid("보상 처리가 가능한 상태가 아닙니다.");
         }
     }
-
     // PG에서 결제 승인 요청 내역과 기존 결제 내역에 대한 데이터 검증
+
     private void validatePgApproval(PaymentCompensation compensation, Payment payment, PaymentAttempt attempt,
                                     Orders order, TossPaymentRequestHistoryResponseDto response) {
         if (response == null || !("DONE".equals(response.getStatus()) || "CANCELED".equals(response.getStatus()))
@@ -425,6 +434,27 @@ public class PaymentCompensationTxService {
                 || !Integer.valueOf(0).equals(cancel.getRefundableAmount())) {
             throw invalid("PG 취소 거래가 유효하지 않습니다.");
         }
+    }
+
+    private void saveCompensationLedger(Payment payment, PaymentCancellation cancellation,
+                                        TossPaymentRequestHistoryResponseDto response) {
+        PaymentLedger ledger;
+        if ("CANCELED".equals(response.getStatus())) {
+            CancelResponseDto cancel = response.getCancels().get(0);
+            ledger = PaymentLedger.createCancellation(payment, cancellation, cancel.getCancelAmount(),
+                    response.getCurrency(), response.getPaymentKey(), cancel.getTransactionKey(), cancel.getCanceledAt());
+        } else {
+            // DONE 조회로 확인한 승인 로그와 원장을 취소 요청 전에 함께 커밋합니다.
+            if (!paymentLogs.existsByPaymentIdAndRequestTypeAndTossStatus(payment.getId(), "CONFIRM", "DONE")) {
+                // 최초 승인 API의 원문 응답은 없으므로 임의의 payload를 기록하지 않습니다.
+                paymentLogs.save(TossPaymentLog.confirmSuccess(payment, response, 200, null));
+                log.info("[PAYMENT] stage=COMPENSATION_APPROVAL_LOG event=SAVED_PENDING_COMMIT paymentId={}",
+                        payment.getId());
+            }
+            ledger = PaymentLedger.createApproval(payment, response.getTotalAmount(), response.getCurrency(),
+                    response.getPaymentKey(), response.getLastTransactionKey(), response.getApprovedAt());
+        }
+        ledgerService.saveIfAbsent(ledger);
     }
 
     private PaymentCompensationException invalid(String message) {

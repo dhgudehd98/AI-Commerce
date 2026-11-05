@@ -11,6 +11,7 @@ import com.sh.aicommerce.common.exception.toss.TossRestClientException;
 import com.sh.aicommerce.entity.*;
 import com.sh.aicommerce.enums.order.OrderStatus;
 import com.sh.aicommerce.enums.payment.*;
+import com.sh.aicommerce.enums.paymentLedger.PaymentLedgerType;
 import com.sh.aicommerce.order.orderRepository.OrderRepository;
 import com.sh.aicommerce.orderItem.repository.OrderItemRepository;
 import com.sh.aicommerce.payment.dto.request.CardBillingPaymentRequestDto;
@@ -19,6 +20,8 @@ import com.sh.aicommerce.payment.dto.response.PaymentCompleteDto;
 import com.sh.aicommerce.payment.dto.response.PgPaymentSuccessResponseDto;
 import com.sh.aicommerce.payment.repository.PaymentRepository;
 import com.sh.aicommerce.paymentAttempt.repository.PaymentAttemptRepository;
+import com.sh.aicommerce.paymentLedger.repository.PaymentLedgerRepository;
+import com.sh.aicommerce.paymentLedger.service.PaymentLedgerService;
 import com.sh.aicommerce.toss.dto.response.TossPaymentSuccessResponseDto;
 import com.sh.aicommerce.toss.repository.TossPaymentLogRepository;
 import com.sh.aicommerce.wms.inventory.service.ProductInventoryService;
@@ -29,6 +32,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Objects;
 
@@ -43,6 +48,8 @@ public class PaymentTxService {
     private final OrderItemRepository orderItemRepository;
     private final OrderRepository orderRepository;
     private final TossPaymentLogRepository tossPaymentLogRepository;
+    private final PaymentLedgerRepository ledgerRepository;
+    private final PaymentLedgerService ledgerService;
 
     private final OutboundService outboundService;
     private final ProductInventoryService inventoryService;
@@ -154,6 +161,11 @@ public class PaymentTxService {
             throw new OrderException("[결제/APPROVAL_VALIDATE] 본인의 주문만 결제할 수 있습니다.");
         }
 
+        // 결제 거래 원장에 승인 정보가 이미 저장되어 있는지 확인
+        if (ledgerRepository.existsByPaymentIdAndType(payment.getId(), PaymentLedgerType.APPROVAL)) {
+            throw new PaymentException("[결제/APPROVAL_VALIDATE] 승인 원장이 이미 존재하는 결제입니다. 결제 상태를 확인해주세요.");
+        }
+
         // 현재 주문 상태가 결제 대기 , 결제 진행중 -> 상태 일때 검증 통과
         if (order.getStatus() != OrderStatus.PENDING_PAYMENT
                 && order.getStatus() != OrderStatus.PAYMENT_PROCESSING) {
@@ -263,9 +275,14 @@ public class PaymentTxService {
      */
     @Transactional
     public PgPaymentSuccessResponseDto validatePGResponseData(PaymentBillingCardRequestDto billingCardRequestDto, TossPaymentSuccessResponseDto responseDto) {
+        if (responseDto == null || !"DONE".equals(responseDto.getStatus())) {
+            throw new PaymentException("[결제/APPROVAL_VERIFY] 승인 완료 응답이 아닙니다.");
+        }
         log.info("[PAYMENT] stage=APPROVAL_VERIFY event=START orderNumber={} paymentId={} attemptId={} approvedAmount={} pgStatus={}", billingCardRequestDto.getOrderNumber(), billingCardRequestDto.getPaymentId(), billingCardRequestDto.getAttemptId(), responseDto.getTotalAmount(), responseDto.getStatus());
-        Payment payment = paymentRepository.findPaymentWithOrderByOrderNumber(billingCardRequestDto.getOrderNumber())
+        Payment payment = paymentRepository.findPaymentByIdWithOrderForUpdate(
+                        billingCardRequestDto.getPaymentId(), billingCardRequestDto.getOrderNumber())
                 .orElseThrow(() -> new PaymentException("[결제/APPROVAL_VERIFY] 주문 번호에 해당하는 결제 내역이 존재하지 않습니다."));
+        validateNotCompensationTarget(payment);
         Orders order = payment.getOrder();
         String orderName = orderItemRepository.findByOrderNumber(billingCardRequestDto.getOrderNumber())
                 .stream()
@@ -309,6 +326,7 @@ public class PaymentTxService {
             }
 
             log.info("[PAYMENT] stage=APPROVAL_APPLY event=REPLAYED orderNumber={} paymentId={} attemptId={}", order.getOrderNumber(), payment.getId(), attempt.getId());
+            saveApprovalLedgerIfAbsent(payment, responseDto);
             // 업데이트·출고 생성을 다시 하지 않고 반환
             return new PgPaymentSuccessResponseDto(payment, attempt, order);
         }
@@ -345,6 +363,8 @@ public class PaymentTxService {
         payment.updatePaymentByBillingCard(responseDto);
         order.updateStatusToPaymentComplete();
         attempt.updateAttemptSuccessPay(responseDto);
+        // 결제 승인 거래 원장 저장
+        saveApprovalLedgerIfAbsent(payment, responseDto);
 
         // 결제 완료 시 출고 요청 처리
         outboundService.createOutbound(order);
@@ -355,6 +375,27 @@ public class PaymentTxService {
 
         return new PgPaymentSuccessResponseDto(payment, attempt, order);
     }
+
+   // 결제 거래 원장 승인 내역 저장
+    private void saveApprovalLedgerIfAbsent(Payment payment, TossPaymentSuccessResponseDto response) {
+        if (!"DONE".equals(response.getStatus()) || !StringUtils.hasText(response.getApprovedAt())) {
+            throw new PaymentException("[결제/LEDGER] 승인 완료 상태와 승인 시각이 필요합니다.");
+        }
+        OffsetDateTime approvedAt;
+
+        try {
+            approvedAt = OffsetDateTime.parse(response.getApprovedAt());
+        } catch (DateTimeParseException e) {
+            throw new PaymentException("[결제/LEDGER] PG 승인 시각 형식이 유효하지 않습니다.");
+        }
+
+        PaymentLedger ledger = PaymentLedger.createApproval(payment, response.getTotalAmount(),
+                response.getCurrency(), response.getPaymentKey(), response.getLastTransactionKey(), approvedAt);
+        ledgerService.saveIfAbsent(ledger);
+        log.info("[PAYMENT] stage=APPROVAL_LEDGER event=VERIFIED_PENDING_COMMIT paymentId={} amount={}",
+                payment.getId(), ledger.getAmount());
+    }
+
 
     public void applyPaymentRejected(PaymentBillingCardRequestDto paymentBillingCardRequestDto, RuntimeException e) {
         log.info("[PAYMENT] stage=REJECTION_APPLY event=START orderNumber={} paymentId={} attemptId={} errorType={}",

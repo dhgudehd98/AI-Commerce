@@ -75,10 +75,12 @@ public class PaymentCompensationService {
                 completeUnapprovedWithLock(compensationId, orderNumber, response);
                 return;
             }
+
             if (response == null || !("DONE".equals(response.getStatus()) || "CANCELED".equals(response.getStatus()))) {
                 txService.defer(compensationId, "PG_RESULT_NOT_FINAL", false);
                 return;
             }
+
             Long cancellationId = txService.prepareCancellation(compensationId, response);
 
             // 실제 취소 처리 하는 로직

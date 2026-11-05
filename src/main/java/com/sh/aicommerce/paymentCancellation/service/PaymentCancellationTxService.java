@@ -6,6 +6,7 @@ import com.sh.aicommerce.common.exception.orderCancellation.OrderCancellationExc
 import com.sh.aicommerce.common.exception.payment.PaymentException;
 import com.sh.aicommerce.common.exception.paymentAttempt.PaymentAttemptException;
 import com.sh.aicommerce.common.exception.paymentCancellation.PaymentCancellationException;
+import com.sh.aicommerce.common.exception.paymentLedger.PaymentLedgerException;
 import com.sh.aicommerce.common.exception.toss.TossCancelException;
 import com.sh.aicommerce.entity.*;
 import com.sh.aicommerce.enums.order.OrderCancelStatus;
@@ -14,11 +15,14 @@ import com.sh.aicommerce.enums.payment.PaymentAttemptStatus;
 import com.sh.aicommerce.enums.payment.PaymentStatus;
 import com.sh.aicommerce.enums.paymentCancellation.InventoryCancelStatus;
 import com.sh.aicommerce.enums.paymentCancellation.PaymentCancellationStatus;
+import com.sh.aicommerce.enums.paymentLedger.PaymentLedgerType;
 import com.sh.aicommerce.orderCancellation.dto.record.CancellationRequestRecord;
 import com.sh.aicommerce.orderCancellation.repository.OrderCancellationRepository;
 import com.sh.aicommerce.orderItem.repository.OrderItemRepository;
 import com.sh.aicommerce.paymentAttempt.repository.PaymentAttemptRepository;
 import com.sh.aicommerce.paymentCancellation.repository.PaymentCancellationRepository;
+import com.sh.aicommerce.paymentLedger.repository.PaymentLedgerRepository;
+import com.sh.aicommerce.paymentLedger.service.PaymentLedgerService;
 import com.sh.aicommerce.toss.dto.response.CancelResponseDto;
 import com.sh.aicommerce.toss.dto.response.TossPaymentCancelResponseDto;
 import com.sh.aicommerce.toss.dto.response.TossPaymentSuccessResponseDto;
@@ -29,7 +33,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Objects;
 
@@ -43,7 +50,8 @@ public class PaymentCancellationTxService {
     private final PaymentAttemptRepository attemptRepository;
     private final PaymentCancellationRepository paymentCancellationRepository;
     private final TossPaymentLogRepository tossPaymentLogRepository;
-    private final EntityManager entityManager;
+    private final PaymentLedgerRepository ledgerRepository;
+    private final PaymentLedgerService ledgerService;
 
     @Transactional
     public void validateAndPaymentCancellation(Long paymentCancellationId) {
@@ -68,6 +76,9 @@ public class PaymentCancellationTxService {
                 order.getStatus() != OrderStatus.CANCEL_REQUEST ||
                 attempt.getStatus() != PaymentAttemptStatus.SUCCESS)
             throw new OrderCancellationException("[결제 취소/VALIDATE] 결제가 완료된 내역이 아닙니다.");
+
+        if(ledgerRepository.existsByPaymentIdAndType(payment.getId(), PaymentLedgerType.CANCELLATION))
+            throw new PaymentLedgerException("[결제 취소] 결제 원장에 이미 취소된 내역이 존재하는 취소건입니다. 취소 건을 다시 확인해주세요.");
 
 
         log.info("[PAYMENT_CANCEL] stage=VALIDATE event=VALIDATED paymentCancellationId={} orderCancellationId={} paymentId={} orderNumber={} attemptId={}",
@@ -138,6 +149,7 @@ public class PaymentCancellationTxService {
                     "[결제 취소/RESULT_APPLY] 취소 상세 응답이 없습니다."
             );
         }
+        saveCancelLedgerIfAbsent(payment, paymentCancellation, orderCancellation, response);
 
         // Toss 응답과 DB 데이터 비교
         log.info("[PAYMENT_CANCEL] stage=RESPONSE_VALIDATE event=START paymentCancellationId={} paymentId={} orderNumber={}", paymentCancellation.getId(), payment.getId(), order.getOrderNumber());
@@ -154,6 +166,22 @@ public class PaymentCancellationTxService {
         tossPaymentLogRepository.save(tossPaymentLog);
         log.info("[PAYMENT_CANCEL] stage=RESULT_APPLY event=APPLIED_PENDING_COMMIT paymentCancellationId={} orderCancellationId={} paymentId={} orderNumber={} paymentStatus={} paymentCancelStatus={}",
                 paymentCancellation.getId(), orderCancellation.getId(), payment.getId(), order.getOrderNumber(), payment.getStatus(), paymentCancellation.getStatus());
+    }
+
+    private void saveCancelLedgerIfAbsent(Payment payment, PaymentCancellation paymentCancellation, OrderCancellation orderCancellation, TossPaymentCancelResponseDto responseDto) {
+        CancelResponseDto response = responseDto.getCancels().get(0);
+
+        if (!"CANCELED".equals(responseDto.getStatus()) || response.getCanceledAt() == null) {
+            throw new PaymentException("[결제/LEDGER] 취소 요청 완료 상태와 취소 승인 시간이 필요합니다.");
+        }
+
+        PaymentLedger ledger = PaymentLedger.createCancellation(
+                payment, paymentCancellation, response.getCancelAmount(),
+                "KRW",responseDto.getPaymentKey(), response.getTransactionKey(), response.getCanceledAt());
+
+        ledgerService.saveIfAbsent(ledger);
+        log.info("[PAYMENT] stage=CANCELLATION_LEDGER event=VERIFIED_PENDING_COMMIT paymentId={} amount={}",
+                payment.getId(), ledger.getAmount());
     }
 
     private void validateResponse(
