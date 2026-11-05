@@ -2,6 +2,7 @@ package com.sh.aicommerce.paymentCancellationRecovery.service;
 
 
 import com.sh.aicommerce.common.exception.orderCancellation.OrderCancellationException;
+import com.sh.aicommerce.common.exception.payment.PaymentException;
 import com.sh.aicommerce.common.exception.paymentCancellation.PaymentCancellationException;
 import com.sh.aicommerce.common.exception.recovery.PaymentCancellationRecoveryException;
 import com.sh.aicommerce.common.exception.recovery.PaymentCancellationRecoveryHistoryException;
@@ -9,6 +10,7 @@ import com.sh.aicommerce.entity.*;
 import com.sh.aicommerce.enums.order.OrderCancelStatus;
 import com.sh.aicommerce.enums.payment.PaymentStatus;
 import com.sh.aicommerce.enums.paymentRecovery.PaymentRecoveryResult;
+import com.sh.aicommerce.paymentLedger.service.PaymentLedgerService;
 import com.sh.aicommerce.toss.repository.TossPaymentLogRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
@@ -42,6 +44,7 @@ public class PaymentCancellationRecoveryTxService {
     private final PaymentCancellationRepository cancellationRepository;
     private final PaymentCancellationRecoveryRepository recoveryRepository;
     private final PaymentCancellationRecoveryHistoryRepository historyRepository;
+    private final PaymentLedgerService ledgerService;
     private final TossPaymentLogRepository logRepository;
     @Transactional
     public List<Long> findUnknownPaymentCancellation() {
@@ -122,6 +125,7 @@ public class PaymentCancellationRecoveryTxService {
                     "[결제 취소/RECOVERY_VALIDATE] 전체 취소 요청 금액이 결제 금액과 일치하지 않습니다.");
         }
 
+
         // PaymentCancellationRecovery 생성 || 기존에 존재하는 Recovery 사용
         PaymentCancellationRecovery recovery = recoveryRepository.findRecoveryByPaymentCancellationId(paymentCancellationId)
                 .orElseGet(() -> {
@@ -190,6 +194,11 @@ public class PaymentCancellationRecoveryTxService {
         history.completeRecoveryHistory(response.getStatus());
         payment.updatePaymentStatusToCanceled();
         cancellation.completeCancel(cancelResponse);
+
+        // 결제 거래 원장 생성 및 저장
+        PaymentLedger ledger = PaymentLedger.createCancellation(payment, cancellation, cancelResponse.getCancelAmount(),
+                response.getCurrency(), response.getPaymentKey(), cancelResponse.getTransactionKey(), cancelResponse.getCanceledAt());
+        ledgerService.saveIfAbsent(ledger);
 
         TossPaymentLog tossPaymentLog = TossPaymentLog.createStatusToCancelSuccess(payment, response, cancellation.getId());
         logRepository.save(tossPaymentLog);
@@ -263,6 +272,8 @@ public class PaymentCancellationRecoveryTxService {
                 || !Integer.valueOf(0).equals(cancel.getRefundableAmount())) {
             throw invalidResult("PG 취소 거래의 완료 상태·일시·거래번호·금액이 유효하지 않습니다.");
         }
+
+
         // cancelReason은 기존 요청에서 고정 문구를 사용하므로 사용자 취소 사유와 비교하지 않는 범위
         // cancelRequestId는 null 가능, PG 조회 응답에는 내부 취소 멱등성 키가 없어 직접 비교 불가
         log.info("[PAYMENT_CANCEL] stage=RECOVERY_RESPONSE_VALIDATE event=VALIDATED recoveryId={} historyId={} paymentCancellationId={} paymentId={} orderNumber={} cancelAmount={}",

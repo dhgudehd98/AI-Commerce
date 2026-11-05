@@ -52,12 +52,6 @@ public class PaymentRecoveryTxService {
     private final OutboundService outboundService;
     private final EntityManager entityManager;
 
-
-    public List<Long> getUnknownPaymentRetry() {
-
-        return paymentRepository.findPaymentStatusUnknown();
-    }
-
     @Transactional
     public PaymentRecoveryRequestDto validateRecoveryTarget(Long paymentId) {
 
