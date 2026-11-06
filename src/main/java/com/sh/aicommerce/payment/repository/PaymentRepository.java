@@ -1,7 +1,10 @@
 package com.sh.aicommerce.payment.repository;
 
+import com.sh.aicommerce.admin.Payment.dto.response.AdminPaymentListResponseDto;
 import com.sh.aicommerce.entity.Payment;
 import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -231,4 +234,33 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     """)
     List<com.sh.aicommerce.paymentCompensation.record.PaymentCompensationScanRecord> findMissingProcessingCompensations(
             @Param("cutoff") LocalDateTime cutoff, org.springframework.data.domain.Pageable pageable);
+
+    @Query(
+            value = """
+        select new com.sh.aicommerce.admin.Payment.dto.response.AdminPaymentListResponseDto(
+            p.id,
+            o.id,
+            o.orderNumber,
+            m.id,
+            m.memberName,
+            p.amount,
+            p.status,
+            p.paymentMethod,
+            p.paymentMethodLabel,
+            p.compensationRequired,
+            p.createdAt,
+            p.paidAt
+        )
+        from Payment p
+        join p.order o
+        join o.member m
+        """,
+            countQuery = """
+        select count(p)
+        from Payment p
+        join p.order o
+        join o.member m
+        """
+    )
+    Page<AdminPaymentListResponseDto> findPaymentAll(Pageable pageable);
 }

@@ -1,6 +1,6 @@
 package com.sh.aicommerce.orderCancellation.service;
 
-import com.sh.aicommerce.admin.service.AdminService;
+import com.sh.aicommerce.admin.admin.service.AdminService;
 import com.sh.aicommerce.common.exception.orderCancellation.OrderCancellationException;
 import com.sh.aicommerce.entity.*;
 import com.sh.aicommerce.enums.order.OrderCancelStatus;

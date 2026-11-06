@@ -1,4 +1,4 @@
-package com.sh.aicommerce.admin.service;
+package com.sh.aicommerce.admin.admin.service;
 
 import com.sh.aicommerce.auth.repository.AuthRepository;
 import com.sh.aicommerce.common.exception.auth.AuthException;
