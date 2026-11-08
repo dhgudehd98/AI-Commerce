@@ -52,6 +52,7 @@ public class PaymentCancellationTxService {
     private final TossPaymentLogRepository tossPaymentLogRepository;
     private final PaymentLedgerRepository ledgerRepository;
     private final PaymentLedgerService ledgerService;
+    private final com.sh.aicommerce.paymentCompensation.repository.PaymentCompensationRepository compensationRepository;
 
     @Transactional
     public void validateAndPaymentCancellation(Long paymentCancellationId) {
@@ -160,6 +161,8 @@ public class PaymentCancellationTxService {
         // OrderCancellation을 취소 상태로 변경하는 것은 여기서 하는 것이 아니라 상품 복귀 확인, 선점 재고 예약 해제가 되면 FAILED로 변경
         paymentCancellation.cancelSuccess(response.getCancels().get(0));
         payment.updateCancelStatus();
+        // 정상 취소·취소 복구 모두 PG 취소 성공 시 후속 처리 대기로 전환합니다.
+        compensationRepository.markFollowUpPending(paymentCancellation.getId(), java.time.LocalDateTime.now());
 
         // 결제 취소 내역 후, 결제 취소 내역 TossPaymentLog에 저장
         TossPaymentLog tossPaymentLog = TossPaymentLog.createStatusToCancelSuccess(payment, response, paymentCancellation.getId());

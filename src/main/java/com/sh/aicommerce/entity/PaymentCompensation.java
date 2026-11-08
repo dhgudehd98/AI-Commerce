@@ -3,6 +3,7 @@ package com.sh.aicommerce.entity;
 import com.sh.aicommerce.common.exception.payment.PaymentException;
 import com.sh.aicommerce.enums.paymentCompensation.PaymentCompensationStatus;
 import com.sh.aicommerce.enums.paymentCompensation.PaymentCompensationResult;
+import com.sh.aicommerce.enums.paymentCancellation.PaymentCancellationStatus;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -95,14 +96,26 @@ public class PaymentCompensation {
 
     public void handOffCancellation(PaymentCancellation cancellation) {
         this.paymentCancellation = cancellation;
-        this.status = PaymentCompensationStatus.CANCELLATION_PENDING;
+        this.status = cancellation.getStatus() == PaymentCancellationStatus.SUCCESS
+                ? PaymentCompensationStatus.FOLLOW_UP_PENDING
+                : PaymentCompensationStatus.CANCELLATION_PENDING;
+        this.lastErrorCode = null;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    /** 보상 조회에서 PG 취소 성공을 직접 반영한 경우 호출합니다. */
+    public void markFollowUpPending() {
+        if (this.status != PaymentCompensationStatus.CANCELLATION_PENDING
+                || this.paymentCancellation == null
+                || this.paymentCancellation.getStatus() != PaymentCancellationStatus.SUCCESS) return;
+        this.status = PaymentCompensationStatus.FOLLOW_UP_PENDING;
         this.lastErrorCode = null;
         this.updatedAt = LocalDateTime.now();
     }
 
     public void defer(String errorCode, boolean manualReview) {
 
-        // 이미 PaymentCompensationStatus : CANCELLATION_PENDING 인 경우에는 상태값을 PENDING으로 바꾸지 않고 return;
+        // 취소 인계·후속 처리 대기는 보상 재시도 PENDING으로 되돌리지 않습니다.
         if (this.status != PaymentCompensationStatus.PROCESSING
                 && !(manualReview && this.status == PaymentCompensationStatus.PENDING)) return;
         this.status = manualReview || this.retryCount >= MAX_RETRY_COUNT
