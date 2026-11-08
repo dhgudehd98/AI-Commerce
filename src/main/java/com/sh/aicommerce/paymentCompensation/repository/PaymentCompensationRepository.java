@@ -43,4 +43,12 @@ public interface PaymentCompensationRepository extends JpaRepository<PaymentComp
     """)
     int markFollowUpPending(@Param("cancellationId") Long cancellationId,
                             @Param("updatedAt") java.time.LocalDateTime updatedAt);
+    @Query("""
+    select c
+    from PaymentCompensation c
+    join fetch c.paymentAttempt a
+    left join fetch c.paymentCancellation pc
+    where a.payment.order.id = :orderId
+    """)
+    Optional<PaymentCompensation> findByOrderId(@Param("orderId") Long orderId);
 }
