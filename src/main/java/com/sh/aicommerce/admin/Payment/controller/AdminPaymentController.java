@@ -20,6 +20,7 @@ public class AdminPaymentController {
     public String getPayment() {
         return "payment/paymentList";
     }
+
     @GetMapping("list")
     @ResponseBody
     public ResponseEntity<?> paymentList(

@@ -189,6 +189,14 @@ public class TossPaymentClient {
 
             log.info("[PAYMENT] stage=PG_REQUEST event=RESPONSE_RECEIVED orderNumber={} paymentId={} attemptId={} httpStatus={} pgStatus={} approvedAmount={}", billingCardRequestDto.getOrderNumber(), billingCardRequestDto.getPaymentId(), billingCardRequestDto.getAttemptId(), response.getStatusCode().value(), response.getBody().getStatus(), response.getBody().getTotalAmount());
 
+            // 보상 트랜잭션 정상작동 확인 테스트 - 결제 완료 후 SocketException 던지기
+            if ("DONE".equals(response.getBody().getStatus())) {
+                throw new TossRestClientException(
+                        "[테스트] 승인 완료 후 응답 타임아웃 재현",
+                        new java.net.SocketTimeoutException("Simulated response timeout")
+                );
+            }
+
             return response.getBody();
 
         } catch (HttpStatusCodeException e) {

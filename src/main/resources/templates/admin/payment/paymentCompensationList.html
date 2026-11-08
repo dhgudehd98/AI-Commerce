@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>관리자 · 결제 보상 내역</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { margin: 0; background: #f5f6f8; color: #253041; font-family: system-ui, -apple-system, sans-serif; }
+        main { max-width: 1600px; margin: 40px auto; padding: 0 24px; }
+        .eyebrow { margin: 0 0 8px; color: #667085; font-size: 12px; font-weight: 700; letter-spacing: .08em; }
+        h1 { margin: 0 0 10px; font-size: 28px; }
+        .description { margin: 0 0 26px; color: #667085; line-height: 1.6; }
+        .panel { background: #fff; border: 1px solid #e1e5eb; border-radius: 12px; overflow: hidden; }
+        .toolbar, .pagination { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; padding: 20px; }
+        .controls, .page-buttons { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+        button, select { font: inherit; color: inherit; border: 1px solid #d6dce5; border-radius: 6px; background: white; padding: 8px 12px; }
+        button { cursor: pointer; }
+        button:hover:not(:disabled) { background: #f0f3f8; }
+        button:disabled { cursor: not-allowed; color: #98a2b3; background: #f8f9fb; }
+        button[aria-current="page"] { background: #175cd3; border-color: #175cd3; color: white; }
+        button:focus-visible, select:focus-visible { outline: 3px solid #b2ccff; outline-offset: 2px; }
+        .table-wrap { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; font-size: 14px; white-space: nowrap; }
+        caption { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+        th, td { padding: 17px 16px; text-align: left; border-bottom: 1px solid #edf0f4; }
+        th { color: #667085; background: #f8f9fb; font-size: 12px; font-weight: 600; }
+        tbody tr:hover { background: #fafbfc; }
+        .amount { text-align: right; font-variant-numeric: tabular-nums; }
+        .secondary { display: block; margin-top: 5px; color: #667085; font-size: 12px; }
+        .order-number { font-family: ui-monospace, monospace; }
+        .badge { display: inline-block; padding: 5px 9px; border-radius: 5px; background: #eef2f7; font-size: 12px; font-weight: 600; }
+        .badge.complete { background: #eff4ff; color: #175cd3; }
+        .badge.failed { background: #fef3f2; color: #b42318; }
+        .badge.pending { background: #fffaeb; color: #93370d; }
+        .badge.canceled { background: #f2f4f7; color: #475467; }
+        .empty { padding: 64px 20px; color: #667085; text-align: center; }
+        .page-info, .updated { color: #667085; font-size: 13px; }
+        .updated { margin-left: 12px; }
+        .notice { margin: 16px 0; padding: 14px 16px; border: 1px solid #fecdca; border-radius: 8px; background: #fff5f5; color: #b42318; line-height: 1.6; }
+        .notice button { margin-left: 12px; }
+        .footnote { margin: 16px 0 0; color: #667085; font-size: 12px; line-height: 1.7; }
+        [hidden] { display: none !important; }
+        @media (max-width: 640px) { main { margin: 24px auto; padding: 0 12px; } .toolbar, .pagination { padding: 16px; } .updated { display: block; margin: 6px 0 0; } }
+        .list-nav a { display: inline-block; padding: 9px 14px; border: 1px solid #d6dce5; border-radius: 6px; color: #475467; background: #fff; text-decoration: none; font-size: 14px; }
+        .list-nav a[aria-current="page"] { color: #175cd3; border-color: #b2ccff; background: #eff4ff; font-weight: 600; }
+        .reason { min-width: 160px; max-width: 260px; white-space: normal; overflow-wrap: anywhere; }
+    </style>
+</head>
+<body>
+<main>
+    <p class="eyebrow">PAYMENT ADMIN</p>
+        <nav class="controls list-nav" aria-label="결제 관리 메뉴" style="margin-bottom: 20px">
+        <a href="/api/admin/payment">결제 내역</a>
+        <a href="/api/admin/payment/cancel">결제 취소 내역</a>
+        <a href="/api/admin/payment/compensation" aria-current="page">결제 보상 내역</a>
+    </nav>
+    <h1>결제 보상 내역</h1>
+    <p class="description">승인 결과 확인부터 취소 인계·보상 완료까지 작업 상태와 재시도 내역을 확인합니다. 최근 생성된 작업부터 표시합니다.</p>
+    <div id="errorBox" class="notice" role="alert" hidden>
+        <span id="errorMessage"></span><button id="retry" type="button">다시 시도</button>
+    </div>
+    <section class="panel" aria-label="결제 보상 내역 목록" id="paymentPanel" aria-busy="true">
+        <div class="toolbar">
+            <div aria-live="polite">전체 <strong id="totalCount">—</strong>건 <span class="updated" id="updatedAt"></span></div>
+            <div class="controls">
+                <label for="pageSize">페이지당</label>
+                <select id="pageSize">
+                    <option value="10">10건</option>
+                    <option value="20">20건</option>
+                    <option value="50">50건</option>
+                </select>
+                <button id="refresh" type="button">새로고침</button>
+            </div>
+        </div>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="결제 보상 내역 목록 표, 가로 스크롤 가능">
+            <table>
+                <caption>결제 보상 내역</caption>
+                <thead><tr><th scope="col">보상 ID</th><th scope="col">주문번호</th><th scope="col">주문자</th><th scope="col">대상 금액</th><th scope="col">보상 상태</th><th scope="col">종료 결과</th><th scope="col">재시도</th><th scope="col">연결된 PG 취소</th><th scope="col">사유 / 마지막 코드</th><th scope="col">생성 시각</th><th scope="col">갱신 / 확인 시각</th></tr></thead>
+                <tbody id="paymentRows"><tr><td colspan="11" class="empty">결제 보상 내역을 불러오는 중입니다.</td></tr></tbody>
+            </table>
+        </div>
+        <div class="pagination">
+            <span class="page-info" id="pageInfo" aria-live="polite">불러오는 중</span>
+            <nav class="page-buttons" id="pageButtons" aria-label="결제 보상 내역 목록 페이지 이동"></nav>
+        </div>
+    </section>
+    <p class="footnote">재시도 횟수는 최초 실행을 제외한 추가 실행 횟수입니다. 취소 인계 후에도 상품 복귀·재고 등 후속 처리가 끝나기 전에는 보상이 완료되지 않을 수 있습니다.</p>
+</main>
+<script>
+(() => {
+    'use strict';
+    const API_URL = '/api/admin/payment/compensation/list';
+    const el = id => document.getElementById(id);
+    const initialParams = new URLSearchParams(location.search);
+    const requestedPage = Number(initialParams.get('page') ?? 0);
+    const requestedSize = Number(initialParams.get('size') ?? 10);
+    let currentPage = Number.isSafeInteger(requestedPage) && requestedPage >= 0 ? requestedPage : 0;
+    let pageSize = [10, 20, 50].includes(requestedSize) ? requestedSize : 10;
+    let activeRequest;
+    let loading = false;
+    const numberFormat = new Intl.NumberFormat('ko-KR');
+    el('pageSize').value = String(pageSize);
+
+    const display = value => value == null || value === '' ? '—' : String(value);
+    // LocalDateTime 문자열은 시차 변환 없이 서버에 저장된 시각 그대로 표시합니다.
+    const dateText = value => value ? String(value).replace('T', ' ').slice(0, 19) : '—';
+    function cell(row, value, className) {
+        const td = document.createElement('td');
+        td.textContent = display(value);
+        if (className) td.className = className;
+        row.append(td);
+        return td;
+    }
+    function secondary(parent, value) {
+        const span = document.createElement('span');
+        span.className = 'secondary';
+        span.textContent = value;
+        parent.append(span);
+    }
+    function badge(parent, text, tone) {
+        const span = document.createElement('span');
+        span.className = 'badge ' + (tone || '');
+        span.textContent = display(text);
+        parent.append(span);
+    }
+    function messageRow(message) {
+        const tr = document.createElement('tr');
+        const td = cell(tr, message, 'empty');
+        td.colSpan = 11;
+        el('paymentRows').replaceChildren(tr);
+    }
+    function statusCell(row, code, label) {
+        const td = cell(row, ''); td.textContent = '';
+        const tone = ['PAID', 'SUCCESS', 'COMPLETED'].includes(code) ? 'complete'
+            : ['FAILED', 'REJECTED', 'PAYMENT_REJECTED', 'PAYMENT_FAILED', 'CANCEL_FAILED', 'MANUAL_REVIEW_REQUIRED'].includes(code) ? 'failed'
+            : ['PENDING', 'READY', 'PROCESSING', 'CANCELLATION_PENDING', 'FOLLOW_UP_PENDING', 'COMPENSATION_PENDING', 'UNKNOWN'].includes(code) ? 'pending' : '';
+        badge(td, label || code, tone);
+        return td;
+    }
+    function renderRows(payments) {
+        if (!payments.length) { messageRow('조회된 내역이 없습니다.'); return; }
+        const fragment = document.createDocumentFragment();
+        payments.forEach(payment => {
+            const row = document.createElement('tr');
+            const id = cell(row, payment.compensationId);
+            secondary(id, '결제 ID ' + display(payment.paymentId));
+            const order = cell(row, payment.orderNumber, 'order-number');
+            secondary(order, '승인 시도 ID ' + display(payment.attemptId));
+            const member = cell(row, payment.memberName);
+            secondary(member, '회원 ID ' + display(payment.memberId));
+            cell(row, payment.requestAmount == null ? '—' : numberFormat.format(payment.requestAmount) + '원', 'amount');
+            const status = statusCell(row, payment.compensationStatus, payment.compensationStatusLabel);
+            secondary(status, '결제: ' + display(payment.paymentStatusLabel));
+            cell(row, payment.resultLabel || payment.result, 'reason');
+            cell(row, display(payment.retryCount) + ' / ' + display(payment.maxRetryCount) + '회');
+            const cancel = statusCell(row, payment.cancellationStatus, payment.cancellationStatusLabel);
+            if (payment.paymentCancellationId != null) secondary(cancel, '취소 ID ' + payment.paymentCancellationId);
+            const reason = cell(row, payment.lastErrorCode, 'reason');
+            secondary(reason, '생성 사유: ' + display(payment.reasonCode));
+            cell(row, dateText(payment.createdAt));
+            const updated = cell(row, dateText(payment.updatedAt));
+            if (payment.checkedAt) secondary(updated, '확인 ' + dateText(payment.checkedAt));
+            fragment.append(row);
+        });
+        el('paymentRows').replaceChildren(fragment);
+    }
+    function pageButton(text, target, disabled, selected = false) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = text;
+        button.disabled = disabled || loading;
+        if (selected) button.setAttribute('aria-current', 'page');
+        button.addEventListener('click', () => loadPage(target));
+        el('pageButtons').append(button);
+    }
+    function renderPagination(totalPages, totalElements, itemCount) {
+        el('pageButtons').replaceChildren();
+        if (!totalPages) { el('pageInfo').textContent = '0건'; return; }
+        const start = currentPage * pageSize + 1;
+        el('pageInfo').textContent = `${numberFormat.format(start)}–${numberFormat.format(start + itemCount - 1)} / ${numberFormat.format(totalElements)}건 · ${currentPage + 1} / ${totalPages}페이지`;
+        pageButton('이전', currentPage - 1, currentPage === 0);
+        const from = Math.max(0, Math.min(currentPage - 2, totalPages - 5));
+        for (let page = from; page < Math.min(totalPages, from + 5); page++) {
+            pageButton(String(page + 1), page, page === currentPage, page === currentPage);
+        }
+        pageButton('다음', currentPage + 1, currentPage >= totalPages - 1);
+    }
+    async function loadPage(page = currentPage) {
+        if (activeRequest) activeRequest.abort();
+        const controller = new AbortController();
+        activeRequest = controller;
+        currentPage = page;
+        loading = true;
+        el('paymentPanel').setAttribute('aria-busy', 'true');
+        el('refresh').disabled = true;
+        el('pageButtons').replaceChildren();
+        el('errorBox').hidden = true;
+        el('totalCount').textContent = '—';
+        el('updatedAt').textContent = '';
+        el('pageInfo').textContent = '불러오는 중';
+        messageRow('결제 보상 내역을 불러오는 중입니다.');
+        try {
+            const response = await fetch(`${API_URL}?${new URLSearchParams({page: String(page), size: String(pageSize)})}`, {
+                method: 'GET', headers: {'Accept': 'application/json'}, credentials: 'same-origin', signal: controller.signal
+            });
+            if (!response.ok) {
+                if (response.status === 401) throw new Error('로그인이 필요합니다. 로그인 후 다시 시도해주세요.');
+                if (response.status === 403) throw new Error('결제 보상 내역을 조회할 권한이 없습니다.');
+                throw new Error(`결제 보상 내역을 불러오지 못했습니다. (HTTP ${response.status})`);
+            }
+            const data = await response.json();
+            const metadata = data.page || data;
+            if (!Array.isArray(data.content) || !Number.isInteger(metadata.totalPages)
+                || !Number.isInteger(metadata.totalElements)) throw new Error('결제 보상 내역 목록 응답 형식을 확인할 수 없습니다.');
+            if (controller.signal.aborted) return;
+            if (metadata.totalPages > 0 && page >= metadata.totalPages) {
+                await loadPage(metadata.totalPages - 1);
+                return;
+            }
+            currentPage = metadata.totalPages ? page : 0;
+            loading = false;
+            renderRows(data.content);
+            el('totalCount').textContent = numberFormat.format(metadata.totalElements);
+            el('updatedAt').textContent = '마지막 조회 ' + new Date().toLocaleTimeString('ko-KR');
+            renderPagination(metadata.totalPages, metadata.totalElements, data.content.length);
+            const url = new URL(location.href);
+            url.searchParams.set('page', String(currentPage));
+            url.searchParams.set('size', String(pageSize));
+            history.replaceState(null, '', url);
+        } catch (error) {
+            if (controller.signal.aborted) return;
+            el('errorMessage').textContent = error instanceof SyntaxError
+                ? '결제 보상 내역 목록 응답을 읽을 수 없습니다. 잠시 후 다시 시도해주세요.' : error.message;
+            el('errorBox').hidden = false;
+            el('pageInfo').textContent = '조회 실패';
+            messageRow('결제 보상 내역을 표시할 수 없습니다.');
+        } finally {
+            if (activeRequest === controller) {
+                loading = false;
+                el('paymentPanel').setAttribute('aria-busy', 'false');
+                el('refresh').disabled = false;
+            }
+        }
+    }
+    el('refresh').addEventListener('click', () => loadPage());
+    el('retry').addEventListener('click', () => loadPage());
+    el('pageSize').addEventListener('change', event => {
+        pageSize = Number(event.target.value);
+        loadPage(0);
+    });
+    loadPage();
+})();
+</script>
+</body>
+</html>
