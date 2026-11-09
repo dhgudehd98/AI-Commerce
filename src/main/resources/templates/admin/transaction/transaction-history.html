@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>관리자 · PG 거래 조회</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f5f6f8;color:#253041;font-family:system-ui,-apple-system,sans-serif}main{max-width:1500px;margin:auto;padding:32px 24px}nav{display:flex;flex-wrap:wrap;gap:16px;margin-bottom:28px}a{color:#175cd3}h1{font-size:28px;margin:0 0 10px}.hint{color:#667085;font-size:14px;line-height:1.7}.panel{background:white;border:1px solid #e1e5eb;border-radius:10px;padding:20px;margin-top:20px}form{display:flex;flex-wrap:wrap;gap:14px;align-items:end}label{display:grid;gap:7px;font-size:13px}input,select,button{font:inherit;border:1px solid #d0d5dd;border-radius:6px;padding:9px 12px;background:white;color:inherit}button{cursor:pointer}button:disabled{opacity:.5;cursor:default}.primary{background:#175cd3;color:white;border-color:#175cd3}.toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}.scroll{overflow:auto;margin-top:16px}table{width:100%;border-collapse:collapse;font-size:13px;text-align:left}th{color:#667085;background:#f9fafb;white-space:nowrap}td,th{padding:13px 12px;border-bottom:1px solid #eaecf0}td.key{min-width:180px;max-width:270px;overflow-wrap:anywhere;font-family:monospace}td.time{white-space:nowrap}.amount{text-align:right;white-space:nowrap}.badge{border-radius:5px;background:#f2f4f7;padding:4px 7px;white-space:nowrap}.done{color:#175cd3;background:#eff4ff}.canceled{color:#b42318;background:#fef3f2}#error{color:#b42318;background:#fff4f3;border:1px solid #fecdca;padding:14px;border-radius:7px;margin-top:16px;white-space:pre-wrap}#status{color:#667085;font-size:13px;line-height:1.6}dialog{border:1px solid #e1e5eb;border-radius:12px;width:min(850px,94vw);max-height:85vh;padding:24px}dialog::backdrop{background:#10182880}dialog h2{font-size:20px}pre{background:#f8f9fb;padding:16px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;line-height:1.7}button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #b2ccff;outline-offset:2px}[hidden]{display:none!important}
+</style>
+</head>
+<body><main>
+<nav aria-label="관리자 메뉴"><a href="/api/admin">운영 대시보드</a><a href="/api/admin/orders">주문 내역</a><a href="/api/admin/payment">결제 내역</a><a href="/api/admin/payment-cancellation">결제 취소 내역</a><a href="/api/admin/payment-compensation">결제 보상 내역</a></nav>
+<h1>PG 거래 조회</h1>
+<p class="hint">선택한 기간의 토스페이먼츠 거래 응답을 직접 확인합니다. 현재는 DB 저장 없이 조회하며, 자동 갱신하지 않습니다.<br>시각은 한국 시간(KST) 기준이며 조회에 최대 60초가 걸릴 수 있습니다.</p>
+<section class="panel" aria-label="조회 조건">
+<form id="filters">
+<label>시작 시각 (KST)<input id="from" type="datetime-local" step="1" required></label>
+<label>종료 시각 (KST)<input id="to" type="datetime-local" step="1" required></label>
+<label>페이지당 건수<select id="limit"><option>100</option><option>500</option><option>1000</option><option>5000</option></select></label>
+<button class="primary" type="submit">조회</button><button id="today" type="button">오늘</button><button id="yesterday" type="button">어제</button><button id="week" type="button">최근 7일</button>
+</form>
+</section>
+<div id="error" role="alert" hidden></div>
+<section class="panel" id="results" aria-busy="false">
+<div class="toolbar"><div id="status" role="status" aria-live="polite">기간을 선택하고 조회를 눌러주세요.</div><div><button id="previous" type="button" disabled>이전</button> <button id="next" type="button" disabled>다음</button></div></div>
+<p class="hint">아래 건수는 현재 페이지 기준입니다. 다음 페이지는 마지막 거래의 transactionKey를 커서로 사용합니다.</p>
+<div class="scroll"><table><thead><tr><th>거래 시각 (KST)</th><th>상태</th><th>주문번호</th><th>결제 수단</th><th class="amount">금액</th><th>거래 키</th><th>결제 키</th><th>상세</th></tr></thead><tbody id="rows"><tr><td colspan="8">조회된 데이터가 없습니다.</td></tr></tbody></table></div>
+</section>
+<dialog id="detail"><div class="toolbar"><h2>PG 거래 응답 상세</h2><button id="close" type="button">닫기</button></div><pre id="raw"></pre></dialog>
+</main>
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+let busy=false, criteria=null, cursors=[null], page=0, rows=[];
+const timeFormat=new Intl.DateTimeFormat('ko-KR',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
+const RECENT_WEEK_START_OFFSET = -6; // 오늘을 포함한 최근 7일
+function setDates(offset,endOffset=offset){
+ const parts=Object.fromEntries(new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date()).map(p=>[p.type,p.value]));
+ const d=new Date(Date.UTC(Number(parts.year),Number(parts.month)-1,Number(parts.day)+offset));
+ const end=new Date(Date.UTC(Number(parts.year),Number(parts.month)-1,Number(parts.day)+endOffset));
+ $('from').value=d.toISOString().slice(0,10)+'T00:00:00';$('to').value=end.toISOString().slice(0,10)+'T23:59:59';
+}
+function updateButtons(){
+ document.querySelectorAll('#filters input,#filters select,#filters button').forEach(el=>el.disabled=busy);
+ $('previous').disabled=busy||!criteria||page===0;
+ const last=rows[rows.length-1];
+ $('next').disabled=busy||!criteria||rows.length<criteria.limit||!last?.transactionKey||cursors.slice(0,page+1).includes(last.transactionKey);
+ $('results').setAttribute('aria-busy',String(busy));
+}
+function cell(tr,value,className){const td=document.createElement('td');td.textContent=value??'—';if(className)td.className=className;tr.append(td);return td;}
+function render(){
+ $('rows').replaceChildren();
+ if(rows.length===0){const tr=document.createElement('tr');cell(tr,'해당 페이지의 거래 내역이 없습니다.').colSpan=8;$('rows').append(tr);return;}
+ for(const item of rows){const tr=document.createElement('tr');const d=new Date(item.transactionAt);
+ cell(tr,item.transactionAt&&!Number.isNaN(d.getTime())?timeFormat.format(d):'—','time');
+ const badge=document.createElement('span');badge.className='badge'+(item.status==='DONE'?' done':item.status==='CANCELED'?' canceled':'');badge.textContent=item.status??'—';cell(tr,'').append(badge);
+ cell(tr,item.orderId,'key');cell(tr,item.method);cell(tr,item.amount==null?'—':Number(item.amount).toLocaleString('ko-KR')+' '+(item.currency??''),'amount');
+ cell(tr,item.transactionKey,'key');cell(tr,item.paymentKey,'key');
+ const button=document.createElement('button');button.type='button';button.textContent='상세보기';button.addEventListener('click',()=>{$('raw').textContent=JSON.stringify(item,null,2);$('detail').showModal();});cell(tr,'').append(button);$('rows').append(tr);}
+}
+async function load(target,cursor,query,reset){
+ if(busy)return;busy=true;$('error').hidden=true;$('status').textContent='토스페이먼츠에서 거래 내역을 조회하고 있습니다…';updateButtons();
+ try{
+  const params=new URLSearchParams({from:query.from,to:query.to,limit:String(query.limit)});if(cursor)params.set('startingAfter',cursor);
+  const response=await fetch('/api/admin/transaction/history/list?'+params,{headers:{Accept:'application/json'},credentials:'same-origin',cache:'no-store'});
+  const body=await response.json().catch(()=>null);
+  if(!response.ok)throw new Error(body?.message||'조회에 실패했습니다. (HTTP '+response.status+')');
+  if(!body||!Array.isArray(body.transactions)||body.transactions.some(item=>!item||typeof item!=='object'||Array.isArray(item)))throw new Error('거래 응답 형식이 올바르지 않습니다.');
+  if(reset)cursors=[null];else if(target>=cursors.length)cursors.push(cursor);
+  criteria=query;page=target;rows=body.transactions;render();
+  $('status').textContent=(page+1)+'페이지 · '+rows.length+'건 | '+query.from.replace('T',' ')+' ~ '+query.to.replace('T',' ')+' (KST)';
+ }catch(error){$('error').textContent=error.message;$('error').hidden=false;$('status').textContent=criteria?'조회 실패 · 아래 목록은 이전 조회 결과입니다.':'조회하지 못했습니다. 기간을 확인하고 다시 시도해주세요.';}
+ finally{busy=false;updateButtons();}
+}
+$('filters').addEventListener('submit',e=>{e.preventDefault();const from=$('from').value,to=$('to').value;if(!from||!to||from>to){$('error').textContent='시작 시각은 종료 시각보다 늦을 수 없습니다.';$('error').hidden=false;return;}load(0,null,{from,to,limit:Number($('limit').value)},true);});
+$('today').addEventListener('click',()=>setDates(0));$('yesterday').addEventListener('click',()=>setDates(-1));
+$('week').addEventListener('click',()=>setDates(RECENT_WEEK_START_OFFSET,0));
+$('next').addEventListener('click',()=>load(page+1,rows[rows.length-1].transactionKey,criteria,false));
+$('previous').addEventListener('click',()=>load(page-1,cursors[page-1],criteria,false));
+$('close').addEventListener('click',()=>$('detail').close());
+setDates(RECENT_WEEK_START_OFFSET,0);updateButtons();
+$('filters').requestSubmit();
+</script></body></html>

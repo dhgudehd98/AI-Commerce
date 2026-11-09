@@ -1,7 +1,7 @@
-package com.sh.aicommerce.admin.main.controller;
+package com.sh.aicommerce.admin.Main.controller;
 
-import com.sh.aicommerce.admin.main.dto.response.AdminDashboardResponseDto;
-import com.sh.aicommerce.admin.main.service.AdminMainService;
+import com.sh.aicommerce.admin.Main.dto.response.AdminDashboardResponseDto;
+import com.sh.aicommerce.admin.Main.service.AdminMainService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;

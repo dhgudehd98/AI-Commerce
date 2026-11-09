@@ -4,6 +4,8 @@ package com.sh.aicommerce.toss.controller;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.sh.aicommerce.payment.service.PaymentService;
 import com.sh.aicommerce.toss.dto.response.TossPaymentSuccessResponseDto;
+import com.sh.aicommerce.toss.dto.transaction.TransactionHistoryResponseDto;
+import com.sh.aicommerce.toss.dto.transaction.TransactionResponseDto;
 import com.sh.aicommerce.toss.service.TossAPIService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -72,5 +74,6 @@ public class TossAPIController {
     ) {
         log.info("[토스 페이먼츠] 카드 등록 실패 에러코드 : {} , 에러 메세지 : {)", errorCode, errorMessage);
     }
+
 
 }

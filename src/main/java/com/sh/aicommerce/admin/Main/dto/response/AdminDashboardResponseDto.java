@@ -1,4 +1,4 @@
-package com.sh.aicommerce.admin.main.dto.response;
+package com.sh.aicommerce.admin.Main.dto.response;
 
 import lombok.Getter;
 import java.time.LocalDate;

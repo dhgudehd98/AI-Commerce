@@ -1,7 +1,7 @@
-package com.sh.aicommerce.admin.main.service;
+package com.sh.aicommerce.admin.Main.service;
 
-import com.sh.aicommerce.admin.main.dto.response.AdminDashboardResponseDto;
-import com.sh.aicommerce.admin.main.repository.AdminDashboardRepository;
+import com.sh.aicommerce.admin.Main.dto.response.AdminDashboardResponseDto;
+import com.sh.aicommerce.admin.Main.repository.AdminDashboardRepository;
 import com.sh.aicommerce.common.exception.order.OrderException;
 import com.sh.aicommerce.entity.PaymentCompensation;
 import com.sh.aicommerce.enums.paymentLedger.PaymentLedgerType;
