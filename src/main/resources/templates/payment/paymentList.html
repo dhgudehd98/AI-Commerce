@@ -51,10 +51,11 @@
 <main>
     <p class="eyebrow">PAYMENT ADMIN</p>
         <nav class="controls list-nav" aria-label="결제 관리 메뉴" style="margin-bottom: 20px">
+        <a href="/api/admin">운영 대시보드</a>
         <a href="/api/admin/orders">주문 목록</a>
         <a href="/api/admin/payment" aria-current="page">결제 내역</a>
-        <a href="/api/admin/payment-cancellation">결제 취소 내역</a>
-        <a href="/api/admin/payment-compensation">결제 보상 내역</a>
+        <a href="/api/admin/payment/cancellation">결제 취소 내역</a>
+        <a href="/api/admin/payment/compensation">결제 보상 내역</a>
     </nav>
     <h1>결제 내역</h1>
     <p class="description">주문별 결제 상태와 요청 금액, 결제 방법을 확인합니다. 최근 생성된 결제부터 표시합니다.</p>

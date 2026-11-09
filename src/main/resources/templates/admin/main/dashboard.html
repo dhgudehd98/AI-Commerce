@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>관리자 · 결제 운영 대시보드</title>
+    <style>
+        * { box-sizing: border-box; }
+        :root { color-scheme: light; }
+        body { margin: 0; font-family: system-ui, -apple-system, sans-serif; background: #f5f6f8; color: #253041; }
+        .layout { display: grid; grid-template-columns: 230px minmax(0, 1fr); min-height: 100vh; }
+        aside { padding: 32px 20px; background: #fff; border-right: 1px solid #e1e5eb; }
+        .brand { font-size: 18px; font-weight: 800; color: #175cd3; text-decoration: none; }
+        .brand small { display: block; margin-top: 5px; color: #667085; font-size: 11px; letter-spacing: .12em; }
+        .nav-title { margin: 36px 12px 12px; color: #98a2b3; font-size: 11px; font-weight: 700; }
+        nav { display: grid; gap: 6px; }
+        nav a { padding: 12px; border-radius: 7px; color: #475467; text-decoration: none; font-size: 14px; }
+        nav a:hover { background: #f8f9fb; }
+        nav a[aria-current="page"] { background: #eff4ff; color: #175cd3; font-weight: 700; }
+        main { max-width: 1500px; width: 100%; padding: 40px 36px; margin: 0 auto; }
+        .eyebrow { margin: 0 0 8px; font-size: 11px; font-weight: 700; letter-spacing: .12em; color: #667085; }
+        h1 { font-size: 28px; margin: 0 0 10px; letter-spacing: -.04em; }
+        h2 { margin: 0; font-size: 19px; letter-spacing: -.03em; }
+        .description, .hint { color: #667085; line-height: 1.7; font-size: 14px; }
+        .description { margin: 0 0 24px; }
+        .panel { background: white; border: 1px solid #e1e5eb; border-radius: 10px; padding: 22px; }
+        .filter { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 28px; }
+        form, .presets { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+        label { color: #475467; font-size: 13px; }
+        input, button { font: inherit; border: 1px solid #d6dce5; border-radius: 6px; padding: 8px 11px; background: #fff; color: inherit; }
+        input { min-width: 0; font-size: 13px; }
+        button { cursor: pointer; font-size: 13px; }
+        button:hover:not(:disabled) { background: #f0f3f8; }
+        button.primary { color: #fff; background: #175cd3; border-color: #175cd3; }
+        button:disabled { opacity: .5; cursor: wait; }
+        a:focus-visible, button:focus-visible, input:focus-visible { outline: 3px solid #b2ccff; outline-offset: 3px; }
+        .section-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin: 28px 0 14px; }
+        .period, .asof { color: #667085; font-size: 12px; }
+        .money-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+        .card-label { margin: 0 0 18px; color: #667085; font-size: 13px; font-weight: 500; }
+        .metric { margin: 0; font-size: clamp(22px, 2.4vw, 34px); font-weight: 750; letter-spacing: -.04em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+        .metric small { margin-left: 5px; font-size: 15px; font-weight: 500; }
+        .card-note { margin: 12px 0 0; color: #667085; font-size: 12px; line-height: 1.7; }
+        .net { border-color: #b2ccff; background: #f8faff; }
+        .net .metric { color: #175cd3; }
+        .work-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
+        .work-card { padding: 18px; }
+        .work-card .metric { font-size: 29px; }
+        .attention { border-color: #fecdca; background: #fffafa; }
+        .attention .metric { color: #b42318; }
+        .caption { color: #667085; font-size: 12px; margin: 14px 0; line-height: 1.7; }
+        .links-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+        .shortcut { color: inherit; text-decoration: none; display: block; position: relative; padding-right: 42px; }
+        .shortcut:hover { border-color: #b2ccff; background: #fafcff; }
+        .shortcut strong { font-size: 15px; }
+        .shortcut span { position: absolute; right: 20px; top: 20px; color: #175cd3; }
+        .shortcut p { margin: 8px 0 0; font-size: 12px; color: #667085; line-height: 1.7; }
+        details { margin-top: 24px; font-size: 13px; color: #475467; }
+        summary { cursor: pointer; font-weight: 600; }
+        details ul { padding-left: 20px; line-height: 1.9; color: #667085; }
+        .error { margin-bottom: 20px; border: 1px solid #fecdca; border-radius: 8px; background: #fff5f5; padding: 14px; color: #b42318; font-size: 13px; }
+        .error button { margin-left: 10px; }
+        #loadStatus { font-size: 12px; color: #667085; min-height: 18px; margin-top: 14px; }
+        [hidden] { display: none !important; }
+        @media (max-width: 1200px) { .work-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } main { padding: 32px 24px; } }
+        @media (max-width: 850px) { .layout { grid-template-columns: 1fr; } aside { padding: 20px; border-right: 0; border-bottom: 1px solid #e1e5eb; } .nav-title { display: none; } nav { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 18px; } nav a { padding: 8px; } }
+        @media (max-width: 600px) { main { padding: 24px 14px; } .money-grid, .links-grid { grid-template-columns: 1fr; } .work-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .filter { padding: 16px; } form { align-items: flex-start; } h1 { font-size: 24px; } }
+    </style>
+</head>
+<body>
+<div class="layout">
+    <aside>
+        <a href="/api/admin" class="brand">Commerce Admin<small>PAYMENT OPERATIONS</small></a>
+        <p class="nav-title">운영 관리</p>
+        <nav aria-label="관리자 메뉴">
+            <a href="/api/admin" aria-current="page">운영 대시보드</a>
+            <a href="/api/admin/orders">주문 내역 · 타임라인</a>
+            <a href="/api/admin/payment">결제 내역</a>
+            <a href="/api/admin/payment-cancellation">결제 취소 내역</a>
+            <a href="/api/admin/payment-compensation">결제 보상 내역</a>
+        </nav>
+    </aside>
+    <main>
+        <p class="eyebrow">OVERVIEW</p>
+        <h1>결제 운영 대시보드</h1>
+        <p class="description">기간별 거래 실적과 현재 처리 현황을 확인하고, 개별 주문의 처리 내역으로 이동합니다.</p>
+        <div class="panel filter">
+            <form id="periodForm">
+                <label for="from">시작일</label><input type="date" id="from" required>
+                <label for="to">종료일</label><input type="date" id="to" required>
+                <button class="primary" id="search" type="submit">조회</button>
+            </form>
+            <div class="presets" aria-label="빠른 기간 선택">
+                <button type="button" data-days="1">오늘</button>
+                <button type="button" data-days="7">최근 7일</button>
+                <button type="button" data-days="30">최근 30일</button>
+                <button type="button" id="refresh">새로고침</button>
+            </div>
+        </div>
+        <div id="errorBox" class="error" role="alert" hidden><span id="errorMessage"></span><button id="retry" type="button">다시 시도</button></div>
+        <div id="dashboard" aria-busy="true">
+            <div class="section-header"><h2>기간별 거래 실적</h2><span class="period" id="period">불러오는 중</span></div>
+            <div class="money-grid">
+                <section class="panel"><h3 class="card-label">승인 금액</h3><p class="metric"><span data-metric="approvalAmount">—</span><small>원</small></p><p class="card-note">승인 <strong data-metric="approvalCount">—</strong>건</p></section>
+                <section class="panel"><h3 class="card-label">취소 금액</h3><p class="metric"><span data-metric="cancellationAmount">—</span><small>원</small></p><p class="card-note">취소 <strong data-metric="cancellationCount">—</strong>건</p></section>
+                <section class="panel net"><h3 class="card-label">순결제액</h3><p class="metric"><span data-metric="netAmount">—</span><small>원</small></p><p class="card-note">선택 기간의 승인 금액 − 취소 금액</p></section>
+            </div>
+            <p class="caption">실제 승인·취소 발생 시각 기준입니다. 이전 기간에 승인된 결제의 취소가 포함될 수 있으며, 순결제액은 정산액이 아닙니다.</p>
+            <div class="section-header"><h2>현재 처리 현황</h2><span class="asof" id="asOf">—</span></div>
+            <div class="work-grid">
+                <section class="panel work-card attention"><h3 class="card-label">확인 필요 주문</h3><p class="metric"><span data-metric="attentionOrderCount">—</span><small>건</small></p><p class="card-note">관리자 확인 또는 장기 대기<br>동일 주문 중복 제외</p></section>
+                <section class="panel work-card"><h3 class="card-label">보상 대기</h3><p class="metric"><span data-metric="pendingCompensationCount">—</span><small>건</small></p><p class="card-note">보상 실행을 기다리는 작업</p></section>
+                <section class="panel work-card"><h3 class="card-label">취소 결과 확인 중</h3><p class="metric"><span data-metric="unconfirmedCancellationCount">—</span><small>건</small></p><p class="card-note">PG 취소 진행 중·결과 미확정</p></section>
+                <section class="panel work-card"><h3 class="card-label">후속 처리 대기</h3><p class="metric"><span data-metric="followUpPendingCount">—</span><small>건</small></p><p class="card-note">PG 취소 완료 후<br>보상의 상품 복귀·재고 처리 대기</p></section>
+                <section class="panel work-card"><h3 class="card-label">재시도 소진 주문</h3><p class="metric"><span data-metric="retryExhaustedOrderCount">—</span><small>건</small></p><p class="card-note">자동 재시도 한도 도달 후<br>현재 관리자 확인 상태</p></section>
+            </div>
+            <p class="caption">현재 처리 현황은 선택 기간과 관계없는 조회 시점의 상태입니다. 각 카드의 대상은 서로 겹칠 수 있으므로 합산하지 않습니다.</p>
+        </div>
+        <p id="loadStatus" role="status" aria-live="polite">집계 내역을 불러오는 중입니다.</p>
+        <div class="section-header"><h2>내역 확인</h2><span class="period">각 메뉴의 전체 목록으로 이동합니다.</span></div>
+        <div class="links-grid">
+            <a class="panel shortcut" href="/api/admin/orders"><strong>주문 내역 · 타임라인</strong><span aria-hidden="true">↗</span><p>주문별 결제·취소·보상 상태와 처리 시각 확인</p></a>
+            <a class="panel shortcut" href="/api/admin/payment"><strong>결제 내역</strong><span aria-hidden="true">↗</span><p>원본 결제 금액·결제 방법·승인 상태 확인</p></a>
+            <a class="panel shortcut" href="/api/admin/payment-cancellation"><strong>결제 취소 내역</strong><span aria-hidden="true">↗</span><p>PG 취소 결과·주문 취소·재고 처리 상태 확인</p></a>
+            <a class="panel shortcut" href="/api/admin/payment-compensation"><strong>결제 보상 내역</strong><span aria-hidden="true">↗</span><p>승인 결과 확인·취소 인계·재시도·종료 결과 확인</p></a>
+        </div>
+        <details class="panel">
+            <summary>집계 기준</summary>
+            <ul>
+                <li>선택한 시작일 00:00부터 종료일 다음 날 00:00 미만까지 한국 시간(KST)으로 집계합니다.</li>
+                <li>거래 금액은 성공이 확인된 승인·취소 원장 기준입니다. 단순 요청·실패·내부 취소는 거래 금액에 포함하지 않습니다.</li>
+                <li>확인 필요 주문: 관리자 확인 상태의 주문·취소·보상, 30분 이상 지난 결제 진행 상태 또는 10분 이상 지난 보상 대기 상태입니다.</li>
+                <li>후속 처리 대기는 정상 업무 대기일 수 있으므로 이 상태만으로 확인 필요 주문에 포함하지 않습니다.</li>
+            </ul>
+        </details>
+    </main>
+</div>
+<script>
+(() => {
+    'use strict';
+    const el = id => document.getElementById(id);
+    const numberFormat = new Intl.NumberFormat('ko-KR');
+    const metrics = ['approvalAmount', 'approvalCount', 'cancellationAmount', 'cancellationCount', 'netAmount', 'attentionOrderCount', 'pendingCompensationCount', 'unconfirmedCancellationCount', 'followUpPendingCount', 'retryExhaustedOrderCount'];
+    const dateFormat = new Intl.DateTimeFormat('ko-KR', {timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23'});
+    let activeRequest;
+    function today() {
+        const parts = new Intl.DateTimeFormat('en-CA', {timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit'}).formatToParts(new Date());
+        const part = type => parts.find(p => p.type === type).value;
+        return `${part('year')}-${part('month')}-${part('day')}`;
+    }
+    function setPeriod(days) {
+        const end = today();
+        const start = new Date(end + 'T00:00:00Z');
+        start.setUTCDate(start.getUTCDate() - days + 1);
+        el('from').value = start.toISOString().slice(0, 10);
+        el('to').value = end;
+    }
+    function setMetric(key, value) {
+        document.querySelectorAll(`[data-metric="${key}"]`).forEach(node => { node.textContent = value; });
+    }
+    function render(data) {
+        if (!data || !data.from || !data.to || !data.asOf || metrics.some(key => typeof data[key] !== 'number' || !Number.isFinite(data[key]))) {
+            throw new Error('집계 응답 형식을 확인할 수 없습니다.');
+        }
+        const time = new Date(data.asOf.replace(/(\.\d{3})\d+/, '$1'));
+        if (Number.isNaN(time.getTime())) throw new Error('집계 기준 시각을 확인할 수 없습니다.');
+        metrics.forEach(key => setMetric(key, numberFormat.format(data[key])));
+        el('period').textContent = `${data.from} ~ ${data.to} · KST`;
+        el('asOf').textContent = '조회 기준 ' + dateFormat.format(time) + ' (KST)';
+        el('from').value = data.from; el('to').value = data.to;
+        el('loadStatus').textContent = '집계 내역을 갱신했습니다.';
+        const url = new URL(location.href);
+        url.searchParams.set('from', data.from); url.searchParams.set('to', data.to);
+        history.replaceState(null, '', url);
+    }
+    async function loadStats() {
+        if (!el('periodForm').reportValidity()) return;
+        if (el('from').value > el('to').value) {
+            el('errorMessage').textContent = '시작일은 종료일 이후일 수 없습니다.';
+            el('errorBox').hidden = false;
+            return;
+        }
+        activeRequest?.abort();
+        const controller = new AbortController(); activeRequest = controller;
+        el('dashboard').setAttribute('aria-busy', 'true');
+        el('errorBox').hidden = true; el('search').disabled = true; el('refresh').disabled = true;
+        el('loadStatus').textContent = '집계 내역을 불러오는 중입니다.';
+        el('period').textContent = '불러오는 중'; el('asOf').textContent = '—';
+        metrics.forEach(key => setMetric(key, '—'));
+        try {
+            const query = new URLSearchParams({from: el('from').value, to: el('to').value});
+            const response = await fetch('/api/admin/stats?' + query, {headers: {'Accept': 'application/json'}, credentials: 'same-origin', signal: controller.signal});
+            if (!response.ok) {
+                if (response.status === 401 || response.status === 403) throw new Error('관리자 조회 권한을 확인해주세요.');
+                throw new Error(`집계 내역을 불러오지 못했습니다. (HTTP ${response.status})`);
+            }
+            const data = await response.json();
+            if (controller.signal.aborted) return;
+            render(data);
+        } catch (error) {
+            if (controller.signal.aborted) return;
+            el('errorMessage').textContent = error instanceof SyntaxError ? '집계 응답을 읽을 수 없습니다.' : error.message;
+            el('errorBox').hidden = false; el('period').textContent = '조회 실패';
+            el('loadStatus').textContent = '집계 내역을 갱신하지 못했습니다.';
+        } finally {
+            if (activeRequest === controller) {
+                el('dashboard').setAttribute('aria-busy', 'false');
+                el('search').disabled = false; el('refresh').disabled = false;
+            }
+        }
+    }
+    setPeriod(7);
+    const initial = new URLSearchParams(location.search);
+    for (const key of ['from', 'to']) {
+        if (/^\d{4}-\d{2}-\d{2}$/.test(initial.get(key) || '')) {
+            el(key).value = initial.get(key);
+            if (!el(key).value) setPeriod(7);
+        }
+    }
+    el('periodForm').addEventListener('submit', event => { event.preventDefault(); loadStats(); });
+    document.querySelectorAll('[data-days]').forEach(button => button.addEventListener('click', () => { setPeriod(Number(button.dataset.days)); loadStats(); }));
+    el('refresh').addEventListener('click', loadStats);
+    el('retry').addEventListener('click', loadStats);
+    loadStats();
+})();
+</script>
+</body>
+</html>
