@@ -1,6 +1,6 @@
 package com.sh.aicommerce.orderCancellation.service;
 
-import com.sh.aicommerce.admin.service.AdminService;
+import com.sh.aicommerce.admin.admin.service.AdminService;
 import com.sh.aicommerce.common.exception.orderCancellation.OrderCancellationException;
 import com.sh.aicommerce.entity.*;
 import com.sh.aicommerce.enums.order.OrderCancelStatus;
@@ -120,7 +120,9 @@ public class OrderCancellationInventoryService {
         if (outbound != null) outbound.updateStatusToCancelled();
         paymentCancellations.findByOrderCancellationId(c.getId()).ifPresent(pc ->
                 compensations.findAllByPaymentCancellationId(pc.getId()).stream()
-                        .filter(task -> task.getStatus() == com.sh.aicommerce.enums.paymentCompensation.PaymentCompensationStatus.CANCELLATION_PENDING)
+                        // 기존 데이터의 PG 취소 완료 후 CANCELLATION_PENDING도 완료 처리할 수 있습니다.
+                        .filter(task -> task.getStatus() == com.sh.aicommerce.enums.paymentCompensation.PaymentCompensationStatus.FOLLOW_UP_PENDING
+                                || task.getStatus() == com.sh.aicommerce.enums.paymentCompensation.PaymentCompensationStatus.CANCELLATION_PENDING)
                         .forEach(PaymentCompensation::complete));
         log.info("[주문 취소 재고 반영] 취소 ID: {}, 처리 유형: {}, 관리자 ID: {}", cancellationId,
                 restore ? "실재고 복원" : "예약 해제", adminId);

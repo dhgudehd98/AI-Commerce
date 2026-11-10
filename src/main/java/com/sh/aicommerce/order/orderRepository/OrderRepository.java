@@ -1,5 +1,6 @@
 package com.sh.aicommerce.order.orderRepository;
 
+import com.sh.aicommerce.admin.Order.dto.response.AdminOrderTimelineRecord;
 import com.sh.aicommerce.entity.Orders;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -57,4 +58,33 @@ public interface OrderRepository extends JpaRepository<Orders, Long> {
     where o.orderNumber = :orderNumber
     """)
     Optional<Orders> findOrderByOrderNumberForUpdate(@Param("orderNumber")String orderNumber);
+
+
+    /** 단일 관계만 함께 조회하고, 보상·원장 등 다건 이력은 별도 조회합니다. */
+    @Query("""
+    select new com.sh.aicommerce.admin.Order.dto.response.AdminOrderTimelineRecord(
+        o, p, pc, oc
+    )
+    from Orders o
+    left join o.payment p
+    left join OrderCancellation oc on oc.order = o
+    left join PaymentCancellation pc on pc.orderCancellation = oc and pc.payment = p
+    where o.id = :orderId
+    """)
+    Optional<AdminOrderTimelineRecord> findOrderTimeRecordByOrderId(@Param("orderId") Long orderId);
+    @Query(value = """
+    select new com.sh.aicommerce.admin.Order.dto.response.OrdersListResponseDto(
+        o.id, o.orderNumber, m.id, m.memberName, o.totalPrice, o.status,
+        p.id, p.status, p.compensationRequired, o.orderedAt
+    )
+    from Orders o
+    join o.member m
+    left join o.payment p
+    """, countQuery = """
+    select count(o)
+    from Orders o
+    join o.member m
+    """)
+    org.springframework.data.domain.Page<com.sh.aicommerce.admin.Order.dto.response.OrdersListResponseDto>
+    findAllForAdmin(org.springframework.data.domain.Pageable pageable);
 }

@@ -27,7 +27,7 @@ public class ProductController {
     // 상품 등록
     @PostMapping("")
     public ResponseEntity<?> createProduct(
-            @Valid @RequestBody ProductCreateRequestDto dto) {
+            @Valid @RequestBody List<ProductCreateRequestDto> dto) {
         return ResponseEntity.ok(productService.createProduct(dto));
     }
 

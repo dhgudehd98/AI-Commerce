@@ -1,33 +1,21 @@
 package com.sh.aicommerce.orderCancellation.service;
 
-import com.sh.aicommerce.admin.service.AdminService;
+import com.sh.aicommerce.admin.admin.service.AdminService;
 import com.sh.aicommerce.common.exception.orderCancellation.OrderCancellationException;
-import com.sh.aicommerce.common.exception.payment.PaymentException;
-import com.sh.aicommerce.common.exception.refund.RefundException;
-import com.sh.aicommerce.common.exception.toss.TossPaymentException;
 import com.sh.aicommerce.common.exception.toss.TossRestClientException;
-import com.sh.aicommerce.common.exception.wms.InventoryException;
 import com.sh.aicommerce.entity.*;
 import com.sh.aicommerce.enums.order.OrderCancelStatus;
-import com.sh.aicommerce.enums.payment.PaymentStatus;
-import com.sh.aicommerce.enums.refund.RefundStatus;
 import com.sh.aicommerce.orderCancellation.dto.record.OrderCancellationDetailRecord;
 import com.sh.aicommerce.orderCancellation.dto.record.OrderCancellationFailedDetailResponseRecord;
-import com.sh.aicommerce.orderCancellation.dto.record.OrderCancellationRetryRecord;
 import com.sh.aicommerce.orderCancellation.dto.response.OrderCancelDetailResponseDto;
 import com.sh.aicommerce.orderCancellation.dto.response.OrderCancelFailResponseDto;
 import com.sh.aicommerce.orderCancellation.dto.response.OrderCancelListResponseDto;
 import com.sh.aicommerce.orderCancellation.repository.OrderCancellationRepository;
 import com.sh.aicommerce.orderItem.repository.OrderItemRepository;
-import com.sh.aicommerce.payment.repository.PaymentRepository;
 import com.sh.aicommerce.paymentCancellation.repository.PaymentCancellationRepository;
-import com.sh.aicommerce.payment.service.PaymentService;
-import com.sh.aicommerce.refund.service.RefundService;
 import com.sh.aicommerce.toss.dto.response.PgPaymentHistoryDetailResponseDto;
 import com.sh.aicommerce.toss.dto.response.TossPaymentRequestHistoryResponseDto;
 import com.sh.aicommerce.toss.service.TossPaymentClient;
-import com.sh.aicommerce.wms.inventory.repository.ProductInventoryRepository;
-import com.sh.aicommerce.wms.outbound.service.OutboundService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -38,7 +26,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Map;
 
 @Service
 @Slf4j

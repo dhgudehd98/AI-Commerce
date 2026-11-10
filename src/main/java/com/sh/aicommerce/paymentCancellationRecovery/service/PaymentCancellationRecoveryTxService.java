@@ -45,6 +45,7 @@ public class PaymentCancellationRecoveryTxService {
     private final PaymentCancellationRecoveryRepository recoveryRepository;
     private final PaymentCancellationRecoveryHistoryRepository historyRepository;
     private final PaymentLedgerService ledgerService;
+    private final com.sh.aicommerce.paymentCompensation.repository.PaymentCompensationRepository compensationRepository;
     private final TossPaymentLogRepository logRepository;
     @Transactional
     public List<Long> findUnknownPaymentCancellation() {
@@ -194,6 +195,8 @@ public class PaymentCancellationRecoveryTxService {
         history.completeRecoveryHistory(response.getStatus());
         payment.updatePaymentStatusToCanceled();
         cancellation.completeCancel(cancelResponse);
+        // 정상 취소·취소 복구 모두 PG 취소 성공 시 후속 처리 대기로 전환합니다.
+        compensationRepository.markFollowUpPending(cancellation.getId(), java.time.LocalDateTime.now());
 
         // 결제 거래 원장 생성 및 저장
         PaymentLedger ledger = PaymentLedger.createCancellation(payment, cancellation, cancelResponse.getCancelAmount(),

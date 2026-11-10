@@ -15,6 +15,7 @@ import com.sh.aicommerce.toss.dto.cancel.request.TossFailReasonRequestDto;
 import com.sh.aicommerce.toss.dto.payment.request.TossPaymentBillingRequestDto;
 import com.sh.aicommerce.toss.dto.payment.request.TossPaymentRequestDto;
 import com.sh.aicommerce.toss.dto.response.*;
+import com.sh.aicommerce.toss.dto.transaction.TransactionHistoryResponseDto;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -23,14 +24,23 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import java.nio.charset.StandardCharsets;
+import java.net.URI;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Base64;
 import java.util.Set;
 
 @Component
 @Slf4j
 public class TossPaymentClient {
+
+    private static final int DEFAULT_TRANSACTION_LIMIT = 100;
+    private static final int MAX_TRANSACTION_LIMIT = 5000;
+    private static final DateTimeFormatter TRANSACTION_DATE_FORMAT =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
 
     // 명확한 요청 거절로 분류한 코드만 FAILED로 처리한다.
     private static final Set<String> DEFINITE_CANCEL_REJECTION_CODES = Set.of(
@@ -188,6 +198,14 @@ public class TossPaymentClient {
             }
 
             log.info("[PAYMENT] stage=PG_REQUEST event=RESPONSE_RECEIVED orderNumber={} paymentId={} attemptId={} httpStatus={} pgStatus={} approvedAmount={}", billingCardRequestDto.getOrderNumber(), billingCardRequestDto.getPaymentId(), billingCardRequestDto.getAttemptId(), response.getStatusCode().value(), response.getBody().getStatus(), response.getBody().getTotalAmount());
+
+            // 보상 트랜잭션 정상작동 확인 테스트 - 결제 완료 후 SocketException 던지기
+//            if ("DONE".equals(response.getBody().getStatus())) {
+//                throw new TossRestClientException(
+//                        "[테스트] 승인 완료 후 응답 타임아웃 재현",
+//                        new java.net.SocketTimeoutException("Simulated response timeout")
+//                );
+//            }
 
             return response.getBody();
 
@@ -511,6 +529,115 @@ public class TossPaymentClient {
 
             throw new TossRestClientException(
                     "[결제/PG_QUERY] 통신 또는 응답 변환 오류로 조회 결과를 확인하지 못했습니다.",
+                    e
+            );
+        }
+    }
+
+    public TransactionHistoryResponseDto transactionHistory(LocalDateTime startDate, LocalDateTime endDate) {
+        return transactionHistory(startDate, endDate, null, DEFAULT_TRANSACTION_LIMIT);
+    }
+
+    /** 거래 목록 한 페이지 조회. 다음 페이지는 마지막 거래의 transactionKey를 startingAfter로 전달합니다. */
+    public TransactionHistoryResponseDto transactionHistory(
+            LocalDateTime startDate, LocalDateTime endDate, String startingAfter, Integer limit
+    ) {
+        if (startDate == null || endDate == null || startDate.isAfter(endDate)) {
+            throw new TossPaymentException("거래 조회 시작일과 종료일을 올바르게 입력해주세요.");
+        }
+        int pageSize = limit == null ? DEFAULT_TRANSACTION_LIMIT : limit;
+        if (pageSize < 1 || pageSize > MAX_TRANSACTION_LIMIT) {
+            throw new TossPaymentException("거래 조회 건수는 1~" + MAX_TRANSACTION_LIMIT + " 사이여야 합니다.");
+        }
+        UriComponentsBuilder builder = UriComponentsBuilder
+                .fromHttpUrl("https://api.tosspayments.com/v1/transactions")
+                .queryParam("startDate", startDate.format(TRANSACTION_DATE_FORMAT))
+                .queryParam("endDate", endDate.format(TRANSACTION_DATE_FORMAT))
+                .queryParam("limit", pageSize);
+        if (startingAfter != null && !startingAfter.isBlank()) {
+            builder.queryParam("startingAfter", startingAfter);
+        }
+        URI uri = builder.build().encode().toUri();
+        HttpHeaders headers = new HttpHeaders();
+
+        // Billing 승인 때 사용한 시크릿 키로 인증
+        String encodedSecretKey = Base64.getEncoder()
+                .encodeToString(
+                        (tossBillingSecretKey + ":")
+                                .getBytes(StandardCharsets.UTF_8)
+                );
+
+        headers.setBasicAuth(encodedSecretKey);
+
+        HttpEntity<Void> httpEntity = new HttpEntity<>(headers);
+
+        log.info(
+                "[TRANSACTION] stage=PG_QUERY event=START startDate={} endDate={} limit={}",
+                startDate, endDate, pageSize
+        );
+
+        try {
+            ResponseEntity<TransactionHistoryResponseDto> response =
+                    cancelRestTemplate.exchange(
+                            uri,
+                            HttpMethod.GET,
+                            httpEntity,
+                            TransactionHistoryResponseDto.class
+                    );
+
+            TransactionHistoryResponseDto body = response.getBody();
+
+            if (!response.getStatusCode().is2xxSuccessful() || body == null || body.getTransactions() == null) {
+                throw new TossRestClientException(
+                        "[거래/PG_QUERY] 유효한 거래 조회 응답이 없습니다."
+                );
+            }
+
+            log.info("[TRANSACTION] stage=PG_QUERY event=COMPLETED count={}", body.getTransactions().size());
+            return body;
+
+        } catch (HttpStatusCodeException e) {
+            TossPaymentErrorResponseDto errorResponse;
+            try {
+                errorResponse = objectMapper.readValue(
+                        e.getResponseBodyAsString(), TossPaymentErrorResponseDto.class);
+            } catch (JsonProcessingException parseException) {
+                e.addSuppressed(parseException);
+                throw new TossRestClientException(
+                        "[거래/PG_QUERY] 거래 조회 오류 응답을 해석하지 못했습니다.", e);
+            }
+
+            if (errorResponse == null || errorResponse.getCode() == null
+                    || errorResponse.getCode().isBlank()) {
+                throw new TossRestClientException(
+                        "[거래/PG_QUERY] 거래 조회 오류 응답에 코드가 없습니다.", e);
+            }
+
+            log.warn(
+                    "[TRANSACTION] stage=PG_QUERY event=HTTP_ERROR "
+                            + "startDate={} endDate={} httpStatus={} pgCode={}",
+                    startDate, endDate,
+                    e.getStatusCode().value(),
+                    errorResponse.getCode()
+            );
+
+            throw new TossPaymentException(
+                    errorResponse.getCode(),
+                    "[거래/PG_QUERY] 거래 조회에 실패했습니다."
+                            + " | httpStatus=" + e.getStatusCode().value(),
+                    e
+            );
+
+        } catch (RestClientException e) {
+            log.warn(
+                    "[TRANSACTION] stage=PG_QUERY event=RESULT_UNKNOWN "
+                            + "startDate={} endDate={} errorType={}",
+                    startDate, endDate,
+                    e.getClass().getSimpleName()
+            );
+
+            throw new TossRestClientException(
+                    "[거래/PG_QUERY] 통신 또는 응답 변환 오류로 조회 결과를 확인하지 못했습니다.",
                     e
             );
         }
