@@ -549,14 +549,17 @@ public class TossPaymentClient {
         if (pageSize < 1 || pageSize > MAX_TRANSACTION_LIMIT) {
             throw new TossPaymentException("거래 조회 건수는 1~" + MAX_TRANSACTION_LIMIT + " 사이여야 합니다.");
         }
+
         UriComponentsBuilder builder = UriComponentsBuilder
                 .fromHttpUrl("https://api.tosspayments.com/v1/transactions")
                 .queryParam("startDate", startDate.format(TRANSACTION_DATE_FORMAT))
                 .queryParam("endDate", endDate.format(TRANSACTION_DATE_FORMAT))
                 .queryParam("limit", pageSize);
+
         if (startingAfter != null && !startingAfter.isBlank()) {
             builder.queryParam("startingAfter", startingAfter);
         }
+
         URI uri = builder.build().encode().toUri();
         HttpHeaders headers = new HttpHeaders();
 
