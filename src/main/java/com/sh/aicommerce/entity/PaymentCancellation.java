@@ -33,6 +33,8 @@ public class PaymentCancellation {
     @Column(nullable = false)
     private PaymentCancellationStatus status;
 
+    private String transactionKey;
+
     @Column(nullable = false, unique = true)
     private String idempotencyKey;
 
@@ -77,6 +79,7 @@ public class PaymentCancellation {
         this.canceledAt = cancelResponseDto.getCanceledAt().toLocalDateTime();
         this.updatedAt = LocalDateTime.now();
         this.completedAt = LocalDateTime.now();
+        this.transactionKey = cancelResponseDto.getTransactionKey();
     }
 
     // Toss API에서 취소 거절 코드가 있는 경우
@@ -95,12 +98,5 @@ public class PaymentCancellation {
         this.status = PaymentCancellationStatus.UNKNOWN;
     }
 
-    public void completeCancel(CancelResponseDto response) {
-        this.status = PaymentCancellationStatus.SUCCESS;
-        this.canceledAt = response.getCanceledAt().toLocalDateTime();
-        this.cancelAmount = response.getCancelAmount();
 
-        this.completedAt = LocalDateTime.now();
-        this.updatedAt = LocalDateTime.now();
-    }
 }

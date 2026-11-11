@@ -284,7 +284,7 @@ public class PaymentCompensationTxService {
 
         if (canceled) {
             CancelResponseDto cancel = response.getCancels().get(0);
-            pc.completeCancel(cancel);
+            pc.cancelSuccess(cancel);
             compensation.markFollowUpPending();
             payment.updatePaymentStatusToCanceled();
             if (paymentLogs.findLogByCancellationIdWithLock(pc.getId()).isEmpty()) {

@@ -194,7 +194,8 @@ public class PaymentCancellationRecoveryTxService {
         recovery.completeRecovery();
         history.completeRecoveryHistory(response.getStatus());
         payment.updatePaymentStatusToCanceled();
-        cancellation.completeCancel(cancelResponse);
+        cancellation.cancelSuccess(cancelResponse);
+
         // 정상 취소·취소 복구 모두 PG 취소 성공 시 후속 처리 대기로 전환합니다.
         compensationRepository.markFollowUpPending(cancellation.getId(), java.time.LocalDateTime.now());
 

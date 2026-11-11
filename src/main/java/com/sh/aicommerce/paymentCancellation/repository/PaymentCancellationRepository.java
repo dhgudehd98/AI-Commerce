@@ -62,4 +62,6 @@ public interface PaymentCancellationRepository extends JpaRepository<PaymentCanc
       and pc.updatedAt <= :cutoff
     """)
     List<Long> findStaleProcessingPaymentCancellation(@Param("cutoff") LocalDateTime cutoff);
+
+    Optional<PaymentCancellation> findByTransactionKey(String transactionKey);
 }
