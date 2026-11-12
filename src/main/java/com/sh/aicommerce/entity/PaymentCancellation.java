@@ -98,5 +98,15 @@ public class PaymentCancellation {
         this.status = PaymentCancellationStatus.UNKNOWN;
     }
 
+    public void requireManualReviewForPaymentRecovery() {
+        // 늦게 도착한 복구 실패가 확정된 취소 결과를 덮어쓰지 않도록 합니다.
+        if (this.status != PaymentCancellationStatus.UNKNOWN
+                && this.status != PaymentCancellationStatus.PROCESSING) {
+            return;
+        }
+        this.status = PaymentCancellationStatus.MANUAL_REVIEW_REQUIRED;
+        this.updatedAt = LocalDateTime.now();
+    }
+
 
 }
