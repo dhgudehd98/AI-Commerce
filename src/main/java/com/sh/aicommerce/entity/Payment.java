@@ -54,6 +54,7 @@ public class Payment {
     @Column(nullable = false)
     private Integer amount;
 
+    private String transactionKey;
     @Column(unique = true)
     private String paymentKey; // 결제사(PG)가 발급하는 결제 건의 식별자
 
@@ -130,6 +131,7 @@ public class Payment {
         this.installmentMonths = response.getCard().getInstallmentPlanMonths();
         this.updatedAt = LocalDateTime.now();
         this.status = PaymentStatus.PAID;
+        this.transactionKey = response.getLastTransactionKey();
     }
 
     public void updatePaymentByBillingCard(TossPaymentRequestHistoryResponseDto response) {
@@ -149,6 +151,7 @@ public class Payment {
         this.installmentMonths = response.getCard().getInstallmentPlanMonths();
         this.updatedAt = LocalDateTime.now();
         this.status = PaymentStatus.PAID;
+        this.transactionKey = response.getLastTransactionKey();
     }
 
     // 결제 관련 상태 값 변경 - 토스 위젯 결제
