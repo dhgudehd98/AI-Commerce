@@ -2,6 +2,9 @@ package com.sh.aicommerce.paymentCancellationRecovery.service;
 
 
 import com.sh.aicommerce.common.exception.toss.TossPaymentException;
+import com.sh.aicommerce.common.exception.toss.TossCancelException;
+import com.sh.aicommerce.orderCancellation.dto.record.CancellationRequestRecord;
+import com.sh.aicommerce.paymentCancellation.service.PaymentCancellationService;
 import com.sh.aicommerce.common.exception.toss.TossRestClientException;
 import com.sh.aicommerce.paymentCancellationRecovery.dto.request.PaymentCancellationRequestDto;
 import com.sh.aicommerce.toss.dto.response.TossPaymentRequestHistoryResponseDto;
@@ -17,6 +20,7 @@ public class PaymentCancellationRecoveryService {
 
     private final PaymentCancellationRecoveryTxService recoveryTxService;
     private final TossPaymentClient client;
+    private final PaymentCancellationService cancellationService;
     public void recover(Long paymentCancellationId) {
         try {
             recoverPaymentCancellation(paymentCancellationId);
@@ -42,24 +46,28 @@ public class PaymentCancellationRecoveryService {
         try {
             TossPaymentRequestHistoryResponseDto response = client.findPaymentHistory(dto.getOrderNumber());
 
-            // 결제는 조회됐지만 취소 내역이 없으면 승인 여부와 별개로 취소 결과 재확인 필요
-            if (response != null
+            if (response != null && "DONE".equals(response.getStatus())
                     && (response.getCancels() == null || response.getCancels().isEmpty())) {
-                log.warn("[PAYMENT_CANCEL] stage=RECOVERY_QUERY event=CANCEL_NOT_FOUND recoveryId={} historyId={} paymentId={} orderNumber={} pgStatus={}",
-                        dto.getRecoveryId(), historyId, dto.getPaymentId(), dto.getOrderNumber(), response.getStatus());
-                recoveryTxService.updateRecoveryQueryFailure(
-                        historyId,
-                        null,
-                        "결제는 조회되었지만 PG 취소 내역이 확인되지 않았습니다.",
-                        false
-                );
-                log.info("[PAYMENT_CANCEL] stage=RECOVERY_QUERY_FAILURE_APPLY event=TRANSACTION_RETURNED recoveryId={} historyId={} paymentId={}",
-                        dto.getRecoveryId(), historyId, dto.getPaymentId());
+                CancellationRequestRecord record = recoveryTxService
+                        .prepareRecoveryCancellation(historyId, dto, response);
+                // DB 트랜잭션 밖에서 기존 작업·멱등성 키로 재요청. 실패는 아래 catch로 전달
+                cancellationService.processRecovery(record);
+                // 기존 조회 응답 검증·원장 저장·Recovery 완료 반영을 재사용합니다.
+                response = client.findPaymentHistory(dto.getOrderNumber());
+            }
+
+            if (response == null || !"CANCELED".equals(response.getStatus())
+                    || response.getCancels() == null || response.getCancels().isEmpty()) {
+                recoveryTxService.updateRecoveryQueryFailure(historyId, "PG_CANCEL_NOT_CONFIRMED",
+                        "PG에서 전체 취소 완료를 확인하지 못했습니다.", false);
                 return;
             }
 
             // 취소 내역이 있으면 기존 정합성 검증 및 완료 반영
             recoveryTxService.applyPaymentCancellationResult(historyId, dto, response);
+        } catch (TossCancelException e) {
+            // 명확한 재요청 거절은 반복 호출하지 않고 관리자 확인으로 넘깁니다.
+            saveFailure(historyId, dto, e, e.getErrorCode(), true, false);
         } catch (TossPaymentException e) {
             String errorCode = e.getErrorCode();
             // 조회 오류는 취소 거절의 증거가 아님. 결제·주문·취소 상태와 예약 재고 유지
