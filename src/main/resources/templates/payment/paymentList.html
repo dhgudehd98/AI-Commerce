@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -46,17 +46,13 @@
         .list-nav a[aria-current="page"] { color: #175cd3; border-color: #b2ccff; background: #eff4ff; font-weight: 600; }
         .reason { min-width: 160px; max-width: 260px; white-space: normal; overflow-wrap: anywhere; }
     </style>
+    <link rel="stylesheet" href="/css/admin-layout.css">
 </head>
-<body>
+<body class="admin-layout">
+<aside th:replace="~{admin/fragments/sidebar :: sidebar('payment')}"></aside>
+
 <main>
     <p class="eyebrow">PAYMENT ADMIN</p>
-        <nav class="controls list-nav" aria-label="결제 관리 메뉴" style="margin-bottom: 20px">
-        <a href="/api/admin">운영 대시보드</a>
-        <a href="/api/admin/orders">주문 목록</a>
-        <a href="/api/admin/payment" aria-current="page">결제 내역</a>
-        <a href="/api/admin/payment/cancellation">결제 취소 내역</a>
-        <a href="/api/admin/payment/compensation">결제 보상 내역</a>
-    </nav>
     <h1>결제 내역</h1>
     <p class="description">주문별 결제 상태와 요청 금액, 결제 방법을 확인합니다. 최근 생성된 결제부터 표시합니다.</p>
     <div id="errorBox" class="notice" role="alert" hidden>
@@ -95,7 +91,7 @@
     <p class="footnote">요청 금액은 실제 순매출과 다릅니다. 취소된 결제도 원래 요청 금액을 표시합니다.<br>
         보상 대상 표시는 보상 처리 이력이 있는 결제를 구분하며, 현재 진행 단계는 결제 상태와 함께 확인하세요.</p>
 </main>
-<script>
+<script th:inline="none">
 (() => {
     'use strict';
     const API_URL = '/api/admin/payment/list';

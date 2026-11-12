@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>관리자 · 배치 실행 내역</title>
+<style>
+        * { box-sizing: border-box; }
+        body { margin: 0; background: #f5f6f8; color: #253041; font-family: system-ui, -apple-system, sans-serif; }
+        main { max-width: 1600px; margin: 40px auto; padding: 0 24px; }
+        .eyebrow { margin: 0 0 8px; color: #667085; font-size: 12px; font-weight: 700; letter-spacing: .08em; }
+        h1 { margin: 0 0 10px; font-size: 28px; }
+        .description { margin: 0 0 26px; color: #667085; line-height: 1.6; }
+        .hint { color: #667085; font-size: 13px; line-height: 1.7; }
+        .panel { background: #fff; border: 1px solid #e1e5eb; border-radius: 12px; overflow: hidden; }
+        .filter-panel { padding: 20px; margin: 16px 0 20px; }
+        .toolbar, .pagination { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; padding: 20px; }
+        .controls, .page-buttons { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+        form { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 14px; }
+        label { display: grid; gap: 7px; color: #475467; font-size: 13px; }
+        button, input, select { font: inherit; color: inherit; border: 1px solid #d6dce5; border-radius: 6px; background: #fff; padding: 8px 12px; }
+        button { cursor: pointer; }
+        button:hover:not(:disabled) { background: #f0f3f8; }
+        button:disabled { cursor: not-allowed; color: #98a2b3; background: #f8f9fb; }
+        button.primary { color: #fff; background: #175cd3; border-color: #175cd3; }
+        button.primary:hover:not(:disabled) { background: #1849a9; }
+        button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid #b2ccff; outline-offset: 2px; }
+        .tabs { display: flex; flex-wrap: wrap; gap: 8px; }
+        .tabs button { font-size: 14px; }
+        .tabs button[aria-pressed="true"] { background: #eff4ff; color: #175cd3; border-color: #b2ccff; font-weight: 600; }
+        .scroll { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; font-size: 14px; white-space: nowrap; }
+        caption { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+        th, td { padding: 17px 16px; text-align: left; border-bottom: 1px solid #edf0f4; }
+        th { color: #667085; background: #f8f9fb; font-size: 12px; font-weight: 600; }
+        tbody tr:hover { background: #fafbfc; }
+        .num { text-align: right; font-variant-numeric: tabular-nums; }
+        .num.complete { color: #175cd3; }
+        .danger { color: #b42318; font-weight: 600; }
+        .badge { display: inline-block; padding: 5px 9px; border-radius: 5px; background: #eef2f7; font-size: 12px; font-weight: 600; }
+        .badge.complete { background: #eff4ff; color: #175cd3; }
+        .badge.failed { background: #fef3f2; color: #b42318; }
+        .badge.running { background: #fffaeb; color: #93370d; }
+        .empty { padding: 64px 20px; text-align: center; color: #667085; }
+        #criteria { margin: 0 20px 8px; }
+        .notice { margin: 0 20px 18px; color: #667085; font-size: 12px; line-height: 1.7; }
+        #error { margin: 16px 0; padding: 14px 16px; border: 1px solid #fecdca; border-radius: 8px; background: #fff5f5; color: #b42318; line-height: 1.6; white-space: pre-wrap; }
+        dialog { width: min(800px, 94vw); max-height: 85vh; padding: 0; border: 1px solid #e1e5eb; border-radius: 12px; }
+        dialog::backdrop { background: #10182880; }
+        dialog h2 { margin: 0; font-size: 20px; }
+        dialog .toolbar { border-bottom: 1px solid #edf0f4; }
+        .detail { display: grid; grid-template-columns: 170px minmax(0, 1fr); margin: 0; padding: 8px 24px 24px; font-size: 14px; line-height: 1.7; }
+        .detail dt, .detail dd { margin: 0; padding: 12px 0; border-bottom: 1px solid #edf0f4; }
+        .detail dt { color: #667085; }
+        .detail dd { white-space: pre-wrap; overflow-wrap: anywhere; }
+        [hidden] { display: none !important; }
+        @media (max-width: 640px) {
+            main { margin: 24px auto; padding: 0 12px; }
+            .toolbar, .pagination, .filter-panel { padding: 16px; }
+            .detail { grid-template-columns: 120px minmax(0, 1fr); padding: 8px 16px 16px; }
+            #criteria, .notice { margin-left: 16px; margin-right: 16px; }
+        }
+
+        .mismatch-link { border: 0; padding: 2px 0; color: #b42318; background: transparent; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+        #mismatches { width: min(1100px, 96vw); }
+        .mismatch-body { padding: 20px; }
+        .mismatch-card { border: 1px solid #e1e5eb; border-radius: 8px; margin-bottom: 16px; overflow: hidden; }
+        .mismatch-card h3 { margin: 0; padding: 16px; font-size: 15px; border-bottom: 1px solid #edf0f4; background: #f8f9fb; }
+        .mismatch-meta { padding: 12px 16px; margin: 0; color: #475467; font-size: 13px; line-height: 1.8; overflow-wrap: anywhere; white-space: pre-wrap; }
+        .mismatch-card table { white-space: normal; font-size: 13px; table-layout: fixed; min-width: 650px; }
+        .mismatch-card th { width: 33.333%; }
+        .mismatch-card td { vertical-align: top; overflow-wrap: anywhere; }
+        .issue-code { display: block; margin-bottom: 6px; color: #b42318; font-size: 12px; overflow-wrap: anywhere; }
+        .issue-field { display: block; margin-top: 6px; color: #667085; font-size: 12px; }
+        .issue-value { margin: 0; font: 12px/1.7 ui-monospace, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+        .mismatch-error { padding: 14px; margin-bottom: 16px; color: #b42318; background: #fef3f2; border: 1px solid #fecdca; border-radius: 6px; }
+    </style>
+    <link rel="stylesheet" href="/css/admin-layout.css">
+</head>
+<body class="admin-layout">
+<aside th:replace="~{admin/fragments/sidebar :: sidebar('batch')}"></aside>
+<main>
+
+<p class="eyebrow">PAYMENT ADMIN</p>
+<h1>배치 실행 내역</h1>
+<p class="description">거래 수집과 대사의 실행 상태·처리 건수·실패 사유를 확인합니다. 날짜 필터는 실행일이 아닌 거래 대상일(KST) 기준입니다.</p>
+<div class="tabs" role="group" aria-label="배치 종류"><button id="reconciliation" type="button" aria-pressed="true">거래 대사</button><button id="collection" type="button" aria-pressed="false">거래 수집</button></div>
+<section class="panel filter-panel" aria-label="조회 조건"><form id="filters">
+<label>대상 시작일<input id="from" type="date"></label><label>대상 종료일<input id="to" type="date"></label>
+<label>실행 상태<select id="status"><option value="">전체</option><option value="RUNNING">실행 중</option><option value="COMPLETED">완료</option><option value="FAILED">실패</option></select></label>
+<label>페이지당 건수<select id="size"><option>10</option><option>20</option><option>50</option><option>100</option></select></label>
+<button class="primary" type="submit">조회</button><button id="reset" type="button">전체 기간</button><button id="refresh" type="button">새로고침</button>
+</form></section>
+<div id="error" role="alert" hidden></div>
+<section id="list" class="panel" aria-busy="false">
+<div class="toolbar"><strong id="title">거래 대사 실행</strong><span id="summary" class="hint" aria-live="polite" role="status">조회 중…</span></div>
+<p id="criteria" class="hint"></p>
+<p id="notice" class="notice"></p>
+<div class="scroll" tabindex="0" role="region" aria-label="배치 실행 목록 표, 가로 스크롤 가능"><table><caption id="caption" class="hint">배치 실행 목록</caption><thead id="head"></thead><tbody id="rows"></tbody></table></div>
+<div class="pagination"><span id="pageInfo" class="hint" aria-live="polite"></span><div class="page-buttons" aria-label="배치 목록 페이지 이동"><button id="previous" type="button" disabled>이전</button><button id="next" type="button" disabled>다음</button></div></div>
+</section>
+<dialog id="detail"><div class="toolbar"><h2 id="detailTitle">실행 상세</h2><button id="close" type="button">닫기</button></div><dl id="detailValues" class="detail"></dl></dialog>
+
+<dialog id="mismatches" aria-labelledby="mismatchTitle">
+    <div class="toolbar"><h2 id="mismatchTitle">불일치 거래</h2><button id="closeMismatches" type="button">닫기</button></div>
+    <div class="mismatch-body" id="mismatchBody" aria-busy="false">
+        <p id="mismatchSummary" class="hint" role="status" aria-live="polite"></p>
+        <div id="mismatchError" class="mismatch-error" role="alert" hidden></div>
+        <button id="retryMismatches" type="button" hidden>다시 조회</button>
+        <div id="mismatchRows"></div>
+    </div>
+    <div class="pagination"><span id="mismatchPageInfo" class="hint"></span><div class="page-buttons"><button id="previousMismatches" type="button" disabled>이전</button><button id="nextMismatches" type="button" disabled>다음</button></div></div>
+</dialog>
+
+</main>
+<script th:inline="none">
+'use strict';
+const $=id=>document.getElementById(id);
+const labels={RUNNING:'실행 중',COMPLETED:'완료',FAILED:'실패'};
+const tones={RUNNING:'running',COMPLETED:'complete',FAILED:'failed'};
+const dateFormat=new Intl.DateTimeFormat('ko-KR',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
+let type='reconciliation',page=0,totalPages=0,busy=false,query={},controller=null,requestId=0;
+function time(value){if(!value)return '—';const d=new Date(value);return Number.isNaN(d.getTime())?'—':dateFormat.format(d);}
+function num(value){return value==null?'—':Number(value).toLocaleString('ko-KR');}
+function readQuery(){return {from:$('from').value,to:$('to').value,status:$('status').value,size:$('size').value};}
+function defaultDates(){const parts=Object.fromEntries(new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date()).map(p=>[p.type,p.value]));const end=new Date(Date.UTC(Number(parts.year),Number(parts.month)-1,Number(parts.day)));$('to').value=end.toISOString().slice(0,10);end.setUTCDate(end.getUTCDate()-6);$('from').value=end.toISOString().slice(0,10);}
+function buttons(){document.querySelectorAll('#filters input,#filters select,#filters button,.tabs button').forEach(el=>el.disabled=busy);$('previous').disabled=busy||page===0;$('next').disabled=busy||page+1>=totalPages;$('list').setAttribute('aria-busy',String(busy));}
+function head(){const reconciliation=type==='reconciliation';$('title').textContent=reconciliation?'거래 대사 실행':'거래 수집 실행';$('caption').textContent=$('title').textContent+' 목록 · 시각은 KST';$('reconciliation').setAttribute('aria-pressed',String(reconciliation));$('collection').setAttribute('aria-pressed',String(!reconciliation));$('notice').textContent=reconciliation?'완료는 배치 검사가 끝났다는 뜻입니다. 불일치 건수가 있어도 실행 상태는 완료일 수 있습니다.':'저장 건수는 수집 종료 시 집계됩니다. 실행 중에는 아직 최종 건수가 아닐 수 있습니다.';
+ const fields=reconciliation?['실행 ID','대상일','실행 상태','수집 실행 ID','검사 대상','처리','정상','불일치','제외','시작 시각','종료 시각','상세']:['실행 ID','대상일','실행 상태','저장 건수','시작 시각','종료 시각','상세'];const tr=document.createElement('tr');for(const field of fields){const th=document.createElement('th');th.scope='col';th.textContent=field;tr.append(th);}$('head').replaceChildren(tr);}
+function cell(tr,value,className){const td=document.createElement('td');td.textContent=value??'—';if(className)td.className=className;tr.append(td);return td;}
+function message(text){const tr=document.createElement('tr');cell(tr,text,'empty').colSpan=type==='reconciliation'?12:7;$('rows').replaceChildren(tr);}
+function showDetail(row){$('detailTitle').textContent=(type==='reconciliation'?'거래 대사':'거래 수집')+' 실행 #'+row.id;const fields=[['실행 ID',row.id],['대상일 (KST)',row.targetDate],['실행 상태',labels[row.status]??row.status],['Job Instance ID',row.jobInstanceId],['Job Execution ID',row.jobExecutionId],['시작 시각 (KST)',time(row.startedAt)],['종료 시각 (KST)',time(row.completedAt)]];
+ if(type==='reconciliation')fields.push(['수집 실행 ID',row.collectionRunId],['검사 대상 건수',num(row.pgCount)],['결과 저장 건수',num(row.processedCount)],['정상 거래 건수',num(row.matchedCount)],['불일치 거래 건수',num(row.mismatchCount)],['제외 거래 건수',num(row.excludedCount)],['원장 연결 거래 건수',num(row.matchedLedgerCount)],['오류 코드',row.errorCode]);else fields.push(['저장 건수',num(row.collectedCount)]);
+ fields.push(['실행 실패 사유',row.errorMessage]);$('detailValues').replaceChildren();for(const [label,value] of fields){const dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=label;dd.textContent=value??'—';$('detailValues').append(dt,dd);}$('detail').showModal();}
+function render(rows){$('rows').replaceChildren();if(!rows.length){message('해당 조건의 실행 내역이 없습니다.');return;}for(const row of rows){const tr=document.createElement('tr');cell(tr,row.id);cell(tr,row.targetDate);const badge=document.createElement('span');badge.className='badge '+(tones[row.status]??'');badge.textContent=labels[row.status]??row.status;cell(tr,'').append(badge);if(type==='reconciliation'){cell(tr,row.collectionRunId);cell(tr,num(row.pgCount),'num');cell(tr,num(row.processedCount),'num');cell(tr,num(row.matchedCount),'num complete');mismatchCell(tr,row);cell(tr,num(row.excludedCount),'num');}else cell(tr,num(row.collectedCount),'num');cell(tr,time(row.startedAt));cell(tr,time(row.completedAt));const button=document.createElement('button');button.type='button';button.textContent='실행 상세';button.addEventListener('click',()=>showDetail(row));cell(tr,'').append(button);$('rows').append(tr);}}
+// 불일치 거래는 Result 기준으로 페이징하고 각 거래의 Issue들을 함께 표시합니다.
+let mismatchRunId=null,mismatchPage=0,mismatchTotalPages=0,mismatchBusy=false,mismatchController=null,mismatchRequestId=0;
+function mismatchCell(tr,row){
+ const td=cell(tr,num(row.mismatchCount),'num');
+ if(row.mismatchCount>0){td.textContent='';const button=document.createElement('button');button.type='button';button.className='mismatch-link';button.textContent=num(row.mismatchCount)+'건';button.setAttribute('aria-label','대사 실행 '+row.id+'의 불일치 '+row.mismatchCount+'건 보기');button.addEventListener('click',()=>{mismatchRunId=row.id;mismatchPage=0;$('mismatchTitle').textContent='대사 실행 #'+row.id+' · 불일치 거래';$('mismatches').showModal();loadMismatches(0);});td.append(button);}
+}
+function mismatchButtons(){
+ $('previousMismatches').disabled=mismatchBusy||mismatchPage===0;
+ $('nextMismatches').disabled=mismatchBusy||mismatchPage+1>=mismatchTotalPages;
+ $('retryMismatches').disabled=mismatchBusy;
+ $('mismatchBody').setAttribute('aria-busy',String(mismatchBusy));
+}
+function jsonValue(value){return JSON.stringify(value===undefined?null:value,null,2);}
+function renderMismatches(rows){
+ $('mismatchRows').replaceChildren();
+ if(!rows.length){const p=document.createElement('p');p.className='hint';p.textContent='저장된 불일치 거래가 없습니다.';$('mismatchRows').append(p);return;}
+ for(const row of rows){
+  const card=document.createElement('section');card.className='mismatch-card';
+  const title=document.createElement('h3');title.textContent=({APPROVAL:'승인',CANCELLATION:'취소'}[row.transactionType]||row.transactionType)+' 거래 · 결과 #'+row.id;card.append(title);
+  const meta=document.createElement('p');meta.className='mismatch-meta';meta.textContent='Payment ID: '+(row.paymentId??'없음')+' · 원장 ID: '+(row.paymentLedgerId??'없음')+' · PG 거래 ID: '+row.pgTransactionId+'\nPG 주문번호: '+(row.orderNumber??'—')+'\n결제 키: '+(row.paymentKey??'—')+'\n거래 키: '+(row.transactionKey??'—')+'\nPG 금액: '+num(row.pgAmount)+' '+(row.currency??'')+' · 금액 차이(PG − 원장): '+num(row.amountDiff)+' · 검사 시각: '+time(row.checkedAt);card.append(meta);
+  if(!row.issues.length){const p=document.createElement('p');p.className='mismatch-meta';p.textContent='저장된 상세 사유가 없습니다.';card.append(p);}else{
+   const scroll=document.createElement('div');scroll.className='scroll';scroll.tabIndex=0;scroll.setAttribute('role','region');scroll.setAttribute('aria-label','불일치 사유와 PG·내부 값 비교');const table=document.createElement('table'),thead=document.createElement('thead'),headers=document.createElement('tr');for(const text of ['불일치 사유','PG 값','내부 DB 값']){const th=document.createElement('th');th.scope='col';th.textContent=text;headers.append(th);}thead.append(headers);table.append(thead);const tbody=document.createElement('tbody');
+   for(const issue of row.issues){const tr=document.createElement('tr'),description=cell(tr,'');const code=document.createElement('code');code.className='issue-code';code.textContent=issue.code;description.append(code,document.createTextNode(issue.description??''));const field=document.createElement('span');field.className='issue-field';field.textContent='Issue #'+issue.id+' · '+issue.fieldName;description.append(field);for(const value of [issue.pgValue,issue.internalValue]){const pre=document.createElement('pre');pre.className='issue-value';pre.textContent=jsonValue(value);cell(tr,'').append(pre);}tbody.append(tr);}table.append(tbody);scroll.append(table);card.append(scroll);
+  }$('mismatchRows').append(card);
+ }
+}
+async function loadMismatches(targetPage){
+ const id=++mismatchRequestId;mismatchController?.abort();mismatchController=new AbortController();mismatchBusy=true;mismatchButtons();$('mismatchError').hidden=true;$('retryMismatches').hidden=true;$('mismatchRows').replaceChildren();$('mismatchPageInfo').textContent='';$('mismatchSummary').textContent='불일치 거래를 조회하고 있습니다…';
+ try{const response=await fetch('/api/admin/batch/reconciliation/'+encodeURIComponent(mismatchRunId)+'/mismatches?page='+targetPage+'&size=10',{headers:{Accept:'application/json'},credentials:'same-origin',cache:'no-store',signal:mismatchController.signal});const body=await response.json().catch(()=>null);if(!response.ok)throw new Error(body?.message||'불일치 조회 실패 (HTTP '+response.status+')');if(!body||!Array.isArray(body.content)||!Number.isInteger(body.number)||!Number.isInteger(body.totalPages)||!Number.isInteger(body.totalElements)||body.content.some(row=>!row||!Array.isArray(row.issues)))throw new Error('불일치 응답 형식이 올바르지 않습니다.');if(id!==mismatchRequestId)return;mismatchPage=body.number;mismatchTotalPages=body.totalPages;renderMismatches(body.content);$('mismatchSummary').textContent='불일치 거래 '+num(body.totalElements)+'건 · 거래별로 여러 사유가 있을 수 있습니다. null은 비교할 값이 없음을 뜻합니다.';$('mismatchPageInfo').textContent=mismatchTotalPages?(mismatchPage+1)+' / '+mismatchTotalPages+' 페이지':'0건';}
+ catch(error){if(error.name==='AbortError'||id!==mismatchRequestId)return;$('mismatchError').textContent=error.message;$('mismatchError').hidden=false;$('retryMismatches').hidden=false;$('mismatchSummary').textContent='불일치 거래를 불러오지 못했습니다.';mismatchTotalPages=0;}
+ finally{if(id===mismatchRequestId){mismatchBusy=false;mismatchButtons();}}
+}
+$('closeMismatches').addEventListener('click',()=>$('mismatches').close());
+$('mismatches').addEventListener('close',()=>{mismatchController?.abort();mismatchRequestId++;mismatchBusy=false;});
+$('previousMismatches').addEventListener('click',()=>loadMismatches(mismatchPage-1));
+$('nextMismatches').addEventListener('click',()=>loadMismatches(mismatchPage+1));
+$('retryMismatches').addEventListener('click',()=>loadMismatches(mismatchPage));
+async function load(targetPage){const id=++requestId;controller?.abort();controller=new AbortController();busy=true;buttons();head();message('실행 내역을 조회하고 있습니다…');$('error').hidden=true;$('summary').textContent='조회 중…';$('pageInfo').textContent='';$('criteria').textContent=(query.from||'전체')+' ~ '+(query.to||'전체')+' · '+(labels[query.status]||'전체 상태');
+ try{const params=new URLSearchParams({page:String(targetPage),size:query.size});for(const key of ['from','to','status'])if(query[key])params.set(key,query[key]);const response=await fetch('/api/admin/batch/'+type+'/list?'+params,{headers:{Accept:'application/json'},credentials:'same-origin',cache:'no-store',signal:controller.signal});const body=await response.json().catch(()=>null);if(!response.ok)throw new Error(body?.message||'조회 실패 (HTTP '+response.status+')');if(!body||!Array.isArray(body.content)||!Number.isInteger(body.totalPages)||!Number.isInteger(body.totalElements)||!Number.isInteger(body.number))throw new Error('목록 응답 형식이 올바르지 않습니다.');if(id!==requestId)return;page=body.number;totalPages=body.totalPages;render(body.content);$('summary').textContent='전체 '+num(body.totalElements)+'건 · 현재 페이지 '+num(body.content.length)+'건';$('pageInfo').textContent=totalPages?(page+1)+' / '+totalPages+' 페이지':'0건';}
+ catch(error){if(error.name==='AbortError'||id!==requestId)return;$('error').textContent=error.message;$('error').hidden=false;$('summary').textContent='조회 실패';totalPages=0;message('실행 내역을 불러오지 못했습니다. 다시 조회해주세요.');}
+ finally{if(id===requestId){busy=false;buttons();}}}
+$('filters').addEventListener('submit',e=>{e.preventDefault();const next=readQuery();if(next.from&&next.to&&next.from>next.to){$('error').textContent='시작일은 종료일 이후일 수 없습니다.';$('error').hidden=false;return;}query=next;load(0);});
+for(const key of ['reconciliation','collection'])$(key).addEventListener('click',()=>{if(type===key)return;type=key;page=0;load(0);});
+$('previous').addEventListener('click',()=>load(page-1));$('next').addEventListener('click',()=>load(page+1));$('refresh').addEventListener('click',()=>load(page));$('reset').addEventListener('click',()=>{$('from').value='';$('to').value='';$('status').value='';query=readQuery();load(0);});$('close').addEventListener('click',()=>$('detail').close());
+defaultDates();query=readQuery();load(0);
+</script></body></html>
