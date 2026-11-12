@@ -41,10 +41,7 @@ public class PaymentCancellationService {
 
         log.info("[PAYMENT_CANCEL] stage=CLAIM event=TRANSACTION_RETURNED paymentCancellationId={} orderCancellationId={} orderNumber={}", record.paymentCancellationId(), record.orderCancellationId(), record.orderNumber());
         try {
-            log.info("[PAYMENT_CANCEL] stage=PG_REQUEST event=START paymentCancellationId={} orderNumber={}", record.paymentCancellationId(), record.orderNumber());
-            TossCancelRequestDto dto = new TossCancelRequestDto(record.paymentKey(), record.orderNumber(), record.idempotencyKey(), record.cancelReason());
-            TossPaymentCancelResponseDto response = client.cancel(dto);
-            log.info("[PAYMENT_CANCEL] stage=PG_REQUEST event=RESPONSE_RECEIVED paymentCancellationId={} orderNumber={} pgStatus={}", record.paymentCancellationId(), record.orderNumber(), response == null ? null : response.getStatus());
+            TossPaymentCancelResponseDto response = requestCancellation(record);
             txService.cancel(response, record);
             log.info("[PAYMENT_CANCEL] stage=RESULT_APPLY event=TRANSACTION_RETURNED paymentCancellationId={} orderNumber={}", record.paymentCancellationId(), record.orderNumber());
         } catch (TossCancelException e) {
@@ -62,6 +59,24 @@ public class PaymentCancellationService {
             // PG 응답 정합성 검증 또는 DB 반영 실패
             saveUnknown(record, e);
         }
+    }
+
+    /** Recovery에서 이미 검증·선점한 요청입니다. 예외를 복구 호출자에게 전달합니다. */
+    public TossPaymentCancelResponseDto processRecovery(CancellationRequestRecord record) {
+        return requestCancellation(record);
+    }
+
+    private TossPaymentCancelResponseDto requestCancellation(CancellationRequestRecord record) {
+        log.info("[PAYMENT_CANCEL] stage=PG_REQUEST event=START paymentCancellationId={} orderNumber={}",
+                record.paymentCancellationId(), record.orderNumber());
+        TossCancelRequestDto dto = new TossCancelRequestDto(record.paymentKey(), record.orderNumber(),
+                record.idempotencyKey(), record.cancelReason());
+
+        // 실제 취소 요청
+        TossPaymentCancelResponseDto response = client.cancel(dto);
+        log.info("[PAYMENT_CANCEL] stage=PG_REQUEST event=RESPONSE_RECEIVED paymentCancellationId={} orderNumber={} pgStatus={}",
+                record.paymentCancellationId(), record.orderNumber(), response == null ? null : response.getStatus());
+        return response;
     }
 
     private void saveUnknown(CancellationRequestRecord record, RuntimeException cause) {

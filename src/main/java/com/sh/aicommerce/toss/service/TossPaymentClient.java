@@ -549,14 +549,17 @@ public class TossPaymentClient {
         if (pageSize < 1 || pageSize > MAX_TRANSACTION_LIMIT) {
             throw new TossPaymentException("거래 조회 건수는 1~" + MAX_TRANSACTION_LIMIT + " 사이여야 합니다.");
         }
+
         UriComponentsBuilder builder = UriComponentsBuilder
                 .fromHttpUrl("https://api.tosspayments.com/v1/transactions")
                 .queryParam("startDate", startDate.format(TRANSACTION_DATE_FORMAT))
                 .queryParam("endDate", endDate.format(TRANSACTION_DATE_FORMAT))
                 .queryParam("limit", pageSize);
+
         if (startingAfter != null && !startingAfter.isBlank()) {
             builder.queryParam("startingAfter", startingAfter);
         }
+
         URI uri = builder.build().encode().toUri();
         HttpHeaders headers = new HttpHeaders();
 
@@ -615,16 +618,19 @@ public class TossPaymentClient {
 
             log.warn(
                     "[TRANSACTION] stage=PG_QUERY event=HTTP_ERROR "
-                            + "startDate={} endDate={} httpStatus={} pgCode={}",
-                    startDate, endDate,
+                            + "uri={} httpStatus={} pgCode={} pgMessage={}",
+                    uri,
                     e.getStatusCode().value(),
-                    errorResponse.getCode()
+                    errorResponse.getCode(),
+                    errorResponse.getMessage()
             );
 
             throw new TossPaymentException(
                     errorResponse.getCode(),
                     "[거래/PG_QUERY] 거래 조회에 실패했습니다."
-                            + " | httpStatus=" + e.getStatusCode().value(),
+                            + " | httpStatus=" + e.getStatusCode().value()
+                            + " | pgCode=" + errorResponse.getCode()
+                            + " | pgMessage=" + errorResponse.getMessage(),
                     e
             );
 

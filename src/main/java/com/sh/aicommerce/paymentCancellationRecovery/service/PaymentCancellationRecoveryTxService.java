@@ -3,6 +3,7 @@ package com.sh.aicommerce.paymentCancellationRecovery.service;
 
 import com.sh.aicommerce.common.exception.orderCancellation.OrderCancellationException;
 import com.sh.aicommerce.common.exception.payment.PaymentException;
+import com.sh.aicommerce.orderCancellation.dto.record.CancellationRequestRecord;
 import com.sh.aicommerce.common.exception.paymentCancellation.PaymentCancellationException;
 import com.sh.aicommerce.common.exception.recovery.PaymentCancellationRecoveryException;
 import com.sh.aicommerce.common.exception.recovery.PaymentCancellationRecoveryHistoryException;
@@ -194,7 +195,8 @@ public class PaymentCancellationRecoveryTxService {
         recovery.completeRecovery();
         history.completeRecoveryHistory(response.getStatus());
         payment.updatePaymentStatusToCanceled();
-        cancellation.completeCancel(cancelResponse);
+        cancellation.cancelSuccess(cancelResponse);
+
         // 정상 취소·취소 복구 모두 PG 취소 성공 시 후속 처리 대기로 전환합니다.
         compensationRepository.markFollowUpPending(cancellation.getId(), java.time.LocalDateTime.now());
 
@@ -207,9 +209,45 @@ public class PaymentCancellationRecoveryTxService {
         logRepository.save(tossPaymentLog);
     }
 
-    private PaymentCancellationRecoveryTarget validatePaymentCancellationResult(PaymentCancellationRecoveryHistory history, PaymentCancellationRecovery recovery, TossPaymentRequestHistoryResponseDto response, PaymentCancellationRequestDto dto) {
-        if (history == null || recovery == null || response == null || dto == null) {
-            throw invalidResult("복구 대상 또는 PG 조회 응답이 없습니다.");
+    /** PG가 아직 DONE인 기존 취소 작업만 재요청. */
+    @Transactional
+    public CancellationRequestRecord prepareRecoveryCancellation(Long historyId, PaymentCancellationRequestDto dto,
+                                                                  TossPaymentRequestHistoryResponseDto response) {
+        PaymentCancellationRecoveryHistory history = historyRepository.findByIdForUpdate(historyId)
+                .orElseThrow(() -> invalidResult("복구 실행 이력이 없습니다."));
+        PaymentCancellationRecovery recovery = history.getPaymentCancellationRecovery();
+
+        entityManager.refresh(recovery, LockModeType.PESSIMISTIC_WRITE);
+
+        PaymentCancellationRecoveryTarget target = validateRecoveryTarget(history, recovery, dto);
+        Payment payment = target.payment();
+        PaymentCancellation cancellation = target.cancellation();
+        Orders order = target.order();
+
+        if (response == null || !"DONE".equals(response.getStatus())
+                || (response.getCancels() != null && !response.getCancels().isEmpty())
+                || !Objects.equals(payment.getPaymentKey(), response.getPaymentKey())
+                || !Objects.equals(order.getOrderNumber(), response.getOrderId())
+                || payment.getAmount() == null || payment.getAmount() <= 0
+                || !Objects.equals(payment.getAmount(), cancellation.getCancelAmount())
+                || !Objects.equals(payment.getAmount(), response.getTotalAmount())
+                || !Objects.equals(payment.getAmount(), response.getBalanceAmount())
+                || !"KRW".equals(response.getCurrency())) {
+            throw invalidResult("취소 재요청 대상의 PG 승인 상태·결제키·주문번호·금액·잔액·통화가 일치하지 않습니다.");
+        }
+        if (!StringUtils.hasText(cancellation.getCancelReason())) {
+            throw invalidResult("기존 취소 요청 사유가 없습니다.");
+        }
+        return new CancellationRequestRecord(target.cancellation().getOrderCancellation().getId(),
+                cancellation.getId(), order.getOrderNumber(), cancellation.getIdempotencyKey(),
+                payment.getPaymentKey(), cancellation.getCancelReason());
+    }
+
+    private PaymentCancellationRecoveryTarget validateRecoveryTarget(
+            PaymentCancellationRecoveryHistory history, PaymentCancellationRecovery recovery,
+            PaymentCancellationRequestDto dto) {
+        if (history == null || recovery == null || dto == null) {
+            throw invalidResult("복구 대상 정보가 없습니다.");
         }
         if (!Objects.equals(dto.getRecoveryId(), recovery.getId())
                 || !Objects.equals(history.getPaymentCancellationRecovery().getId(), recovery.getId())
@@ -248,6 +286,17 @@ public class PaymentCancellationRecoveryTxService {
                 || payment.getStatus() != PaymentStatus.PAID) {
             throw invalidResult("주문 취소 또는 결제의 최신 상태가 복구 가능한 상태가 아닙니다.");
         }
+        return new PaymentCancellationRecoveryTarget(cancellation, recovery, history, payment, order);
+    }
+
+    private PaymentCancellationRecoveryTarget validatePaymentCancellationResult(
+            PaymentCancellationRecoveryHistory history, PaymentCancellationRecovery recovery,
+            TossPaymentRequestHistoryResponseDto response, PaymentCancellationRequestDto dto) {
+        if (response == null) throw invalidResult("PG 조회 응답이 없습니다.");
+        PaymentCancellationRecoveryTarget target = validateRecoveryTarget(history, recovery, dto);
+        PaymentCancellation cancellation = target.cancellation();
+        Payment payment = target.payment();
+        Orders order = target.order();
         if (!"CANCELED".equals(response.getStatus())) {
             throw invalidResult("PG 거래가 전체 취소 완료 상태가 아닙니다.");
         }
@@ -348,6 +397,7 @@ public class PaymentCancellationRecoveryTxService {
             return;
         }
         orderCancellation.requireManualReviewForPaymentRecovery();
+        cancellation.requireManualReviewForPaymentRecovery();
         log.warn("[PAYMENT_CANCEL] stage=RECOVERY_MANUAL_REVIEW event=ORDER_UPDATED orderCancellationId={} recoveryId={} retryCount={} maxRetryCount={}",
                 orderCancellation.getId(), recovery.getId(), recovery.getRetryCount(), recovery.getMaxRetryCount());
     }

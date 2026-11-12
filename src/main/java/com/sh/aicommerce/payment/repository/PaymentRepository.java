@@ -263,4 +263,5 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
         """
     )
     Page<AdminPaymentListResponseDto> findPaymentAll(Pageable pageable);
+
 }
