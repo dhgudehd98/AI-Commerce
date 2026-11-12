@@ -1,9 +1,10 @@
-package com.sh.aicommerce.batch.transactionHistory.listener;
+package com.sh.aicommerce.batch.transactionCollection.listener;
 
 import com.sh.aicommerce.transaction.service.PgTransactionCollectionRunService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.*;
+import org.springframework.batch.item.ExecutionContext;
 import org.springframework.stereotype.Component;
 import java.time.LocalDate;
 

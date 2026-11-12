@@ -618,16 +618,19 @@ public class TossPaymentClient {
 
             log.warn(
                     "[TRANSACTION] stage=PG_QUERY event=HTTP_ERROR "
-                            + "startDate={} endDate={} httpStatus={} pgCode={}",
-                    startDate, endDate,
+                            + "uri={} httpStatus={} pgCode={} pgMessage={}",
+                    uri,
                     e.getStatusCode().value(),
-                    errorResponse.getCode()
+                    errorResponse.getCode(),
+                    errorResponse.getMessage()
             );
 
             throw new TossPaymentException(
                     errorResponse.getCode(),
                     "[거래/PG_QUERY] 거래 조회에 실패했습니다."
-                            + " | httpStatus=" + e.getStatusCode().value(),
+                            + " | httpStatus=" + e.getStatusCode().value()
+                            + " | pgCode=" + errorResponse.getCode()
+                            + " | pgMessage=" + errorResponse.getMessage(),
                     e
             );
 

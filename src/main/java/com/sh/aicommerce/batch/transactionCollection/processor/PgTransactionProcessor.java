@@ -1,4 +1,4 @@
-package com.sh.aicommerce.batch.transactionHistory.processor;
+package com.sh.aicommerce.batch.transactionCollection.processor;
 
 import com.sh.aicommerce.toss.dto.transaction.TransactionResponseDto;
 import org.springframework.batch.item.ItemProcessor;

@@ -1,18 +1,13 @@
-package com.sh.aicommerce.batch.transactionHistory.reader;
+package com.sh.aicommerce.batch.transactionCollection.reader;
 
 import com.sh.aicommerce.toss.dto.transaction.TransactionHistoryResponseDto;
 import com.sh.aicommerce.toss.dto.transaction.TransactionResponseDto;
 import com.sh.aicommerce.toss.service.TossPaymentClient;
-import com.sh.aicommerce.transaction.repository.PgTransactionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.item.ItemReader;
-import org.springframework.batch.item.NonTransientResourceException;
-import org.springframework.batch.item.ParseException;
-import org.springframework.batch.item.UnexpectedInputException;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.Iterator;

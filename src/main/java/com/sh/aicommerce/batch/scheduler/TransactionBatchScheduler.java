@@ -24,10 +24,11 @@ public class TransactionBatchScheduler {
 //    @Scheduled(cron = "0 * * * * *", zone = "Asia/Seoul")
     public void runPgTransactionCollection() {
 
-        LocalDate targetDate = LocalDate.now(BATCH_ZONE).minusDays(1);
+        LocalDate targetDate = LocalDate.now(BATCH_ZONE).minusDays(4);
 
         JobParameters parameters = new JobParametersBuilder()
                 .addString("targetDate", targetDate.toString())
+//                .addLong("runtAt", System.currentTimeMillis()) // 임시 잡 파라미터 추가
                 .toJobParameters();
 
         try {

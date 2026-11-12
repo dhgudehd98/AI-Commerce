@@ -1,4 +1,4 @@
-package com.sh.aicommerce.batch.transactionHistory.writer;
+package com.sh.aicommerce.batch.transactionCollection.writer;
 
 import com.sh.aicommerce.entity.PgTransaction;
 import com.sh.aicommerce.toss.dto.transaction.TransactionResponseDto;

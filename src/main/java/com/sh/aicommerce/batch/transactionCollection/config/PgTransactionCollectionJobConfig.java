@@ -1,9 +1,9 @@
-package com.sh.aicommerce.batch.config;
+package com.sh.aicommerce.batch.transactionCollection.config;
 
-import com.sh.aicommerce.batch.transactionHistory.listener.PgTransactionCollectionJobListener;
+import com.sh.aicommerce.batch.transactionCollection.listener.PgTransactionCollectionJobListener;
 import org.springframework.batch.core.JobParametersInvalidException;
-import com.sh.aicommerce.batch.transactionHistory.reader.PgTransactionReader;
-import com.sh.aicommerce.batch.transactionHistory.writer.PgTransactionWriter;
+import com.sh.aicommerce.batch.transactionCollection.reader.PgTransactionReader;
+import com.sh.aicommerce.batch.transactionCollection.writer.PgTransactionWriter;
 import com.sh.aicommerce.toss.dto.transaction.TransactionResponseDto;
 import com.sh.aicommerce.toss.service.TossPaymentClient;
 import com.sh.aicommerce.transaction.repository.PgTransactionRepository;

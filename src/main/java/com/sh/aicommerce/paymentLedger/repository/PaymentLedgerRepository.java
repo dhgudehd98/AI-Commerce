@@ -14,4 +14,8 @@ public interface PaymentLedgerRepository extends JpaRepository<PaymentLedger, Lo
     Optional<PaymentLedger> findByPaymentIdAndType(Long paymentId, PaymentLedgerType type);
 
     Optional<PaymentLedger> findByPaymentIdAndPaymentCancellationIdAndType(Long paymentId, Long paymentCancellationId, PaymentLedgerType paymentLedgerType);
+
+
+    Optional<PaymentLedger> findByTransactionKeyAndType(String transactionKey, PaymentLedgerType paymentLedgerType);
+
 }

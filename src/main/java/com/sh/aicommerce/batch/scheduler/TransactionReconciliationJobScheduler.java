@@ -1,0 +1,44 @@
+package com.sh.aicommerce.batch.scheduler;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.batch.core.*;
+import org.springframework.batch.core.launch.JobLauncher;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Component;
+
+import java.time.LocalDate;
+import java.time.ZoneId;
+
+@Component
+@RequiredArgsConstructor
+@Slf4j
+public class TransactionReconciliationJobScheduler {
+
+    private static final ZoneId BATCH_ZONE = ZoneId.of("Asia/Seoul");
+
+    private final JobLauncher jobLauncher;
+    private final Job pgTransactionReconciliationJob;
+
+    // 매일 KST 00:10에 전날 거래 수집
+    @Scheduled(cron = "0 */1 * * * *", zone = "Asia/Seoul")
+    public void reconciliationPgTransactionCollection() {
+
+        LocalDate targetDate = LocalDate.now(BATCH_ZONE).minusDays(4);
+
+        JobParameters parameters = new JobParametersBuilder()
+                .addString("targetDate", targetDate.toString())
+                .addLong("runtAt", System.currentTimeMillis()) // 임시 잡 파라미터 추가
+                .toJobParameters();
+
+        try {
+            JobExecution execution =
+                    jobLauncher.run(pgTransactionReconciliationJob, parameters);
+
+            log.info("[PG 거래 대사 배치] targetDate={} executionId={} status={}",
+                    targetDate, execution.getId(), execution.getStatus());
+        } catch (JobExecutionException e) {
+            log.error("[PG 거래 대사 배치 실행 실패] targetDate={}", targetDate, e);
+        }
+    }
+}
