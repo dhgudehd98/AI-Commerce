@@ -23,6 +23,13 @@ public class AdminReconciliationRunResponseDto {
     private final long mismatchCount; // 사유 개수가 아닌 불일치 거래 수
     private final long excludedCount;
     private final long matchedLedgerCount; // 비교 원장이 연결된 거래 수
+    private final long internalCheckedCount; // 역방향 검사 원장 수
+    private final long internalOnlyCount; // PG 거래 누락 원장 수
+
+    public long getTotalMismatchCount() {
+        return mismatchCount + internalOnlyCount;
+    }
+
     private final String errorCode;
     private final String errorMessage;
 }

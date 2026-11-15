@@ -100,6 +100,14 @@ public class PgTransactionReconciliationRun {
 
     /** 불일치 발견은 배치 실패가 아닙니다. 검사 실행의 성공·실패만 반영합니다. */
     public void finish(boolean completed, String errorCode, String errorMessage) {
+        if (completed && (pgCount != processedCount
+                || processedCount != matchedCount + mismatchCount + excludedCount)) {
+            completed = false;
+            errorCode = "RECONCILIATION_COUNT_MISMATCH";
+            errorMessage = "PG 집계 검산 실패: pgCount=" + pgCount + ", processedCount=" + processedCount
+                    + ", matchedCount=" + matchedCount + ", mismatchCount=" + mismatchCount
+                    + ", excludedCount=" + excludedCount;
+        }
         this.completedAt = OffsetDateTime.now(ZoneOffset.UTC);
         this.status = completed ? Status.COMPLETED : Status.FAILED;
         this.errorCode = completed ? null : limitLength(errorCode, ERROR_CODE_MAX_LENGTH);

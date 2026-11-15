@@ -17,6 +17,9 @@ public class InternalReconciliationProcessor implements ItemProcessor<PaymentLed
     public InternalReconciliationResultDto process(PaymentLedger ledger) {
         boolean exists = transactionRepository.existsByCollectionRunIdAndTransactionKey(
                 collectionRunId, ledger.getTransactionKey());
+        log.info("[역방향 대사 존재 확인] collectionRunId={} ledgerId={} ledgerType={} transactionKey={} occurredAt={} pgTransactionFound={}",
+                collectionRunId, ledger.getId(), ledger.getType(), ledger.getTransactionKey(),
+                ledger.getOccurredAt(), exists);
         return new InternalReconciliationResultDto(ledger, exists);
     }
 }

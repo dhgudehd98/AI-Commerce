@@ -51,11 +51,15 @@ public class PgTransactionReconciliationService {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void finish(Long runId, boolean completed, String errorCode, String errorMessage) {
+    public boolean finish(Long runId, boolean completed, String errorCode, String errorMessage) {
         PgTransactionReconciliationRun run = reconciliationRunRepository.findById(runId)
                 .orElseThrow(() -> new PaymentException("대사 실행이 없습니다."));
         run.finish(completed, errorCode, errorMessage);
         log.info("[거래 대사 종료] runId={} status={} processedCount={} pgCount={}",
                 runId, run.getStatus(), run.getProcessedCount(), run.getPgCount());
+        if (completed && run.getStatus() == PgTransactionReconciliationRun.Status.FAILED) {
+            log.error("[거래 대사 검산 실패] runId={} reason={}", runId, run.getErrorMessage());
+        }
+        return run.getStatus() == PgTransactionReconciliationRun.Status.COMPLETED;
     }
 }

@@ -43,6 +43,9 @@ public class InternalReconciliationReader implements ItemReader<PaymentLedger> {
         ZoneId zone = java.time.ZoneId.of("Asia/Seoul");
         OffsetDateTime start = date.atStartOfDay(zone).toOffsetDateTime();
         OffsetDateTime end = date.plusDays(1).atStartOfDay(zone).toOffsetDateTime();
-        transactions = ledgerRepository.findLedgerByTargetDate(start, end).iterator();
+        var items = ledgerRepository.findLedgerByTargetDate(start, end);
+        log.info("[역방향 대사 원장 조회] targetDate={} start={} end={} ledgerCount={}",
+                targetDate, start, end, items.size());
+        transactions = items.iterator();
     }
 }

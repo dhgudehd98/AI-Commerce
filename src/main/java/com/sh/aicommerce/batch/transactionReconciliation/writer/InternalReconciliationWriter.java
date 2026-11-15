@@ -42,6 +42,9 @@ public class InternalReconciliationWriter implements ItemWriter<InternalReconcil
                 saveMissingPgTransaction(run, item.getLedger());
             }
             run.recordInternalResult(item.isPgTransactionFound());
+            log.info("[역방향 대사 반영] event=PENDING_COMMIT runId={} collectionRunId={} ledgerId={} pgTransactionFound={} checkedCount={} internalOnlyCount={}",
+                    reconciliationRunId, collectionRunId, item.getLedger().getId(), item.isPgTransactionFound(),
+                    run.getInternalCheckedCount(), run.getInternalOnlyCount());
         }
 
         log.info("[역방향 거래 대사] runId={} checkedCount={} internalOnlyCount={}",

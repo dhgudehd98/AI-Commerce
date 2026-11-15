@@ -39,7 +39,8 @@ public interface AdminBatchRepository extends Repository<PgTransactionReconcilia
         select new com.sh.aicommerce.admin.batch.dto.response.AdminReconciliationRunResponseDto(
             r.id, c.id, r.targetDate, r.status, r.jobInstanceId, r.jobExecutionId,
             r.startedAt, r.completedAt, r.pgCount, r.processedCount, r.matchedCount,
-            r.mismatchCount, r.excludedCount, r.matchedLedgerCount, r.errorCode, r.errorMessage)
+            r.mismatchCount, r.excludedCount, r.matchedLedgerCount,
+            r.internalCheckedCount, r.internalOnlyCount, r.errorCode, r.errorMessage)
         from PgTransactionReconciliationRun r
         join r.collectionRun c
         where (:from is null or r.targetDate >= :from)
@@ -62,11 +63,13 @@ public interface AdminBatchRepository extends Repository<PgTransactionReconcilia
     // Issue를 JOIN해서 페이징하면 거래 한 건이 여러 행으로 나뉘므로 Result만 페이징합니다.
     @Query(value = """
         select new com.sh.aicommerce.admin.batch.dto.response.AdminMismatchResponseDto(
-            r.id, t.id, p.id, l.id, t.orderId, t.paymentKey, t.transactionKey,
+            r.id, t.id, p.id, l.id, coalesce(t.orderId, o.orderNumber),
+            coalesce(t.paymentKey, l.paymentKey), coalesce(t.transactionKey, l.transactionKey),
             r.transactionType, t.amount, t.currency, r.amountDiff, r.checkedAt)
         from PgTransactionReconciliationResult r
-        join r.pgTransaction t
+        left join r.pgTransaction t
         left join r.payment p
+        left join p.order o
         left join r.paymentLedger l
         where r.reconciliationRun.id = :runId and r.status = 'MISMATCHED'
         """, countQuery = """
@@ -78,12 +81,14 @@ public interface AdminBatchRepository extends Repository<PgTransactionReconcilia
     // Issue를 JOIN해서 페이징하면 거래 한 건이 여러 행으로 나뉘므로 Result만 페이징합니다.
     @Query(value = """
         select new com.sh.aicommerce.admin.batch.dto.response.AdminReconciliationResultResponseDto(
-            r.id, t.id, p.id, l.id, t.orderId, t.paymentKey, t.transactionKey,
+            r.id, t.id, p.id, l.id, coalesce(t.orderId, o.orderNumber),
+            coalesce(t.paymentKey, l.paymentKey), coalesce(t.transactionKey, l.transactionKey),
             r.transactionType, t.amount, t.currency, r.amountDiff, r.checkedAt,
             r.status, r.exclusionCode, r.exclusionReason, r.pgSnapshot, r.internalSnapshot)
         from PgTransactionReconciliationResult r
-        join r.pgTransaction t
+        left join r.pgTransaction t
         left join r.payment p
+        left join p.order o
         left join r.paymentLedger l
         where r.reconciliationRun.id = :runId and (:status is null or r.status = :status)
         """, countQuery = """
