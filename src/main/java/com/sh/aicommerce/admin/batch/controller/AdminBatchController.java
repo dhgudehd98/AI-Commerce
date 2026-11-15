@@ -4,6 +4,8 @@ import com.sh.aicommerce.admin.batch.dto.response.AdminCollectionRunResponseDto;
 import com.sh.aicommerce.admin.batch.dto.response.AdminMismatchResponseDto;
 import com.sh.aicommerce.admin.batch.dto.response.AdminReconciliationRunResponseDto;
 import com.sh.aicommerce.admin.batch.service.AdminBatchService;
+import com.sh.aicommerce.admin.batch.dto.response.AdminReconciliationResultResponseDto;
+import com.sh.aicommerce.entity.PgTransactionReconciliationResult;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -43,6 +45,16 @@ public class AdminBatchController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam(required = false) String status) {
         return ResponseEntity.ok(adminBatchService.collections(page, size, from, to, status));
+    }
+
+    @GetMapping("/reconciliation/{runId}/results")
+    @ResponseBody
+    public ResponseEntity<Page<AdminReconciliationResultResponseDto>> results(
+            @PathVariable Long runId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String status) {
+        return ResponseEntity.ok(adminBatchService.results(runId, page, size, status));
     }
 
     @GetMapping("/reconciliation/{runId}/mismatches")

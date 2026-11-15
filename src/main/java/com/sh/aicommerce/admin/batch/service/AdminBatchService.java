@@ -6,6 +6,8 @@ import com.sh.aicommerce.admin.batch.repository.AdminBatchRepository;
 import com.sh.aicommerce.common.exception.payment.PaymentException;
 import com.sh.aicommerce.entity.PgTransactionCollectionRun;
 import com.sh.aicommerce.entity.PgTransactionReconciliationRun;
+import com.sh.aicommerce.admin.batch.dto.response.AdminReconciliationResultResponseDto;
+import com.sh.aicommerce.entity.PgTransactionReconciliationResult;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -54,6 +56,30 @@ public class AdminBatchService {
             Map<Long, List<AdminMismatchIssueResponseDto>> grouped = repository.findIssuesByResultIds(ids)
                     .stream().collect(Collectors.groupingBy(AdminMismatchIssueResponseDto::getResultId));
             results.forEach(result -> result.attachIssues(grouped.getOrDefault(result.getId(), List.of())));
+        }
+        return results;
+    }
+
+    public Page<AdminReconciliationResultResponseDto> results(
+            Long runId, int page, int size, String status) {
+        PageRequest request = validate(page, size, null, null, null);
+        if (runId == null || runId <= 0 || repository.countRunById(runId) == 0) {
+            throw new PaymentException("해당 대사 실행이 존재하지 않습니다.");
+        }
+        PgTransactionReconciliationResult.Status filter = null;
+        if (status != null && !status.isBlank()) {
+            try {
+                filter = PgTransactionReconciliationResult.Status.valueOf(status);
+            } catch (IllegalArgumentException e) {
+                throw new PaymentException("결과 상태는 MATCHED, MISMATCHED, EXCLUDED 중 하나여야 합니다.");
+            }
+        }
+        var results = repository.findResults(runId, filter, request);
+        if (!results.isEmpty()) {
+            var ids = results.getContent().stream().map(r -> r.getId()).toList();
+            var grouped = repository.findIssuesByResultIds(ids).stream()
+                    .collect(Collectors.groupingBy(AdminMismatchIssueResponseDto::getResultId));
+            results.forEach(r -> r.attachIssues(grouped.getOrDefault(r.getId(), List.of())));
         }
         return results;
     }

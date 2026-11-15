@@ -22,6 +22,7 @@ import org.hibernate.type.SqlTypes;
 })
 public class PgTransactionReconciliationIssue {
     public enum Code {
+        PG_TRANSACTION_NOT_FOUND,        // 내부 원장에 대응하는 거래가 선택된 PG 수집 실행에 없음
         PAYMENT_NOT_FOUND,               // 내부 결제 없음
         ORDER_NUMBER_MISMATCH,            // PG 주문번호와 Payment 주문번호 불일치
         PAYMENT_AMOUNT_MISMATCH,          // PG 승인 금액과 Payment 금액 불일치

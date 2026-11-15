@@ -60,11 +60,20 @@ public class PgTransactionReconciliationRun {
     private OffsetDateTime completedAt;
 
     private long pgCount; // 선택된 수집 실행의 전체 거래 수
-    private long processedCount; // 결과 저장이 완료된 거래 수
+    private long processedCount; // PG 기준 검사 결과 저장 건수 (역방향 제외)
     private long matchedCount; // 정상 거래 수
     private long mismatchCount; // 불일치 거래 수. 불일치 사유 수와 구분
     private long excludedCount; // 미지원 상태·판정 유예 거래 수
     private long matchedLedgerCount; // 비교 시 연결된 내부 원장 수. 전체 내부 원장 수는 아님
+
+    private long internalCheckedCount; // 역방향으로 검사한 내부 원장 수. PG 거래가 있는 원장도 포함
+    private long internalOnlyCount; // 내부 원장은 있지만 선택된 수집 실행에 PG 거래가 없는 건수
+
+    /** 역방향 원장 검사마다 호출합니다. PG 기준 Count와 중복 집계하지 않습니다. */
+    public void recordInternalResult(boolean pgTransactionFound) {
+        this.internalCheckedCount++;
+        if (!pgTransactionFound) this.internalOnlyCount++;
+    }
 
     // PG 기준 단방향 비교에 참여한 금액. 내부 금액은 매칭된 원장만 포함합니다.
     // 미집계와 실제 합계 0원을 구분하기 위해 nullable로 둡니다.

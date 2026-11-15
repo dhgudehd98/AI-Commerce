@@ -51,7 +51,7 @@ public class PgTransactionReconciliationWriter implements ItemWriter<PgTransacti
             }
             String action = transaction.getStatus();
 
-            switch (action) {
+            switch (action == null ? "" : action) {
                 case "DONE" -> paymentCompare(transaction, run);
                 case "CANCELED" -> cancellationCompare(transaction, run);
                 default -> defaultCompare(transaction, run);
@@ -242,7 +242,7 @@ public class PgTransactionReconciliationWriter implements ItemWriter<PgTransacti
         else{
             // 주문번호 값 동일성검사
 //            compare(issues, PgTransactionReconciliationIssue.Code.ORDER_NUMBER_MISMATCH, "orderNumber", transaction.getOrderId(), payment.getOrder().getOrderNumber());
-            // 결제 금액 동일성 검사
+            // 결제 금액 동일성 검사 - 부분 취소에 대한 경우에는 amount에 대한 값이 다르게 설정이 되기 때문에 Payment - amount에 대한 값을 비교 하지 않음.
             compare(issues, PgTransactionReconciliationIssue.Code.PAYMENT_AMOUNT_MISMATCH, "payment.amount", transaction.getAmount(), toLong(payment.getAmount()));
             approvalLedger = ledgerRepository.findByPaymentIdAndType(payment.getId(), PaymentLedgerType.APPROVAL)
                     .orElse(null);
@@ -258,8 +258,6 @@ public class PgTransactionReconciliationWriter implements ItemWriter<PgTransacti
             else{
                 compare(issues, PgTransactionReconciliationIssue.Code.APPROVAL_LEDGER_PAYMENT_KEY_MISMATCH,
                         "ledger.paymentKey", transaction.getPaymentKey(), approvalLedger.getPaymentKey());
-                compare(issues, PgTransactionReconciliationIssue.Code.APPROVAL_LEDGER_AMOUNT_MISMATCH,
-                        "ledger.amount", transaction.getAmount(), toLong(approvalLedger.getAmount()));
                 compare(issues, PgTransactionReconciliationIssue.Code.APPROVAL_LEDGER_CURRENCY_MISMATCH,
                         "ledger.currency", transaction.getCurrency(), approvalLedger.getCurrency());
             }
@@ -306,12 +304,38 @@ public class PgTransactionReconciliationWriter implements ItemWriter<PgTransacti
     }
 
     private void defaultCompare(PgTransaction transaction, PgTransactionReconciliationRun run) {
+        // 비교하지 않은 거래는 불일치가 아닌 제외 결과로 보존합니다.
+        String status = transaction.getStatus();
+        String code;
+        String reason;
+        switch (status == null ? "" : status) {
+            case "READY", "IN_PROGRESS" -> {
+                code = "PAYMENT_NOT_FINALIZED";
+                reason = "승인 결과가 확정되지 않아 승인·취소 원장 비교에서 제외했습니다.";
+            }
+            case "WAITING_FOR_DEPOSIT" -> {
+                code = "UNSUPPORTED_PAYMENT_METHOD";
+                reason = "현재 대사 범위에 포함되지 않는 가상계좌 입금 대기 상태입니다.";
+            }
+            case "PARTIAL_CANCELED" -> {
+                code = "PARTIAL_CANCELLATION_UNSUPPORTED";
+                reason = "부분 취소 비교를 지원하지 않아 제외했습니다. 거래 확인이 필요합니다.";
+            }
+            case "ABORTED", "EXPIRED" -> {
+                code = "PAYMENT_NOT_APPROVED";
+                reason = "승인 실패 또는 유효 시간 만료로 승인·취소 원장 비교 대상이 아닙니다.";
+            }
+            default -> {
+                code = "UNKNOWN_PG_STATUS";
+                reason = "알 수 없는 PG 거래 상태입니다. 거래 확인이 필요합니다.";
+            }
+        }
         PgTransactionReconciliationResult result = PgTransactionReconciliationResult.builder()
                 .reconciliationRun(run).pgTransaction(transaction)
                 .transactionType(PgTransactionReconciliationResult.TransactionType.UNSUPPORTED)
                 .status(PgTransactionReconciliationResult.Status.EXCLUDED)
-                .exclusionCode("UNSUPPORTED_PG_STATUS")
-                .exclusionReason("지원하지 않는 PG 거래 상태: " + transaction.getStatus())
+                .exclusionCode(code)
+                .exclusionReason(reason + " (PG 상태: " + status + ")")
                 .pgSnapshot(pgSnapshot(transaction)).build();
         resultRepository.save(result);
         run.recordResult(result.getStatus(), false);

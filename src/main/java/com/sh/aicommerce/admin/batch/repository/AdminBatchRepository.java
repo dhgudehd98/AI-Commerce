@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
 import org.springframework.data.repository.query.Param;
 import java.time.LocalDate;
+import com.sh.aicommerce.admin.batch.dto.response.AdminReconciliationResultResponseDto;
 import java.util.List;
 import com.sh.aicommerce.admin.batch.dto.response.AdminMismatchResponseDto;
 import com.sh.aicommerce.admin.batch.dto.response.AdminMismatchIssueResponseDto;
@@ -73,6 +74,24 @@ public interface AdminBatchRepository extends Repository<PgTransactionReconcilia
         where r.reconciliationRun.id = :runId and r.status = 'MISMATCHED'
         """)
     Page<AdminMismatchResponseDto> findMismatches(@Param("runId") Long runId, Pageable pageable);
+
+    // Issue를 JOIN해서 페이징하면 거래 한 건이 여러 행으로 나뉘므로 Result만 페이징합니다.
+    @Query(value = """
+        select new com.sh.aicommerce.admin.batch.dto.response.AdminReconciliationResultResponseDto(
+            r.id, t.id, p.id, l.id, t.orderId, t.paymentKey, t.transactionKey,
+            r.transactionType, t.amount, t.currency, r.amountDiff, r.checkedAt,
+            r.status, r.exclusionCode, r.exclusionReason, r.pgSnapshot, r.internalSnapshot)
+        from PgTransactionReconciliationResult r
+        join r.pgTransaction t
+        left join r.payment p
+        left join r.paymentLedger l
+        where r.reconciliationRun.id = :runId and (:status is null or r.status = :status)
+        """, countQuery = """
+        select count(r) from PgTransactionReconciliationResult r
+        where r.reconciliationRun.id = :runId and (:status is null or r.status = :status)
+        """)
+    Page<AdminReconciliationResultResponseDto> findResults(@Param("runId") Long runId,
+            @Param("status") com.sh.aicommerce.entity.PgTransactionReconciliationResult.Status status, Pageable pageable);
 
     @Query("""
         select new com.sh.aicommerce.admin.batch.dto.response.AdminMismatchIssueResponseDto(

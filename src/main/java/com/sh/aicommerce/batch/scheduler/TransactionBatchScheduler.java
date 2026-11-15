@@ -21,10 +21,10 @@ public class TransactionBatchScheduler {
     private final Job pgTransactionCollectionJob;
 
     // 매일 KST 00:10에 전날 거래 수집
-//    @Scheduled(cron = "0 * * * * *", zone = "Asia/Seoul")
+    @Scheduled(cron = "0 10 0 * * *", zone = "Asia/Seoul")
     public void runPgTransactionCollection() {
 
-        LocalDate targetDate = LocalDate.now(BATCH_ZONE).minusDays(4);
+        LocalDate targetDate = LocalDate.now(BATCH_ZONE).minusDays(1);
 
         JobParameters parameters = new JobParametersBuilder()
                 .addString("targetDate", targetDate.toString())
