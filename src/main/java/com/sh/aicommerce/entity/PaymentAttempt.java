@@ -88,7 +88,9 @@ public class PaymentAttempt {
         this.status = PaymentAttemptStatus.PROCESSING;
     }
 
-    public void updateStatusToRejected() {
+    public void updateStatusToRejected(String errorCode, String message) {
+        this.failureCode = errorCode;
+        this.failureMessage = message;
         this.status = PaymentAttemptStatus.PAYMENT_REJECTED;
     }
 
