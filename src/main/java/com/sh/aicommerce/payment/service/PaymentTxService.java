@@ -426,8 +426,7 @@ public class PaymentTxService {
         }
 
         if(e instanceof TossPaymentException){
-
-            updateStatusToRejected(payment, order, attempt, e.getMessage());
+            updateStatusToRejected(payment, order, attempt, ((TossPaymentException) e).getErrorCode(),  e.getMessage());
 
             // 예약 재고 선점 해제
             inventoryService.releasedReservationQuantity(order, paymentBillingCardRequestDto);
@@ -441,11 +440,11 @@ public class PaymentTxService {
     }
 
 
-    public void updateStatusToRejected(Payment payment, Orders order, PaymentAttempt attempt, String message) {
+    public void updateStatusToRejected(Payment payment, Orders order, PaymentAttempt attempt, String errorCode, String message) {
         log.info("[PAYMENT] stage=REJECTION_APPLY event=FAILED_PENDING_COMMIT orderNumber={} paymentId={} attemptId={} previousStatus={} reservationAction=RELEASE", order.getOrderNumber(), payment.getId(), attempt.getId(), payment.getStatus());
         payment.updateStatusToRejected(message);
         order.updateStatusToRejected();
-        attempt.updateStatusToRejected();
+        attempt.updateStatusToRejected(errorCode, message);
     }
 
     private void updateStatusToUnknown(Payment payment, Orders order, PaymentAttempt attempt, String message) {
