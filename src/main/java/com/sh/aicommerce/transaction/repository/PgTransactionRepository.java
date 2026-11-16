@@ -27,4 +27,6 @@ public interface PgTransactionRepository extends JpaRepository<PgTransaction, Lo
     long countByCollectionRunId(Long collectionRunId);
 
     List<PgTransaction> findByCollectionRunIdOrderByIdAsc(Long collectionRunId);
+
+    boolean existsByCollectionRunIdAndTransactionKey(Long collectionRunId, String transactionKey);
 }

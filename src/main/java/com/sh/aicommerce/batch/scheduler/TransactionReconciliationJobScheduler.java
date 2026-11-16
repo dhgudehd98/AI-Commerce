@@ -21,14 +21,15 @@ public class TransactionReconciliationJobScheduler {
     private final Job pgTransactionReconciliationJob;
 
     // 매일 KST 00:10에 전날 거래 수집
-    @Scheduled(cron = "0 */1 * * * *", zone = "Asia/Seoul")
+    @Scheduled(cron = "0 15 0 * * *", zone = "Asia/Seoul")
+//    @Scheduled(cron = "0 * * * * *", zone = "Asia/Seoul")
     public void reconciliationPgTransactionCollection() {
 
-        LocalDate targetDate = LocalDate.now(BATCH_ZONE).minusDays(4);
+        LocalDate targetDate = LocalDate.now(BATCH_ZONE).minusDays(1);
 
         JobParameters parameters = new JobParametersBuilder()
                 .addString("targetDate", targetDate.toString())
-                .addLong("runtAt", System.currentTimeMillis()) // 임시 잡 파라미터 추가
+//                .addLong("runtAt", System.currentTimeMillis()) // 임시 잡 파라미터 추가
                 .toJobParameters();
 
         try {

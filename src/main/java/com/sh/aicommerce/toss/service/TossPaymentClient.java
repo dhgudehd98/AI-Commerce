@@ -282,6 +282,13 @@ public class TossPaymentClient {
             if(response.getBody() == null)
                 throw new TossRestClientException("[결제 취소/PG_REQUEST] 응답 본문이 비어 있습니다.");
 
+            if (response.getBody() != null) {
+                throw new TossRestClientException(
+                        "[테스트] 취소 완료 후 응답 타임아웃 재현",
+                        new java.net.SocketTimeoutException("Simulated response timeout")
+                );
+            }
+
             return response.getBody();
         } catch (HttpStatusCodeException e) {
             throw cancelConvertException(e);

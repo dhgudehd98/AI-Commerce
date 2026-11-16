@@ -1,14 +1,17 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>관리자 · PG 거래 조회</title>
 <style>
 *{box-sizing:border-box}body{margin:0;background:#f5f6f8;color:#253041;font-family:system-ui,-apple-system,sans-serif}main{max-width:1500px;margin:auto;padding:32px 24px}nav{display:flex;flex-wrap:wrap;gap:16px;margin-bottom:28px}a{color:#175cd3}h1{font-size:28px;margin:0 0 10px}.hint{color:#667085;font-size:14px;line-height:1.7}.panel{background:white;border:1px solid #e1e5eb;border-radius:10px;padding:20px;margin-top:20px}form{display:flex;flex-wrap:wrap;gap:14px;align-items:end}label{display:grid;gap:7px;font-size:13px}input,select,button{font:inherit;border:1px solid #d0d5dd;border-radius:6px;padding:9px 12px;background:white;color:inherit}button{cursor:pointer}button:disabled{opacity:.5;cursor:default}.primary{background:#175cd3;color:white;border-color:#175cd3}.toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}.scroll{overflow:auto;margin-top:16px}table{width:100%;border-collapse:collapse;font-size:13px;text-align:left}th{color:#667085;background:#f9fafb;white-space:nowrap}td,th{padding:13px 12px;border-bottom:1px solid #eaecf0}td.key{min-width:180px;max-width:270px;overflow-wrap:anywhere;font-family:monospace}td.time{white-space:nowrap}.amount{text-align:right;white-space:nowrap}.badge{border-radius:5px;background:#f2f4f7;padding:4px 7px;white-space:nowrap}.done{color:#175cd3;background:#eff4ff}.canceled{color:#b42318;background:#fef3f2}#error{color:#b42318;background:#fff4f3;border:1px solid #fecdca;padding:14px;border-radius:7px;margin-top:16px;white-space:pre-wrap}#status{color:#667085;font-size:13px;line-height:1.6}dialog{border:1px solid #e1e5eb;border-radius:12px;width:min(850px,94vw);max-height:85vh;padding:24px}dialog::backdrop{background:#10182880}dialog h2{font-size:20px}pre{background:#f8f9fb;padding:16px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;line-height:1.7}button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #b2ccff;outline-offset:2px}[hidden]{display:none!important}
 </style>
+    <link rel="stylesheet" href="/css/admin-layout.css">
 </head>
-<body><main>
-<nav aria-label="관리자 메뉴"><a href="/api/admin">운영 대시보드</a><a href="/api/admin/orders">주문 내역</a><a href="/api/admin/payment">결제 내역</a><a href="/api/admin/payment-cancellation">결제 취소 내역</a><a href="/api/admin/payment-compensation">결제 보상 내역</a></nav>
+<body class="admin-layout">
+<aside th:replace="~{admin/fragments/sidebar :: sidebar('transactions')}"></aside>
+<main>
+
 <h1>PG 거래 조회</h1>
 <p class="hint">선택한 기간의 토스페이먼츠 거래 응답을 직접 확인합니다. 현재는 DB 저장 없이 조회하며, 자동 갱신하지 않습니다.<br>시각은 한국 시간(KST) 기준이며 조회에 최대 60초가 걸릴 수 있습니다.</p>
 <section class="panel" aria-label="조회 조건">
@@ -27,7 +30,7 @@
 </section>
 <dialog id="detail"><div class="toolbar"><h2>PG 거래 응답 상세</h2><button id="close" type="button">닫기</button></div><pre id="raw"></pre></dialog>
 </main>
-<script>
+<script th:inline="none">
 'use strict';
 const $=id=>document.getElementById(id);
 let busy=false, criteria=null, cursors=[null], page=0, rows=[];

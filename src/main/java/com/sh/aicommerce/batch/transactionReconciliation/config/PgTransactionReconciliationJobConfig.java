@@ -1,8 +1,14 @@
 package com.sh.aicommerce.batch.transactionReconciliation.config;
 
+import com.sh.aicommerce.batch.transactionReconciliation.dto.InternalReconciliationItem;
+import com.sh.aicommerce.batch.transactionReconciliation.dto.InternalReconciliationResultDto;
 import com.sh.aicommerce.batch.transactionReconciliation.listener.PgTransactionReconciliationJobListener;
+import com.sh.aicommerce.batch.transactionReconciliation.processor.InternalReconciliationProcessor;
+import com.sh.aicommerce.batch.transactionReconciliation.reader.InternalReconciliationReader;
 import com.sh.aicommerce.batch.transactionReconciliation.reader.PgTransactionReconciliationReader;
+import com.sh.aicommerce.batch.transactionReconciliation.writer.InternalReconciliationWriter;
 import com.sh.aicommerce.batch.transactionReconciliation.writer.PgTransactionReconciliationWriter;
+import com.sh.aicommerce.entity.PaymentLedger;
 import com.sh.aicommerce.entity.PgTransaction;
 import com.sh.aicommerce.payment.repository.PaymentRepository;
 import com.sh.aicommerce.paymentCancellation.repository.PaymentCancellationRepository;
@@ -20,6 +26,7 @@ import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.StepBuilder;
+import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.beans.factory.annotation.Value;
@@ -42,11 +49,13 @@ public class PgTransactionReconciliationJobConfig {
     @Bean
     public Job pgTransactionReconciliationJob(
             Step pgTransactionReconciliationStep,
+            Step internalReconciliationStep,
             PgTransactionReconciliationJobListener listener
     ) {
         return new JobBuilder("pgTransactionReconciliationJob", jobRepository)
                 .listener(listener)
                 .start(pgTransactionReconciliationStep)
+                .next(internalReconciliationStep)
                 .build();
 
     }
@@ -70,7 +79,7 @@ public class PgTransactionReconciliationJobConfig {
     @StepScope
     public PgTransactionReconciliationReader pgTransactionReconciliationReader(
             @Value("#{jobExecutionContext['collectionRunId']}") Long collectionRunId
-    ){
+    ) {
         return new PgTransactionReconciliationReader(collectionRunId, transactionRepository);
     }
 
@@ -87,6 +96,52 @@ public class PgTransactionReconciliationJobConfig {
     ) {
         return new PgTransactionReconciliationWriter(collectionRunId, reconciliationRunId,
                 paymentRepository, ledgerRepository, runRepository, resultRepository, issueRepository, cancellationRepository, objectMapper);
+    }
+
+    @Bean
+    public Step internalReconciliationStep(
+            ItemReader<PaymentLedger> internalReconciliationReader,
+            ItemProcessor<PaymentLedger, InternalReconciliationResultDto> internalReconciliationProcessor,
+            ItemWriter<InternalReconciliationResultDto> internalReconciliationWriter
+    ) {
+        return new StepBuilder("internalReconciliationStep", jobRepository)
+                .<PaymentLedger, InternalReconciliationResultDto>chunk(50, transactionManager)
+                .reader(internalReconciliationReader)
+                .processor(internalReconciliationProcessor)
+                .writer(internalReconciliationWriter)
+                .build();
+    }
+
+    @Bean
+    @StepScope
+    public InternalReconciliationReader internalReconciliationReader(
+            @Value("#{jobParameters['targetDate']}") String targetDate,
+            PaymentLedgerRepository ledgerRepository
+    ) {
+        return new InternalReconciliationReader(targetDate, ledgerRepository);
+    }
+
+    @Bean
+    @StepScope
+    public InternalReconciliationProcessor internalReconciliationProcessor(
+            @Value("#{jobExecutionContext['collectionRunId']}") Long collectionRunId,
+            PgTransactionRepository transactionRepository
+    ) {
+        return new InternalReconciliationProcessor(collectionRunId, transactionRepository);
+    }
+
+    @Bean
+    @StepScope
+    public InternalReconciliationWriter internalReconciliationWriter(
+            @Value("#{jobExecutionContext['collectionRunId']}") Long collectionRunId,
+            @Value("#{jobExecutionContext['reconciliationRunId']}") Long reconciliationRunId,
+            PgTransactionReconciliationRunRepository runRepository,
+            PgTransactionReconciliationResultRepository resultRepository,
+            PgTransactionReconciliationIssueRepository issueRepository,
+            ObjectMapper objectMapper
+    ) {
+        return new InternalReconciliationWriter(collectionRunId, reconciliationRunId,
+                runRepository, resultRepository, issueRepository, objectMapper);
     }
 
 

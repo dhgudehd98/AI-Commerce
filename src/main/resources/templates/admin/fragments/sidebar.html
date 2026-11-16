@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<body>
+<aside th:fragment="sidebar(active)" class="admin-sidebar">
+    <a href="/api/admin" class="admin-brand">Commerce Admin<small>PAYMENT OPERATIONS</small></a>
+    <p class="admin-nav-title">운영 관리</p>
+    <nav aria-label="관리자 메뉴">
+        <a href="/api/admin" th:attr="aria-current=${active == 'dashboard' ? 'page' : null}">운영 대시보드</a>
+        <a href="/api/admin/orders" th:attr="aria-current=${active == 'orders' ? 'page' : null}">주문 내역 · 타임라인</a>
+        <a href="/api/admin/payment" th:attr="aria-current=${active == 'payment' ? 'page' : null}">결제 내역</a>
+        <a href="/api/admin/payment/cancel" th:attr="aria-current=${active == 'cancellation' ? 'page' : null}">결제 취소 내역</a>
+        <a href="/api/admin/payment/compensation" th:attr="aria-current=${active == 'compensation' ? 'page' : null}">결제 보상 내역</a>
+        <a href="/api/admin/transaction/history" th:attr="aria-current=${active == 'transactions' ? 'page' : null}">PG 거래 조회</a>
+        <a href="/api/admin/batch" th:attr="aria-current=${active == 'batch' ? 'page' : null}">배치 실행 내역</a>
+    </nav>
+</aside>
+</body>
+</html>

@@ -15,7 +15,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Map;
 
-/** PG 거래 한 건의 검사 결과. 정상 거래도 저장합니다. */
+/** PG 기준 검사 결과 및 내부 원장에만 존재하는 거래의 검사 결과. */
 @Entity
 @Getter
 @Builder
@@ -37,9 +37,9 @@ public class PgTransactionReconciliationResult {
     @JoinColumn(name = "reconciliation_run_id", nullable = false, updatable = false)
     private PgTransactionReconciliationRun reconciliationRun;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "pg_transaction_id", nullable = false, updatable = false)
-    private PgTransaction pgTransaction;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "pg_transaction_id", updatable = false)
+    private PgTransaction pgTransaction; // 역방향 검사에서 PG 거래가 없으면 null
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "payment_id", updatable = false)
@@ -64,7 +64,7 @@ public class PgTransactionReconciliationResult {
     private String exclusionReason;
 
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(nullable = false, updatable = false, columnDefinition = "json")
+    @Column(updatable = false, columnDefinition = "json")
     private Map<String, Object> pgSnapshot; // 검사 당시 식별자·상태·금액·통화·거래 시각
 
     @JdbcTypeCode(SqlTypes.JSON)

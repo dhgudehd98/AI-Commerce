@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -46,17 +46,13 @@
         .list-nav a[aria-current="page"] { color: #175cd3; border-color: #b2ccff; background: #eff4ff; font-weight: 600; }
         .reason { min-width: 160px; max-width: 260px; white-space: normal; overflow-wrap: anywhere; }
     </style>
+    <link rel="stylesheet" href="/css/admin-layout.css">
 </head>
-<body>
+<body class="admin-layout">
+<aside th:replace="~{admin/fragments/sidebar :: sidebar('compensation')}"></aside>
+
 <main>
     <p class="eyebrow">PAYMENT ADMIN</p>
-        <nav class="controls list-nav" aria-label="결제 관리 메뉴" style="margin-bottom: 20px">
-        <a href="/api/admin">운영 대시보드</a>
-        <a href="/api/admin/orders">주문 목록</a>
-        <a href="/api/admin/payment">결제 내역</a>
-        <a href="/api/admin/payment/cancel">결제 취소 내역</a>
-        <a href="/api/admin/payment/compensation" aria-current="page">결제 보상 내역</a>
-    </nav>
     <h1>결제 보상 내역</h1>
     <p class="description">승인 결과 확인부터 취소 인계·보상 완료까지 작업 상태와 재시도 내역을 확인합니다. 최근 생성된 작업부터 표시합니다.</p>
     <div id="errorBox" class="notice" role="alert" hidden>
@@ -89,7 +85,7 @@
     </section>
     <p class="footnote">재시도 횟수는 최초 실행을 제외한 추가 실행 횟수입니다. 취소 인계 후에도 상품 복귀·재고 등 후속 처리가 끝나기 전에는 보상이 완료되지 않을 수 있습니다.</p>
 </main>
-<script>
+<script th:inline="none">
 (() => {
     'use strict';
     const API_URL = '/api/admin/payment/compensation/list';

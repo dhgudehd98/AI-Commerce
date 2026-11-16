@@ -49,11 +49,16 @@ public class PgTransactionReconciliationJobListener implements JobExecutionListe
                 errorMessage += " | " + failure.getClass().getSimpleName() + ": " + failure.getMessage();
             }
         }
-        reconciliationService.finish(
+        boolean finalized = reconciliationService.finish(
                 execution.getExecutionContext().getLong(RECONCILIATION_RUN_ID),
                 completed,
                 completed ? null : execution.getExitStatus().getExitCode(),
                 errorMessage
         );
+        if (completed && !finalized) {
+            execution.setStatus(BatchStatus.FAILED);
+            execution.setExitStatus(org.springframework.batch.core.ExitStatus.FAILED
+                    .addExitDescription("거래 대사 Run 종료 검산에 실패했습니다."));
+        }
     }
 }

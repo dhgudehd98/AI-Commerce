@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -8,15 +8,6 @@
         * { box-sizing: border-box; }
         :root { color-scheme: light; }
         body { margin: 0; font-family: system-ui, -apple-system, sans-serif; background: #f5f6f8; color: #253041; }
-        .layout { display: grid; grid-template-columns: 230px minmax(0, 1fr); min-height: 100vh; }
-        aside { padding: 32px 20px; background: #fff; border-right: 1px solid #e1e5eb; }
-        .brand { font-size: 18px; font-weight: 800; color: #175cd3; text-decoration: none; }
-        .brand small { display: block; margin-top: 5px; color: #667085; font-size: 11px; letter-spacing: .12em; }
-        .nav-title { margin: 36px 12px 12px; color: #98a2b3; font-size: 11px; font-weight: 700; }
-        nav { display: grid; gap: 6px; }
-        nav a { padding: 12px; border-radius: 7px; color: #475467; text-decoration: none; font-size: 14px; }
-        nav a:hover { background: #f8f9fb; }
-        nav a[aria-current="page"] { background: #eff4ff; color: #175cd3; font-weight: 700; }
         main { max-width: 1500px; width: 100%; padding: 40px 36px; margin: 0 auto; }
         .eyebrow { margin: 0 0 8px; font-size: 11px; font-weight: 700; letter-spacing: .12em; color: #667085; }
         h1 { font-size: 28px; margin: 0 0 10px; letter-spacing: -.04em; }
@@ -63,24 +54,12 @@
         #loadStatus { font-size: 12px; color: #667085; min-height: 18px; margin-top: 14px; }
         [hidden] { display: none !important; }
         @media (max-width: 1200px) { .work-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } main { padding: 32px 24px; } }
-        @media (max-width: 850px) { .layout { grid-template-columns: 1fr; } aside { padding: 20px; border-right: 0; border-bottom: 1px solid #e1e5eb; } .nav-title { display: none; } nav { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 18px; } nav a { padding: 8px; } }
         @media (max-width: 600px) { main { padding: 24px 14px; } .money-grid, .links-grid { grid-template-columns: 1fr; } .work-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .filter { padding: 16px; } form { align-items: flex-start; } h1 { font-size: 24px; } }
     </style>
+    <link rel="stylesheet" href="/css/admin-layout.css">
 </head>
-<body>
-<div class="layout">
-    <aside>
-        <a href="/api/admin" class="brand">Commerce Admin<small>PAYMENT OPERATIONS</small></a>
-        <p class="nav-title">운영 관리</p>
-        <nav aria-label="관리자 메뉴">
-            <a href="/api/admin" aria-current="page">운영 대시보드</a>
-            <a href="/api/admin/orders">주문 내역 · 타임라인</a>
-            <a href="/api/admin/payment">결제 내역</a>
-            <a href="/api/admin/payment-cancellation">결제 취소 내역</a>
-            <a href="/api/admin/payment-compensation">결제 보상 내역</a>
-            <a href="/api/admin/transaction/history">PG 거래 조회</a>
-        </nav>
-    </aside>
+<body class="admin-layout">
+<aside th:replace="~{admin/fragments/sidebar :: sidebar('dashboard')}"></aside>
     <main>
         <p class="eyebrow">OVERVIEW</p>
         <h1>결제 운영 대시보드</h1>
@@ -122,8 +101,8 @@
         <div class="links-grid">
             <a class="panel shortcut" href="/api/admin/orders"><strong>주문 내역 · 타임라인</strong><span aria-hidden="true">↗</span><p>주문별 결제·취소·보상 상태와 처리 시각 확인</p></a>
             <a class="panel shortcut" href="/api/admin/payment"><strong>결제 내역</strong><span aria-hidden="true">↗</span><p>원본 결제 금액·결제 방법·승인 상태 확인</p></a>
-            <a class="panel shortcut" href="/api/admin/payment-cancellation"><strong>결제 취소 내역</strong><span aria-hidden="true">↗</span><p>PG 취소 결과·주문 취소·재고 처리 상태 확인</p></a>
-            <a class="panel shortcut" href="/api/admin/payment-compensation"><strong>결제 보상 내역</strong><span aria-hidden="true">↗</span><p>승인 결과 확인·취소 인계·재시도·종료 결과 확인</p></a>
+            <a class="panel shortcut" href="/api/admin/payment/cancel"><strong>결제 취소 내역</strong><span aria-hidden="true">↗</span><p>PG 취소 결과·주문 취소·재고 처리 상태 확인</p></a>
+            <a class="panel shortcut" href="/api/admin/payment/compensation"><strong>결제 보상 내역</strong><span aria-hidden="true">↗</span><p>승인 결과 확인·취소 인계·재시도·종료 결과 확인</p></a>
         </div>
         <details class="panel">
             <summary>집계 기준</summary>
@@ -135,8 +114,7 @@
             </ul>
         </details>
     </main>
-</div>
-<script>
+<script th:inline="none">
 (() => {
     'use strict';
     const el = id => document.getElementById(id);
